@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { inflateSync } from "node:zlib";
+import fc from "fast-check";
 import {
   CROP,
   CROP_H,
@@ -68,6 +69,15 @@ test("dbzFromRaw maps sentinels to null and scales real echo by 1/100", () => {
   assert.equal(dbzFromRaw(0), 0);
 });
 
+test("dbzFromRaw never lets non-finite generated input reach rendering math", () => {
+  fc.assert(
+    fc.property(fc.double(), (raw) => {
+      const decoded = dbzFromRaw(raw);
+      assert.ok(decoded === null || Number.isFinite(decoded));
+    }),
+  );
+});
+
 test("dbzToRgba: transparent below 5 dBZ and for no-data, white-hot at the top", () => {
   assert.deepEqual(dbzToRgba(null), [0, 0, 0, 0]);
   assert.deepEqual(dbzToRgba(4.9), [0, 0, 0, 0]);
@@ -107,4 +117,19 @@ test("encodePng emits a valid RGBA PNG whose IDAT inflates to the filtered scanl
 
 test("encodePng rejects a mismatched buffer size", () => {
   assert.throws(() => encodePng(new Uint8Array(3), 2, 2), /size mismatch/);
+});
+
+test("encodePng rejects generated zero-sized canvases", () => {
+  fc.assert(
+    fc.property(fc.integer({ min: 1, max: 4096 }), (otherDimension) => {
+      assert.throws(
+        () => encodePng(new Uint8Array(0), 0, otherDimension),
+        /invalid dimensions/,
+      );
+      assert.throws(
+        () => encodePng(new Uint8Array(0), otherDimension, 0),
+        /invalid dimensions/,
+      );
+    }),
+  );
 });

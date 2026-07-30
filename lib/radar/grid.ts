@@ -71,7 +71,7 @@ export function cropToSeoul(buf: ArrayBuffer): Int16Array {
  * `≤ −1000` floor cleanly separates no-data from signal.
  */
 export function dbzFromRaw(raw: number): number | null {
-  if (raw <= -1000) return null;
+  if (!Number.isFinite(raw) || raw <= -1000) return null;
   return raw / 100;
 }
 
@@ -144,6 +144,9 @@ function chunk(type: string, data: Buffer): Buffer {
 
 /** Encode a w×h RGBA buffer (length w*h*4) into 8-bit RGBA PNG bytes. */
 export function encodePng(rgba: Uint8Array, w: number, h: number): Buffer {
+  if (!Number.isSafeInteger(w) || w <= 0 || !Number.isSafeInteger(h) || h <= 0) {
+    throw new Error("encodePng: invalid dimensions");
+  }
   if (rgba.length !== w * h * 4) throw new Error("encodePng: rgba size mismatch");
   const stride = w * 4;
   const filtered = Buffer.allocUnsafe(h * (stride + 1));
