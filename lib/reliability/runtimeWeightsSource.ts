@@ -102,9 +102,10 @@ export function createRuntimeWeightsLoader(
   };
 }
 
-const configuredUrl = process.env.RELIABILITY_WEIGHTS_URL?.trim();
 const productionReader = createHttpWeightsStateReader({
-  url: configuredUrl || DEFAULT_RELIABILITY_WEIGHTS_URL,
+  // Keep production pinned to this repository. Tests and non-production callers
+  // can still inject a URL through the factory, where the HTTPS/host guard applies.
+  url: DEFAULT_RELIABILITY_WEIGHTS_URL,
 });
 
 /** Production Vercel adapter; never throws into the public snapshot route. */

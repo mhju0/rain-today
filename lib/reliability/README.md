@@ -26,7 +26,7 @@ All thresholds and loss constants are named and unit-tested in `score.ts` and `w
 
 ## Runtime gate
 
-The web runtime reads `source-weights.json` through the narrow HTTP reader in `runtimeWeightsSource.ts`; it never imports the batch filesystem adapter into the Next request bundle. By default the reader uses this repository's raw `main` URL. A fork may override `RELIABILITY_WEIGHTS_URL` with its own `raw.githubusercontent.com` state URL; other hosts are rejected to keep this server-side fetch outside the SSRF attack surface.
+The web runtime reads `source-weights.json` through the narrow HTTP reader in `runtimeWeightsSource.ts`; it never imports the batch filesystem adapter into the Next request bundle. The production reader is pinned to this repository's raw `main` URL so deployment configuration cannot redirect the server-side request. The injectable reader factory still restricts callers to HTTPS on `raw.githubusercontent.com`.
 
 Every remote response is schema-validated (timestamp, event count, unique dates, finite non-negative normalized weights). Missing, unavailable, or invalid state never throws into `/api/sky`: the loader retains a cached last-good state when possible, otherwise the gate uses equal weights. The gate behaves as follows:
 

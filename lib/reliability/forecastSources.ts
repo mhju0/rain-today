@@ -33,20 +33,15 @@ const FORECAST_SOURCES_KEY = "reliability-runtime-forecast-sources";
 const MIN_SOURCE_TIMEOUT_MS = 10;
 const MAX_SOURCE_TIMEOUT_MS = 15_000;
 
-function envInt(name: string, fallback: number): number {
-  const v = Number(process.env[name]);
-  return boundedSourceTimeout(v, fallback);
-}
-
 export function boundedSourceTimeout(value: number | undefined, fallback: number): number {
   if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
   return Math.min(MAX_SOURCE_TIMEOUT_MS, Math.max(MIN_SOURCE_TIMEOUT_MS, Math.trunc(value)));
 }
 
 /** Shared cache window for the whole multi-source collection (default ~12 min). */
-export const FORECAST_CACHE_TTL_MS = envInt("FORECAST_CACHE_TTL_MS", 12 * 60 * 1000);
+export const FORECAST_CACHE_TTL_MS = 12 * 60 * 1000;
 /** Per-source budget — one slow provider can't stall the cycle (default 4 s). */
-export const PER_SOURCE_TIMEOUT_MS = envInt("PER_SOURCE_TIMEOUT_MS", 4000);
+export const PER_SOURCE_TIMEOUT_MS = 4_000;
 
 /** Reject after `ms`, otherwise resolve with the wrapped promise's value. */
 function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
