@@ -44,3 +44,45 @@ test("cachedFetch serves a fresh cached value without calling the fetcher again"
   assert.equal(second.value, 1);
   assert.equal(calls, 1);
 });
+
+test("cachedFetch backs off after a failed stale refresh", async () => {
+  clearCache();
+  let calls = 0;
+  const fetcher = async () => {
+    calls += 1;
+    if (calls > 1) throw new Error("upstream down");
+    return "last-good";
+  };
+
+  await cachedFetch("stale-backoff", 0, fetcher, { failureRetryMs: 60_000 });
+  const stale = await cachedFetch("stale-backoff", 0, fetcher, { failureRetryMs: 60_000 });
+  const backedOff = await cachedFetch("stale-backoff", 0, fetcher, { failureRetryMs: 60_000 });
+
+  assert.equal(stale.stale, true);
+  assert.equal(backedOff.stale, true);
+  assert.equal(backedOff.value, "last-good");
+  assert.equal(calls, 2);
+});
+
+test("cachedFetch negatively caches a cold failure during the retry window", async () => {
+  clearCache();
+  let calls = 0;
+  const fetcher = async () => {
+    calls += 1;
+    throw new Error("upstream down");
+  };
+
+  await assert.rejects(cachedFetch("cold-backoff", 60_000, fetcher, { failureRetryMs: 60_000 }));
+  await assert.rejects(cachedFetch("cold-backoff", 60_000, fetcher, { failureRetryMs: 60_000 }));
+  assert.equal(calls, 1);
+});
+
+test("cachedFetch bounds the number of retained successful entries", async () => {
+  clearCache();
+  let calls = 0;
+  for (let i = 0; i < 129; i++) {
+    await cachedFetch(`bounded-${i}`, 60_000, async () => ++calls);
+  }
+  await cachedFetch("bounded-0", 60_000, async () => ++calls);
+  assert.equal(calls, 130, "the oldest entry should have been evicted");
+});

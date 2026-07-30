@@ -1,4 +1,5 @@
 import { cachedFetch } from "../cache.ts";
+import { readResponseBytes } from "../httpResponse.ts";
 import { CACHE_TTL_MS } from "../seoul.ts";
 import type { WeightsState } from "./types.ts";
 import { parseWeightsState } from "./weightsState.ts";
@@ -7,6 +8,29 @@ export const DEFAULT_RELIABILITY_WEIGHTS_URL =
   "https://raw.githubusercontent.com/mhju0/seoulsky/reliability-state/data/reliability/source-weights.json";
 
 const DEFAULT_TIMEOUT_MS = 4_000;
+const MAX_WEIGHTS_BYTES = 512 * 1024;
+
+function safeHttpsUrl(value: string): string | null {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    const privateHost =
+      host === "localhost" ||
+      host === "0.0.0.0" ||
+      host === "::1" ||
+      host === "[::1]" ||
+      host.endsWith(".local") ||
+      /^127\./.test(host) ||
+      /^10\./.test(host) ||
+      /^192\.168\./.test(host) ||
+      /^169\.254\./.test(host) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(host);
+    if (url.protocol !== "https:" || privateHost || url.username || url.password) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
 
 /** Narrow durable-storage seam consumed by the production snapshot pipeline. */
 export interface WeightsStateReader {
@@ -29,16 +53,23 @@ export function createHttpWeightsStateReader({
   fetcher = fetch,
   timeoutMs = DEFAULT_TIMEOUT_MS,
 }: HttpWeightsStateReaderOptions): WeightsStateReader {
+  const safeUrl = safeHttpsUrl(url);
   return {
     async read() {
       try {
-        const response = await fetcher(url, {
+        if (!safeUrl) return null;
+        const response = await fetcher(safeUrl, {
           cache: "no-store",
           headers: { Accept: "application/json" },
+          redirect: "error",
           signal: AbortSignal.timeout(timeoutMs),
         });
         if (!response.ok) return null;
-        return parseWeightsState(await response.json());
+        const bytes = await readResponseBytes(response, {
+          maxBytes: MAX_WEIGHTS_BYTES,
+          contentType: "application/json",
+        });
+        return parseWeightsState(JSON.parse(new TextDecoder().decode(bytes)));
       } catch {
         return null;
       }

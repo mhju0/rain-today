@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getRadarSummary } from "@/lib/providers/radar";
+import { enforceRequestRateLimit } from "@/lib/rateLimit";
 
 /**
  * GET /api/weather/radar — RainViewer radar metadata + the conservative
@@ -9,7 +10,9 @@ import { getRadarSummary } from "@/lib/providers/radar";
  */
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const limited = enforceRequestRateLimit(request, "weather-radar", { limit: 30, windowMs: 60_000 });
+  if (limited) return limited;
   const summary = await getRadarSummary();
   if (!summary) {
     return NextResponse.json(

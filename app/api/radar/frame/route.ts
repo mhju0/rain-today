@@ -1,5 +1,6 @@
 import { renderFrame } from "@/lib/radar/apihub";
-import { isValidFrameKey } from "@/lib/radar/kma";
+import { isAllowedFrameKey } from "@/lib/radar/kma";
+import { enforceRequestRateLimit } from "@/lib/rateLimit";
 
 /**
  * GET /api/radar/frame?t=<yyyyMMddHHmm> — the server-rendered Seoul echo PNG for one
@@ -15,9 +16,14 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function GET(req: Request) {
+  const limited = enforceRequestRateLimit(req, "radar-frame", { limit: 60, windowMs: 60_000 });
+  if (limited) return limited;
   const t = new URL(req.url).searchParams.get("t") ?? "";
-  if (!isValidFrameKey(t)) {
-    return new Response("bad request", { status: 400 });
+  if (!isAllowedFrameKey(t)) {
+    return new Response("bad request", {
+      status: 400,
+      headers: { "Cache-Control": "no-store" },
+    });
   }
 
   try {
@@ -35,6 +41,9 @@ export async function GET(req: Request) {
   } catch {
     // No key, source down, frame not published yet, or malformed grid — degrade quietly
     // (no key in any message).
-    return new Response("radar unavailable", { status: 502 });
+    return new Response("radar unavailable", {
+      status: 502,
+      headers: { "Cache-Control": "no-store" },
+    });
   }
 }

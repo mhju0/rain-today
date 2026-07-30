@@ -100,7 +100,7 @@ Requires Node.js 22 or later.
 
 ```bash
 npm ci
-cp .env.example .env.local # optional provider configuration
+install -m 600 .env.example .env.local # optional provider configuration, owner-readable only
 npm run dev
 ```
 

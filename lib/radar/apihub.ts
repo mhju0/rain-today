@@ -1,7 +1,8 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { cachedFetch } from "../cache.ts";
-import { cropToSeoul, CROP_W, encodePng } from "./grid.ts";
+import { readResponseBytes } from "../httpResponse.ts";
+import { cropToSeoul, CROP_W, encodePng, GRID_NX, GRID_NY } from "./grid.ts";
 import { buildGeo, type GeoModel, reproject } from "./geo.ts";
 // Committed, bundler-inlined georeference model. A static JSON import is guaranteed to be
 // traced into the serverless function (unlike a runtime read of the gitignored disk cache),
@@ -25,6 +26,12 @@ const BASE = "https://apihub.kma.go.kr/api/typ01/cgi-bin/url/";
 const GEO_FILE = "geo-HSR.json";
 /** A produced frame's PNG is immutable; keep rendered bytes in-process for a long while. */
 const PNG_TTL_MS = 6 * 60 * 60 * 1000;
+const FRAME_GRID_BYTES = 4 + GRID_NX * GRID_NY * 2;
+const MAX_LATLON_BYTES = 100 * 1024 * 1024;
+const MAX_CONCURRENT_RENDERS = 2;
+const MAX_QUEUED_RENDERS = 8;
+let activeRenders = 0;
+const renderQueue: (() => void)[] = [];
 
 function apiKey(): string {
   const v = process.env.KMA_APIHUB_KEY?.trim();
@@ -47,9 +54,9 @@ async function fetchLatLon(which: "lon" | "lat"): Promise<string> {
     latlon: which,
     authKey: apiKey(),
   })}`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(90_000) });
+  const res = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(90_000) });
   if (!res.ok) throw new Error(`KMA latlon HTTP ${res.status}`);
-  const text = await res.text();
+  const text = new TextDecoder().decode(await readResponseBytes(res, { maxBytes: MAX_LATLON_BYTES }));
   // Expect the `  nx,  ny,=` header; reject an error/HTML body before parsing 70 MB.
   if (!/^\s*\d+\s*,\s*\d+\s*,/.test(text)) throw new Error("KMA latlon: unexpected payload");
   return text;
@@ -115,9 +122,31 @@ async function fetchFrameGrid(tm: string): Promise<ArrayBuffer> {
     disp: "B",
     authKey: apiKey(),
   })}`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(25_000) });
+  const res = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(25_000) });
   if (!res.ok) throw new Error(`KMA radar HTTP ${res.status}`);
-  return res.arrayBuffer();
+  const bytes = await readResponseBytes(res, { maxBytes: FRAME_GRID_BYTES });
+  if (bytes.byteLength !== FRAME_GRID_BYTES) throw new Error("KMA radar: unexpected payload length");
+  return bytes.buffer as ArrayBuffer;
+}
+
+async function withRenderSlot<T>(work: () => Promise<T>): Promise<T> {
+  if (activeRenders >= MAX_CONCURRENT_RENDERS) {
+    if (renderQueue.length >= MAX_QUEUED_RENDERS) throw new Error("radar renderer busy");
+    await new Promise<void>((resolve) => {
+      renderQueue.push(() => {
+        activeRenders += 1;
+        resolve();
+      });
+    });
+  } else {
+    activeRenders += 1;
+  }
+  try {
+    return await work();
+  } finally {
+    activeRenders -= 1;
+    renderQueue.shift()?.();
+  }
 }
 
 /**
@@ -127,10 +156,12 @@ async function fetchFrameGrid(tm: string): Promise<ArrayBuffer> {
  */
 export async function renderFrame(tm: string): Promise<Buffer> {
   const result = await cachedFetch(`radar-png-${tm}`, PNG_TTL_MS, async () => {
-    const [buf, geo] = await Promise.all([fetchFrameGrid(tm), loadGeo()]);
-    const crop = cropToSeoul(buf); // validates disp=B header + length
-    const { rgba, width, height } = reproject(crop, geo);
-    return encodePng(rgba, width, height);
+    return withRenderSlot(async () => {
+      const [buf, geo] = await Promise.all([fetchFrameGrid(tm), loadGeo()]);
+      const crop = cropToSeoul(buf); // validates disp=B header + length
+      const { rgba, width, height } = reproject(crop, geo);
+      return encodePng(rgba, width, height);
+    });
   });
   return result.value;
 }

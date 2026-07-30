@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { recentRadarFrames } from "@/lib/radar/kma";
+import { enforceRequestRateLimit } from "@/lib/rateLimit";
 
 /**
  * GET /api/radar/frames — the KMA radar composite timeline: the recent observed
@@ -14,7 +15,9 @@ export const dynamic = "force-dynamic";
 // the budget; it cannot make a >60s upstream succeed.
 export const maxDuration = 60;
 
-export async function GET() {
+export async function GET(request: Request) {
+  const limited = enforceRequestRateLimit(request, "radar-frames", { limit: 30, windowMs: 60_000 });
+  if (limited) return limited;
   const data = await recentRadarFrames();
   return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
 }

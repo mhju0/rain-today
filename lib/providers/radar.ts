@@ -1,6 +1,7 @@
 import { inflateSync } from "node:zlib";
-import { cachedFetch } from "../cache";
-import { SEOUL } from "../seoul";
+import { cachedFetch } from "../cache.ts";
+import { readResponseBytes } from "../httpResponse.ts";
+import { SEOUL } from "../seoul.ts";
 import type {
   NormalizedRadarFrame,
   RadarSummary,
@@ -29,6 +30,9 @@ const MAPS_URL = "https://api.rainviewer.com/public/weather-maps.json";
 const ATTRIBUTION = "RainViewer";
 const RADAR_TTL_MS = 10 * 60 * 1000;
 const ZOOM = 6;
+const TILE_SIZE = 256;
+const MAX_METADATA_BYTES = 256 * 1024;
+const MAX_TILE_BYTES = 1024 * 1024;
 
 // ─── minimal PNG decode (8-bit RGBA, non-interlaced — RainViewer's tile format) ─
 
@@ -40,7 +44,7 @@ function paeth(a: number, b: number, c: number): number {
   return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
 }
 
-function decodePngRgba(buf: Buffer): { width: number; height: number; rgba: Uint8Array } | null {
+export function decodeRainViewerPng(buf: Buffer): { width: number; height: number; rgba: Uint8Array } | null {
   if (buf.length < 8 || buf.readUInt32BE(0) !== 0x89504e47) return null;
   let off = 8;
   let width = 0;
@@ -54,11 +58,14 @@ function decodePngRgba(buf: Buffer): { width: number; height: number; rgba: Uint
     const dataStart = off + 8;
     const dataEnd = dataStart + len;
     if (dataEnd + 4 > buf.length) break;
-    if (type === "IHDR") {
+    if (type === "IHDR" && len === 13) {
       width = buf.readUInt32BE(dataStart);
       height = buf.readUInt32BE(dataStart + 4);
       bitDepth = buf[dataStart + 8];
       colorType = buf[dataStart + 9];
+      if (buf[dataStart + 10] !== 0 || buf[dataStart + 11] !== 0 || buf[dataStart + 12] !== 0) {
+        return null;
+      }
     } else if (type === "IDAT") {
       idat.push(buf.subarray(dataStart, dataEnd));
     } else if (type === "IEND") {
@@ -66,10 +73,16 @@ function decodePngRgba(buf: Buffer): { width: number; height: number; rgba: Uint
     }
     off = dataEnd + 4; // skip CRC
   }
-  if (colorType !== 6 || bitDepth !== 8 || width === 0 || height === 0) return null;
-  const raw = inflateSync(Buffer.concat(idat));
+  if (colorType !== 6 || bitDepth !== 8 || width !== TILE_SIZE || height !== TILE_SIZE) return null;
   const stride = width * 4;
-  if (raw.length < (stride + 1) * height) return null;
+  const expectedRawBytes = (stride + 1) * height;
+  let raw: Buffer;
+  try {
+    raw = inflateSync(Buffer.concat(idat), { maxOutputLength: expectedRawBytes });
+  } catch {
+    return null;
+  }
+  if (raw.length !== expectedRawBytes) return null;
   const rgba = new Uint8Array(width * height * 4);
   const prev = new Uint8Array(stride);
   const cur = new Uint8Array(stride);
@@ -87,7 +100,8 @@ function decodePngRgba(buf: Buffer): { width: number; height: number; rgba: Uint
         case 2: v = rb + b; break;
         case 3: v = rb + ((a + b) >> 1); break;
         case 4: v = rb + paeth(a, b, c); break;
-        default: v = rb;
+        case 0: v = rb; break;
+        default: return null;
       }
       cur[x] = v & 0xff;
     }
@@ -95,6 +109,31 @@ function decodePngRgba(buf: Buffer): { width: number; height: number; rgba: Uint
     prev.set(cur);
   }
   return { width, height, rgba };
+}
+
+export function normalizeRainViewerHost(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (
+      url.protocol !== "https:" ||
+      url.hostname !== "tilecache.rainviewer.com" ||
+      (url.port !== "" && url.port !== "443") ||
+      url.username !== "" ||
+      url.password !== "" ||
+      (url.pathname !== "/" && url.pathname !== "") ||
+      url.search !== "" ||
+      url.hash !== ""
+    ) {
+      return null;
+    }
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+export function validateRainViewerPath(value: string): boolean {
+  return /^\/v2\/radar\/[A-Za-z0-9_/-]+$/.test(value) && !value.includes("//");
 }
 
 // ─── tile math + sampling ────────────────────────────────────────────────────
@@ -135,11 +174,16 @@ function coverage(
 async function fetchTile(host: string, path: string): Promise<Buffer | null> {
   const { x, y } = seoulTile(ZOOM);
   try {
-    const res = await fetch(`${host}${path}/256/${ZOOM}/${x}/${y}/2/1_1.png`, {
+    const url = new URL(`${path}/256/${ZOOM}/${x}/${y}/2/1_1.png`, host);
+    if (url.origin !== host) return null;
+    const res = await fetch(url, {
+      redirect: "error",
       signal: AbortSignal.timeout(8_000),
     });
     if (!res.ok) return null;
-    return Buffer.from(await res.arrayBuffer());
+    return Buffer.from(
+      await readResponseBytes(res, { maxBytes: MAX_TILE_BYTES, contentType: "image/png" }),
+    );
   } catch {
     return null;
   }
@@ -163,7 +207,7 @@ async function analyzeApproach(host: string, paths: string[]): Promise<Approach>
   if (recent.length === 0) return none;
 
   const tiles = await Promise.all(recent.map((p) => fetchTile(host, p)));
-  const imgs = tiles.map((b) => (b ? decodePngRgba(b) : null));
+  const imgs = tiles.map((b) => (b ? decodeRainViewerPng(b) : null));
   const latest = imgs.at(-1);
   if (!latest) return none;
   const prev = imgs.length > 1 ? imgs[0] : null;
@@ -198,15 +242,23 @@ async function analyzeApproach(host: string, paths: string[]): Promise<Approach>
 // ─── fetch + summarize ───────────────────────────────────────────────────────
 
 async function fetchRadar(): Promise<RadarSummary> {
-  const res = await fetch(MAPS_URL, { signal: AbortSignal.timeout(8_000) });
+  const res = await fetch(MAPS_URL, {
+    redirect: "error",
+    signal: AbortSignal.timeout(8_000),
+  });
   if (!res.ok) throw new Error(`RainViewer HTTP ${res.status}`);
-  const data = (await res.json()) as {
+  const bytes = await readResponseBytes(res, {
+    maxBytes: MAX_METADATA_BYTES,
+    contentType: "application/json",
+  });
+  const data = JSON.parse(new TextDecoder().decode(bytes)) as {
     host: string;
     radar?: { past?: { time: number; path: string }[]; nowcast?: { time: number; path: string }[] };
   };
-  const host = data.host;
-  const past = data.radar?.past ?? [];
-  const nowcast = data.radar?.nowcast ?? [];
+  const host = normalizeRainViewerHost(data.host);
+  if (!host) throw new Error("RainViewer returned an untrusted tile host");
+  const past = (data.radar?.past ?? []).filter((frame) => validateRainViewerPath(frame.path));
+  const nowcast = (data.radar?.nowcast ?? []).filter((frame) => validateRainViewerPath(frame.path));
   const frames: NormalizedRadarFrame[] = [
     ...past.map((f) => ({ time: new Date(f.time * 1000).toISOString(), path: f.path, nowcast: false })),
     ...nowcast.map((f) => ({ time: new Date(f.time * 1000).toISOString(), path: f.path, nowcast: true })),

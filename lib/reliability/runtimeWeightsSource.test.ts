@@ -46,6 +46,21 @@ test("runtime weight loader safely falls back for unavailable or malformed remot
   }
 });
 
+test("runtime weight reader rejects non-HTTPS and private-network URLs before fetching", async () => {
+  for (const url of ["http://state.example/weights.json", "https://127.0.0.1/weights.json"]) {
+    let fetched = false;
+    const reader = createHttpWeightsStateReader({
+      url,
+      fetcher: (async () => {
+        fetched = true;
+        return Response.json(validState);
+      }) as typeof fetch,
+    });
+    assert.equal(await reader.read(), null);
+    assert.equal(fetched, false);
+  }
+});
+
 test("runtime weight loader keeps the last good state when a refresh is invalid", async () => {
   const key = "runtime-weights-source-last-good";
   clearCache(key);
