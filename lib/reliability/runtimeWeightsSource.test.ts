@@ -3,6 +3,7 @@ import test from "node:test";
 import { clearCache } from "../cache.ts";
 import type { WeightsState } from "./types.ts";
 import {
+  DEFAULT_RELIABILITY_WEIGHTS_URL,
   createHttpWeightsStateReader,
   createRuntimeWeightsLoader,
 } from "./runtimeWeightsSource.ts";
@@ -17,6 +18,13 @@ const validState: WeightsState = {
 function fetchReturning(response: Response): typeof fetch {
   return (async () => response) as typeof fetch;
 }
+
+test("default runtime weights are read from the single main branch", () => {
+  assert.equal(
+    DEFAULT_RELIABILITY_WEIGHTS_URL,
+    "https://raw.githubusercontent.com/mhju0/seoulsky/main/data/reliability/source-weights.json",
+  );
+});
 
 test("runtime weight loader reads schema-valid learned state from durable HTTP storage", async () => {
   const key = "runtime-weights-source-valid";

@@ -26,7 +26,7 @@ All thresholds and loss constants are named and unit-tested in `score.ts` and `w
 
 ## Runtime gate
 
-The web runtime reads `source-weights.json` through the narrow HTTP reader in `runtimeWeightsSource.ts`; it never imports the batch filesystem adapter into the Next request bundle. By default the reader uses this repository's raw `reliability-state` URL. `RELIABILITY_WEIGHTS_URL` can point it at another durable JSON endpoint for a different deployment.
+The web runtime reads `source-weights.json` through the narrow HTTP reader in `runtimeWeightsSource.ts`; it never imports the batch filesystem adapter into the Next request bundle. By default the reader uses this repository's raw `main` URL. `RELIABILITY_WEIGHTS_URL` can point it at another durable JSON endpoint for a different deployment.
 
 Every remote response is schema-validated (timestamp, event count, unique dates, finite non-negative normalized weights). Missing, unavailable, or invalid state never throws into `/api/sky`: the loader retains a cached last-good state when possible, otherwise the gate uses equal weights. The gate behaves as follows:
 
@@ -40,21 +40,21 @@ Every remote response is schema-validated (timestamp, event count, unique dates,
 
 ## Storage and automation
 
-Runtime files live under `data/reliability/` and are ignored on `main`:
+Runtime files live under `data/reliability/` and are tracked on `main`:
 
 - `forecast-log.jsonl`
 - `daily-skill.jsonl`
 - `source-weights.json`
 
-`.github/workflows/precip-reliability.yml` runs daily and can also be dispatched manually. It restores and persists only those state files on the orphan `reliability-state` branch. The workflow serializes runs to avoid competing updates. Before every push, a tested monotonic guard re-reads the remote tip and refuses to lose or replace any forecast/skill row, processed date, event count, or newer weight timestamp. Only an explicit known-good recovery may repair the content of an existing row or replace a reset-only newer timestamp with a checkpoint backed by more events and a superset of processed dates. A rejected push leaves the durable branch unchanged.
+`.github/workflows/precip-reliability.yml` runs daily and can also be dispatched manually. It restores and persists only those state files on `main`, using a detached worktree so no state branch is created. The workflow serializes runs to avoid competing updates. Before every push, a tested monotonic guard re-reads the remote tip and refuses to lose or replace any forecast/skill row, processed date, event count, or newer weight timestamp. Only an explicit known-good recovery may repair the content of an existing row or replace a reset-only newer timestamp with a checkpoint backed by more events and a superset of processed dates. A rejected push leaves `main` unchanged.
 
-For an explicit recovery, dispatch the workflow with `recovery_ref` set to the full 40-character SHA of a known-good commit (including a detached commit no longer reachable from the current tip), or a valid remote ref. Recovery fetches that object directly and unions it with the current branch: known-good values win duplicate row keys, unique newer rows survive, and the checkpoint with the stronger evidence (event count plus processed-date coverage) is retained even when a reset wrote a later timestamp. An invalid/unfetchable ref or genuinely incomparable checkpoint fails closed without entering the persistence step.
+For an explicit recovery, dispatch the workflow with `recovery_ref` set to the full 40-character SHA of a known-good commit (including a detached commit no longer reachable from the current tip), or a valid remote ref. Recovery fetches that object directly and unions it with the current state: known-good values win duplicate row keys, unique newer rows survive, and the checkpoint with the stronger evidence (event count plus processed-date coverage) is retained even when a reset wrote a later timestamp. An invalid/unfetchable ref or genuinely incomparable checkpoint fails closed without entering the persistence step.
 
 For the July 2026 regression, the verified checkpoint is `29eea596fa3f538856733542c20967fdebdc93b7` (117 forecast rows through July 14, 51 skill rows, and 51 learned events updated July 10). Use that full SHA as `recovery_ref`; do not use its abbreviated form because detached short SHAs cannot be fetched reliably.
 
 Scoring requires `KMA_OBSERVATION_API_KEY` for the KMA ASOS daily service. `KMA_SHORT_TERM_API_KEY` is only a fallback and may not have the required subscription. A missing or unauthorized observation key causes a scoring skip, not fabricated ground truth.
 
-Before relying on learned production weights, personally verify the latest scheduled workflow and the state branch in GitHub. Local tests cannot prove that remote scheduling, secrets, or persistence are healthy.
+Before relying on learned production weights, personally verify the latest scheduled workflow and the tracked state on `main`. Local tests cannot prove that remote scheduling, secrets, or persistence are healthy.
 
 ## Files
 

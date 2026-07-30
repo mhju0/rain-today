@@ -24,12 +24,8 @@
 .DS_Store
 *.pem
 
-# precipitation source-reliability batch outputs (runtime-generated; never commit
-# — no real/fabricated observation data belongs in the repo). Dir kept via .gitkeep.
-# Includes the Phase 2 weight state (source-weights.json), which must instead be
-# persisted to durable storage across scheduled runs (see lib/reliability/README.md).
-/data/reliability/*.jsonl
-/data/reliability/*.json
+# precipitation source-reliability batch outputs are intentionally tracked on
+# main so the repository can retain durable state without a second branch.
 
 # radar georeference cache (built once from the KMA latlon grids; regenerable)
 /data/radar/

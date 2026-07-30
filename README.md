@@ -45,7 +45,7 @@ Every day at approximately 06:10 KST, the [`precip-reliability`](.github/workflo
 1. Log tomorrow's precipitation forecast from every available provider.
 2. Fetch yesterday's completed KMA ASOS daily precipitation observation for Seoul station 108.
 3. Score informative provider forecasts against that independent observation.
-4. Update bounded multiplicative weights and persist the append-only history on the [`reliability-state`](https://github.com/mhju0/seoulsky/tree/reliability-state/data/reliability) branch.
+4. Update bounded multiplicative weights and persist the append-only history under [`data/reliability`](data/reliability) on `main`.
 
 The web runtime reads and validates that state before blending precipitation forecasts. It starts with equal weights, gradually mixes in learned weights as evidence accumulates, and returns to equal weighting when the state is missing, stale, malformed, or explicitly disabled. Only providers that answer the current request participate, and their effective weights are renormalized rather than treating unavailable data as zero.
 
@@ -78,8 +78,8 @@ flowchart TB
   Action --> KMAObservation["KMA ASOS completed observation"]
   ForecastLog --> Weights["Bounded precipitation weights"]
   KMAObservation --> Weights
-  Weights --> StateBranch["reliability-state branch"]
-  StateBranch --> SkyAPI
+  Weights --> MainState["main: data/reliability"]
+  MainState --> SkyAPI
 ```
 
 ## Stack
