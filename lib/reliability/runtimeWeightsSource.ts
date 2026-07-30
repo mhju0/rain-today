@@ -9,23 +9,21 @@ export const DEFAULT_RELIABILITY_WEIGHTS_URL =
 
 const DEFAULT_TIMEOUT_MS = 4_000;
 const MAX_WEIGHTS_BYTES = 512 * 1024;
+const ALLOWED_WEIGHTS_HOST = "raw.githubusercontent.com";
 
 function safeHttpsUrl(value: string): string | null {
   try {
     const url = new URL(value);
     const host = url.hostname.toLowerCase();
-    const privateHost =
-      host === "localhost" ||
-      host === "0.0.0.0" ||
-      host === "::1" ||
-      host === "[::1]" ||
-      host.endsWith(".local") ||
-      /^127\./.test(host) ||
-      /^10\./.test(host) ||
-      /^192\.168\./.test(host) ||
-      /^169\.254\./.test(host) ||
-      /^172\.(1[6-9]|2\d|3[01])\./.test(host);
-    if (url.protocol !== "https:" || privateHost || url.username || url.password) return null;
+    if (
+      url.protocol !== "https:" ||
+      host !== ALLOWED_WEIGHTS_HOST ||
+      url.port !== "" ||
+      url.username ||
+      url.password
+    ) {
+      return null;
+    }
     return url.toString();
   } catch {
     return null;

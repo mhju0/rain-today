@@ -1,9 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { clearCache } from "../cache.ts";
-import { collectForecastSources } from "./forecastSources.ts";
 import type { WeatherProvider } from "../providers/base";
 import type { DailyForecast, ProviderId, WeatherProviderStatus } from "../types";
+import { boundedSourceTimeout, collectForecastSources } from "./forecastSources.ts";
+
+test("source timeouts are clamped to a finite operational range", () => {
+  assert.equal(boundedSourceTimeout(Number.NaN, 4_000), 4_000);
+  assert.equal(boundedSourceTimeout(-1, 4_000), 10);
+  assert.equal(boundedSourceTimeout(90_000, 4_000), 15_000);
+});
 
 const okStatus = (id: ProviderId): WeatherProviderStatus => ({
   id: id as WeatherProviderStatus["id"],

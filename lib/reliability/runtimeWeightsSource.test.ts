@@ -15,6 +15,9 @@ const validState: WeightsState = {
   weights: { "open-meteo": 0.6, kma: 0.4 },
 };
 
+const validUrl =
+  "https://raw.githubusercontent.com/mhju0/seoulsky/main/data/reliability/source-weights.json";
+
 function fetchReturning(response: Response): typeof fetch {
   return (async () => response) as typeof fetch;
 }
@@ -30,7 +33,7 @@ test("runtime weight loader reads schema-valid learned state from durable HTTP s
   const key = "runtime-weights-source-valid";
   clearCache(key);
   const reader = createHttpWeightsStateReader({
-    url: "https://state.example/source-weights.json",
+    url: validUrl,
     fetcher: fetchReturning(Response.json(validState)),
   });
 
@@ -46,7 +49,7 @@ test("runtime weight loader safely falls back for unavailable or malformed remot
     const key = `runtime-weights-source-${suffix}`;
     clearCache(key);
     const reader = createHttpWeightsStateReader({
-      url: "https://state.example/source-weights.json",
+      url: validUrl,
       fetcher: fetchReturning(response),
     });
     const load = createRuntimeWeightsLoader(reader, { cacheKey: key, ttlMs: 60_000 });
@@ -54,8 +57,12 @@ test("runtime weight loader safely falls back for unavailable or malformed remot
   }
 });
 
-test("runtime weight reader rejects non-HTTPS and private-network URLs before fetching", async () => {
-  for (const url of ["http://state.example/weights.json", "https://127.0.0.1/weights.json"]) {
+test("runtime weight reader accepts only the expected HTTPS storage host", async () => {
+  for (const url of [
+    "http://raw.githubusercontent.com/weights.json",
+    "https://127.0.0.1/weights.json",
+    "https://state.example/weights.json",
+  ]) {
     let fetched = false;
     const reader = createHttpWeightsStateReader({
       url,

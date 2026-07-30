@@ -1,4 +1,5 @@
 import { cachedFetch } from "../cache.ts";
+import { readResponseBytes } from "../httpResponse.ts";
 import { CACHE_TTL_MS, SEOUL } from "../seoul.ts";
 import type {
   CurrentWeather,
@@ -20,8 +21,21 @@ import type { WeatherProvider } from "./base";
  * precipProbability is 0–1 in all blocks (scaled to 0–100 for our schema).
  */
 
+const PIRATE_WEATHER_BASE = "https://api.pirateweather.net/forecast/";
+const PIRATE_WEATHER_MAX_BYTES = 2 * 1024 * 1024;
+const PIRATE_WEATHER_KEY = /^[A-Za-z0-9_-]{16,256}$/;
+
 function apiKey(): string | null {
-  return process.env.PIRATE_WEATHER_API_KEY?.trim() || null;
+  const value = process.env.PIRATE_WEATHER_API_KEY?.trim();
+  return value && PIRATE_WEATHER_KEY.test(value) ? value : null;
+}
+
+export function buildPirateWeatherUrl(key: string): URL {
+  if (!PIRATE_WEATHER_KEY.test(key)) throw new Error("Pirate Weather: invalid API key format");
+  const url = new URL(PIRATE_WEATHER_BASE);
+  url.pathname += `${encodeURIComponent(key)}/${SEOUL.latitude},${SEOUL.longitude}`;
+  url.searchParams.set("units", "si");
+  return url;
 }
 
 function conditionFromIcon(icon: string | undefined): WeatherCondition {
@@ -90,12 +104,19 @@ interface Snapshot {
 async function fetchSnapshot(): Promise<Snapshot> {
   const key = apiKey();
   if (!key) throw new Error("Pirate Weather: PIRATE_WEATHER_API_KEY not configured");
-  const url = `https://api.pirateweather.net/forecast/${key}/${SEOUL.latitude},${SEOUL.longitude}?units=si`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+  const url = buildPirateWeatherUrl(key);
+  const res = await fetch(url, {
+    redirect: "error",
+    signal: AbortSignal.timeout(10_000),
+  });
   if (res.status === 403) throw new Error("Pirate Weather 403 — invalid or expired API key");
   if (res.status === 429) throw new Error("Pirate Weather 429 — rate limited");
   if (!res.ok) throw new Error(`Pirate Weather HTTP ${res.status}`);
-  const data = (await res.json()) as PwResponse;
+  const bytes = await readResponseBytes(res, {
+    maxBytes: PIRATE_WEATHER_MAX_BYTES,
+    contentType: "application/json",
+  });
+  const data = JSON.parse(new TextDecoder().decode(bytes)) as PwResponse;
 
   const c = data.currently;
   const current: CurrentWeather = {

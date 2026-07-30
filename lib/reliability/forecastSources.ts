@@ -30,10 +30,17 @@ import type { SourceDailyForecast } from "../skyFusion";
  */
 
 const FORECAST_SOURCES_KEY = "reliability-runtime-forecast-sources";
+const MIN_SOURCE_TIMEOUT_MS = 10;
+const MAX_SOURCE_TIMEOUT_MS = 15_000;
 
 function envInt(name: string, fallback: number): number {
   const v = Number(process.env[name]);
-  return Number.isFinite(v) && v > 0 ? v : fallback;
+  return boundedSourceTimeout(v, fallback);
+}
+
+export function boundedSourceTimeout(value: number | undefined, fallback: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  return Math.min(MAX_SOURCE_TIMEOUT_MS, Math.max(MIN_SOURCE_TIMEOUT_MS, Math.trunc(value)));
 }
 
 /** Shared cache window for the whole multi-source collection (default ~12 min). */
@@ -96,7 +103,7 @@ export async function collectForecastSources(
   providerList: readonly WeatherProvider[] = providers,
   opts: { timeoutMs?: number } = {},
 ): Promise<SourceDailyForecast[]> {
-  const timeoutMs = opts.timeoutMs ?? PER_SOURCE_TIMEOUT_MS;
+  const timeoutMs = boundedSourceTimeout(opts.timeoutMs, PER_SOURCE_TIMEOUT_MS);
   const { value } = await cachedFetch(FORECAST_SOURCES_KEY, FORECAST_CACHE_TTL_MS, () =>
     collectUncached(providerList, timeoutMs),
   );
