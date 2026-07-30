@@ -30,6 +30,7 @@ const FRAME_GRID_BYTES = 4 + GRID_NX * GRID_NY * 2;
 const MAX_LATLON_BYTES = 100 * 1024 * 1024;
 const MAX_CONCURRENT_RENDERS = 2;
 const MAX_QUEUED_RENDERS = 8;
+const RADAR_DATA_DIR = path.join(process.cwd(), "data", "radar");
 let activeRenders = 0;
 const renderQueue: (() => void)[] = [];
 
@@ -42,10 +43,6 @@ function apiKey(): string {
 /** Cheap presence check (no network) so the timeline can degrade before any fetch. */
 export function hasApiKey(): boolean {
   return !!process.env.KMA_APIHUB_KEY?.trim();
-}
-
-function radarDataDir(): string {
-  return process.env.RADAR_DATA_DIR?.trim() || path.join(process.cwd(), "data", "radar");
 }
 
 async function fetchLatLon(which: "lon" | "lat"): Promise<string> {
@@ -78,7 +75,7 @@ async function buildOrReadGeo(): Promise<GeoModel> {
 
   // 2) Fallback boundary — only reached if the bundled model is missing/stale (e.g. a crop
   //    change): the original disk cache, else a one-time rebuild from the latlon API.
-  const file = path.join(radarDataDir(), GEO_FILE);
+  const file = path.join(RADAR_DATA_DIR, GEO_FILE);
   try {
     const cached = JSON.parse(await readFile(file, "utf8")) as GeoModel;
     if (isUsableGeo(cached)) return cached;
@@ -88,7 +85,7 @@ async function buildOrReadGeo(): Promise<GeoModel> {
   const [lonText, latText] = await Promise.all([fetchLatLon("lon"), fetchLatLon("lat")]);
   const geo = buildGeo(lonText, latText);
   try {
-    await mkdir(radarDataDir(), { recursive: true });
+    await mkdir(RADAR_DATA_DIR, { recursive: true });
     await writeFile(file, JSON.stringify(geo, null, 2), "utf8");
   } catch {
     // Disk cache is an optimisation; the in-memory model is enough to serve.
