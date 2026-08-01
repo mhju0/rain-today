@@ -2,14 +2,57 @@ import type { WeightsMap, WeightsState } from "./types.ts";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const SOURCE_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const EXPLICIT_OFFSET_INSTANT_RE =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-](\d{2}):(\d{2}))$/;
 const NORMALIZED_EPSILON = 1e-6;
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function isIsoInstant(value: unknown): value is string {
-  return typeof value === "string" && value.includes("T") && Number.isFinite(Date.parse(value));
+/** Require a real ISO calendar instant with `Z` or an explicit numeric offset. */
+export function isExplicitOffsetIsoInstant(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const match = EXPLICIT_OFFSET_INSTANT_RE.exec(value);
+  if (!match) return false;
+
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText] = match;
+  const [year, month, day, hour, minute, second] = [
+    yearText,
+    monthText,
+    dayText,
+    hourText,
+    minuteText,
+    secondText,
+  ].map(Number);
+  const offsetHour = match[7] === undefined ? 0 : Number(match[7]);
+  const offsetMinute = match[8] === undefined ? 0 : Number(match[8]);
+  if (
+    month < 1 ||
+    month > 12 ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59 ||
+    offsetHour > 23 ||
+    offsetMinute > 59
+  ) {
+    return false;
+  }
+
+  const calendar = new Date(0);
+  calendar.setUTCFullYear(year, month - 1, day);
+  calendar.setUTCHours(hour, minute, second, 0);
+  if (
+    calendar.getUTCFullYear() !== year ||
+    calendar.getUTCMonth() !== month - 1 ||
+    calendar.getUTCDate() !== day ||
+    calendar.getUTCHours() !== hour ||
+    calendar.getUTCMinutes() !== minute ||
+    calendar.getUTCSeconds() !== second
+  ) {
+    return false;
+  }
+  return Number.isFinite(Date.parse(value));
 }
 
 function isCalendarDate(value: unknown): value is string {
@@ -25,7 +68,7 @@ function isCalendarDate(value: unknown): value is string {
  * values into the fusion math.
  */
 export function parseWeightsState(value: unknown): WeightsState | null {
-  if (!isObject(value) || !isIsoInstant(value.updatedAt)) return null;
+  if (!isObject(value) || !isExplicitOffsetIsoInstant(value.updatedAt)) return null;
   if (!Number.isInteger(value.eventsScored) || (value.eventsScored as number) < 0) return null;
   if (!Array.isArray(value.processedDates) || !value.processedDates.every(isCalendarDate)) return null;
 

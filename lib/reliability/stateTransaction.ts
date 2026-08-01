@@ -16,7 +16,10 @@ import {
   type ReliabilitySnapshot,
 } from "./stateSnapshot.ts";
 import type { DailySkillRecord, ForecastRecord } from "./types.ts";
-import { parseWeightsState } from "./weightsState.ts";
+import {
+  isExplicitOffsetIsoInstant,
+  parseWeightsState,
+} from "./weightsState.ts";
 
 const CANDIDATE_PREFIX = "seoulsky-reliability-candidate-";
 const PROVIDER_IDS = new Set([
@@ -96,10 +99,6 @@ function isCalendarDate(value: unknown): value is string {
   return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
-function isIsoInstant(value: unknown): value is string {
-  return typeof value === "string" && value.includes("T") && Number.isFinite(Date.parse(value));
-}
-
 function isNumberBetween(value: unknown, minimum: number, maximum: number): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= minimum && value <= maximum;
 }
@@ -118,7 +117,7 @@ function isForecastRecord(value: unknown): value is ForecastRecord {
     value.region === "seoul" &&
     isNullableNumberBetween(value.pop, 0, 100) &&
     isNullableNumberBetween(value.predicted_mm, 0, Number.MAX_VALUE) &&
-    isIsoInstant(value.loggedAt)
+    isExplicitOffsetIsoInstant(value.loggedAt)
   );
 }
 
@@ -170,7 +169,7 @@ function isDailySkillRecord(value: unknown): value is DailySkillRecord {
     isNullableNumberBetween(value.quantitative_skill, 0, 1) &&
     isNullableNumberBetween(value.mae, 0, Number.MAX_VALUE) &&
     isNumberBetween(value.skill, 0, 1) &&
-    isIsoInstant(value.scoredAt)
+    isExplicitOffsetIsoInstant(value.scoredAt)
   );
 }
 
@@ -251,6 +250,7 @@ export async function runReliabilityStateTransaction(
 
   const candidate = await materializeCandidate(dependencies, restored);
   const refreshed = await dependencies.target.read();
+  if (refreshed) assertReliabilitySnapshotSchema(refreshed.snapshot);
   assertReliabilitySnapshotMonotonic(
     refreshed?.snapshot ?? emptySnapshot(),
     candidate.snapshot,

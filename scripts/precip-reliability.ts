@@ -9,12 +9,16 @@ import { runReliabilityStateTransaction } from "../lib/reliability/stateTransact
 import { resolveEta } from "../lib/reliability/weights.ts";
 
 async function main(): Promise<void> {
-  const { values } = parseArgs({
+  const { tokens, values } = parseArgs({
     allowPositionals: false,
     args: process.argv.slice(2),
     options: { recover: { type: "string" } },
     strict: true,
+    tokens: true,
   });
+  if (tokens.filter((token) => token.kind === "option" && token.name === "recover").length > 1) {
+    throw new Error("Usage: --recover may only be specified once");
+  }
   const recoveryRef = values.recover?.trim();
   if (values.recover !== undefined && !recoveryRef) {
     throw new Error("Usage: precip-reliability.ts [--recover <git-ref>]");

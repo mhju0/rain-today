@@ -18,12 +18,18 @@ const validState: WeightsState = {
 
 test("parseWeightsState accepts a complete normalized learned state", () => {
   assert.deepEqual(parseWeightsState(validState), validState);
+  assert.deepEqual(
+    parseWeightsState({ ...validState, updatedAt: "2026-07-11T06:13:00.000+09:00" }),
+    { ...validState, updatedAt: "2026-07-11T06:13:00.000+09:00" },
+  );
 });
 
 test("parseWeightsState rejects state that is unsafe for runtime weighting", () => {
   const invalid: unknown[] = [
     null,
     { ...validState, updatedAt: "not-a-date" },
+    { ...validState, updatedAt: "2026-07-10T21:13:00.000" },
+    { ...validState, updatedAt: "2026-02-30T21:13:00.000Z" },
     { ...validState, eventsScored: -1 },
     { ...validState, eventsScored: 1.5 },
     { ...validState, processedDates: ["2026-07-10", "not-a-date"] },

@@ -31,6 +31,28 @@ function forecast(
   };
 }
 
+function dailySkill(overrides: Partial<DailySkillRecord> = {}): DailySkillRecord {
+  return {
+    date: "2026-07-12",
+    source: "open-meteo",
+    region: "seoul",
+    pop: 80,
+    predicted_mm: 4,
+    observed_mm: 6,
+    predicted_rain: true,
+    observed_rain: true,
+    outcome: "hit",
+    contingency: { hits: 1, misses: 0, false_alarms: 0, correct_negatives: 0 },
+    csi: 1,
+    categorical_skill: 1,
+    quantitative_skill: 0.9,
+    mae: 2,
+    skill: 0.95,
+    scoredAt: "2026-07-13T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
 function weights(overrides: Partial<WeightsState> = {}): WeightsState {
   return {
     updatedAt: "2026-07-12T00:00:00.000Z",
@@ -310,6 +332,20 @@ test("malformed restored forecast and skill rows fail schema validation before t
         dailySkill: [{ date: "2026-07-12", source: "open-meteo" } as DailySkillRecord],
       }),
     },
+    {
+      label: "forecast",
+      snapshot: snapshot({
+        forecasts: [
+          { ...forecast("2026-07-13"), loggedAt: "2026-07-13T00:00:00.000" },
+        ],
+      }),
+    },
+    {
+      label: "daily-skill",
+      snapshot: snapshot({
+        dailySkill: [dailySkill({ scoredAt: "2026-02-30T00:00:00.000Z" })],
+      }),
+    },
   ];
 
   for (const malformed of malformedSnapshots) {
@@ -338,6 +374,38 @@ test("malformed restored forecast and skill rows fail schema validation before t
       assert.deepEqual(await readdir(candidateParent), []);
     });
   }
+});
+
+test("a malformed refreshed target snapshot is rejected before monotonic comparison or publication", async () => {
+  await withCandidateParent(async (candidateParent) => {
+    const target = new MemoryReliabilityStateTarget({
+      revision: "revision-1",
+      snapshot: snapshot({ forecasts: [forecast("2026-07-13"), forecast("2026-07-15")] }),
+    });
+    target.onCurrentRead = (read, memoryTarget) => {
+      if (read !== 2) return;
+      memoryTarget.current = {
+        revision: "revision-malformed",
+        snapshot: snapshot({
+          forecasts: [{ date: "not-a-date", source: "open-meteo" } as ForecastRecord],
+        }),
+      };
+    };
+
+    await assert.rejects(
+      () =>
+        runReliabilityStateTransaction(
+          dependencies(target, candidateParent, {
+            collectForecasts: async () => [forecast("2026-07-15")],
+            fetchObservation: async () => null,
+          }),
+        ),
+      /invalid reliability forecast record/i,
+    );
+
+    assert.equal(target.currentReads, 2);
+    assert.equal(target.publicationRequests.length, 0);
+  });
 });
 
 test("a candidate that loses state from the refreshed target tip is rejected before publication", async () => {
