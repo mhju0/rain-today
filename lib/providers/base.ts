@@ -16,9 +16,9 @@ export interface NormalizedForecast {
 /**
  * Contract every weather source must implement.
  *
- * Implementations fetch their upstream API once per cache window (see
- * lib/cache.ts) and return all normalized views in one read. Methods may throw;
- * lib/providers/read.ts is the failure-isolating seam for every consumer.
+ * Providers created by lib/providers/read.ts cache one upstream load per window
+ * and isolate failures as non-ok snapshots. Consumers receive every normalized
+ * view and the status describing that same cached generation in one read.
  */
 export interface WeatherProvider {
   readonly id: WeatherProviderStatus["id"];

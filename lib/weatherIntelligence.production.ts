@@ -3,7 +3,6 @@ import "server-only";
 import { airQualityStatuses, getFusedAirQuality } from "./providers/air-quality";
 import { getKmaWarningStatus, getKmaWarnings } from "./providers/kma";
 import { getRadarSummary, radarStatus } from "./providers/radar";
-import { readProviderSnapshot } from "./providers/read";
 import { providers } from "./providers/registry";
 import {
   readWeatherIntelligence,
@@ -14,7 +13,7 @@ import type { WeatherIntelligence } from "./types";
 
 const dependencies: WeatherIntelligenceDependencies = {
   // Promise.all in the core keeps this registry order, which defines primary.
-  providerReads: providers.map((provider) => () => readProviderSnapshot(provider)),
+  providerReads: providers.map((provider) => () => provider.read()),
   async getEnvironment() {
     const [air, radar, airStatuses, warningStatus, radarSourceStatus] = await Promise.all([
       getFusedAirQuality(),

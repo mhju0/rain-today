@@ -17,10 +17,12 @@ export interface ProviderMessages {
 export interface WeatherProviderDefinition {
   id: WeatherProviderStatus["id"];
   name: string;
+  statusName?: string;
   messages: ProviderMessages;
   missingConfiguration(): string[];
   ttlMs: number;
   load(): Promise<NormalizedForecast>;
+  failureMessage?(error: unknown): string;
 }
 
 function emptySnapshot(id: WeatherProviderStatus["id"], status: WeatherProviderStatus): ProviderSnapshot {
@@ -30,7 +32,7 @@ function emptySnapshot(id: WeatherProviderStatus["id"], status: WeatherProviderS
 /** Create one provider boundary that reads coherent status and weather together. */
 export function createWeatherProvider(definition: WeatherProviderDefinition): WeatherProvider {
   const cacheKey = definition.id;
-  const errorMessage = definition.messages.error;
+  const statusName = definition.statusName ?? definition.name;
 
   return {
     id: definition.id,
@@ -42,7 +44,7 @@ export function createWeatherProvider(definition: WeatherProviderDefinition): We
         if (missingEnvVars.length > 0) {
           return emptySnapshot(definition.id, {
             id: definition.id,
-            name: definition.name,
+            name: statusName,
             availability: "needs-config",
             message: definition.messages.needsConfig,
             missingEnvVars,
@@ -56,7 +58,7 @@ export function createWeatherProvider(definition: WeatherProviderDefinition): We
           id: definition.id,
           status: {
             id: definition.id,
-            name: definition.name,
+            name: statusName,
             availability: "ok",
             message: result.stale ? definition.messages.stale : definition.messages.ok,
             missingEnvVars: [],
@@ -66,12 +68,12 @@ export function createWeatherProvider(definition: WeatherProviderDefinition): We
           },
           ...result.value,
         };
-      } catch {
+      } catch (error) {
         return emptySnapshot(definition.id, {
           id: definition.id,
-          name: definition.name,
+          name: statusName,
           availability: "error",
-          message: errorMessage,
+          message: definition.failureMessage?.(error) ?? definition.messages.error,
           missingEnvVars: [],
           lastUpdated: null,
           fromCache: false,
@@ -81,7 +83,7 @@ export function createWeatherProvider(definition: WeatherProviderDefinition): We
   };
 }
 
-/** Compatibility seam for callers that need a provider's complete snapshot. */
+/** Read the complete snapshot through the factory-owned cache and failure boundary. */
 export async function readProviderSnapshot(provider: WeatherProvider): Promise<ProviderSnapshot> {
   return provider.read();
 }

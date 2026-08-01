@@ -4,7 +4,6 @@ import { getFusedAirQuality } from "./providers/air-quality";
 import { getKmaWarnings, kmaProvider } from "./providers/kma";
 import { openMeteoProvider } from "./providers/open-meteo";
 import { getSkyRadar } from "./providers/radar";
-import { readProviderSnapshot } from "./providers/read";
 import { multiSourcePrecipEnabled } from "./reliability/config";
 import { collectForecastSources } from "./reliability/forecastSources";
 import { loadWeightsStateCached } from "./reliability/runtimeWeightsSource";
@@ -16,13 +15,13 @@ import {
 import type { CurrentWeather, SkySnapshot } from "./types";
 
 async function getKmaCurrent(): Promise<CurrentWeather | null> {
-  const snapshot = await readProviderSnapshot(kmaProvider);
+  const snapshot = await kmaProvider.read();
   return snapshot.status.availability === "ok" ? snapshot.current : null;
 }
 
 const dependencies: LiveSkyDependencies = {
   async getOpenMeteo() {
-    const snapshot = await readProviderSnapshot(openMeteoProvider);
+    const snapshot = await openMeteoProvider.read();
     if (snapshot.status.availability !== "ok" || snapshot.current === null) {
       throw new Error("Open-Meteo forecast unavailable");
     }

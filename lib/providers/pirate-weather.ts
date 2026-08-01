@@ -1,4 +1,3 @@
-import { cachedFetch } from "../cache.ts";
 import { readResponseBytes } from "../httpResponse.ts";
 import { CACHE_TTL_MS, SEOUL } from "../seoul.ts";
 import type {
@@ -6,9 +5,8 @@ import type {
   DailyForecast,
   HourlyForecast,
   WeatherCondition,
-  WeatherProviderStatus,
 } from "../types";
-import type { WeatherProvider } from "./base";
+import { createWeatherProvider } from "./read.ts";
 
 /**
  * Pirate Weather — Dark Sky-compatible API, requires a free API key.
@@ -169,53 +167,17 @@ async function fetchSnapshot(): Promise<Snapshot> {
   return { current, hourly, daily };
 }
 
-function getSnapshot() {
-  return cachedFetch("pirate-weather", CACHE_TTL_MS, fetchSnapshot);
-}
-
-export const pirateWeatherProvider: WeatherProvider = {
+export const pirateWeatherProvider = createWeatherProvider({
   id: "pirate-weather",
   name: "Pirate Weather",
-
-  async getProviderStatus(): Promise<WeatherProviderStatus> {
-    const base: WeatherProviderStatus = {
-      id: "pirate-weather",
-      name: "Pirate Weather",
-      availability: "ok",
-      message: "Pirate Weather API (Dark Sky 호환 글로벌 모델)",
-      missingEnvVars: [],
-      lastUpdated: null,
-      fromCache: false,
-    };
-    if (!apiKey()) {
-      return {
-        ...base,
-        availability: "needs-config",
-        message: "PIRATE_WEATHER_API_KEY를 설정하면 비교 소스로 활성화됩니다",
-        missingEnvVars: ["PIRATE_WEATHER_API_KEY"],
-      };
-    }
-    try {
-      const result = await getSnapshot();
-      return {
-        ...base,
-        lastUpdated: result.value.current.time,
-        fromCache: result.fromCache,
-        stale: result.stale,
-        message: result.stale
-          ? "일시적 연결 오류 — 최근 캐시 데이터 표시 중"
-          : base.message,
-      };
-    } catch {
-      return {
-        ...base,
-        availability: "error",
-        message: "Pirate Weather 연결 실패 (인증 오류 또는 네트워크 — 잠시 후 재시도)",
-      };
-    }
+  messages: {
+    ok: "Pirate Weather API (Dark Sky 호환 글로벌 모델)",
+    stale: "일시적 연결 오류 — 최근 캐시 데이터 표시 중",
+    needsConfig: "PIRATE_WEATHER_API_KEY를 설정하면 비교 소스로 활성화됩니다",
+    error: "Pirate Weather 연결 실패 (인증 오류 또는 네트워크 — 잠시 후 재시도)",
   },
-
-  async readForecast() {
-    return (await getSnapshot()).value;
-  },
-};
+  missingConfiguration: () => apiKey() ? [] : ["PIRATE_WEATHER_API_KEY"],
+  ttlMs: CACHE_TTL_MS,
+  load: fetchSnapshot,
+  failureMessage: () => "Pirate Weather 연결 실패 (인증 오류 또는 네트워크 — 잠시 후 재시도)",
+});

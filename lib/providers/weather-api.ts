@@ -1,13 +1,11 @@
-import { cachedFetch } from "../cache.ts";
 import { CACHE_TTL_MS, SEOUL } from "../seoul.ts";
 import type {
   CurrentWeather,
   DailyForecast,
   HourlyForecast,
   WeatherCondition,
-  WeatherProviderStatus,
 } from "../types";
-import type { WeatherProvider } from "./base";
+import { createWeatherProvider } from "./read.ts";
 
 /**
  * WeatherAPI.com — requires a free API key from weatherapi.com.
@@ -230,53 +228,17 @@ async function fetchSnapshot(): Promise<Snapshot> {
   return { current, hourly, daily };
 }
 
-function getSnapshot() {
-  return cachedFetch("weather-api", CACHE_TTL_MS, fetchSnapshot);
-}
-
-export const weatherApiProvider: WeatherProvider = {
+export const weatherApiProvider = createWeatherProvider({
   id: "weather-api",
   name: "WeatherAPI",
-
-  async getProviderStatus(): Promise<WeatherProviderStatus> {
-    const base: WeatherProviderStatus = {
-      id: "weather-api",
-      name: "WeatherAPI",
-      availability: "ok",
-      message: "WeatherAPI.com 글로벌 예보 모델",
-      missingEnvVars: [],
-      lastUpdated: null,
-      fromCache: false,
-    };
-    if (!apiKey()) {
-      return {
-        ...base,
-        availability: "needs-config",
-        message: "WEATHERAPI_KEY를 설정하면 비교 소스로 활성화됩니다",
-        missingEnvVars: ["WEATHERAPI_KEY"],
-      };
-    }
-    try {
-      const result = await getSnapshot();
-      return {
-        ...base,
-        lastUpdated: result.value.current.time,
-        fromCache: result.fromCache,
-        stale: result.stale,
-        message: result.stale
-          ? "일시적 연결 오류 — 최근 캐시 데이터 표시 중"
-          : base.message,
-      };
-    } catch {
-      return {
-        ...base,
-        availability: "error",
-        message: "WeatherAPI 연결 실패 (인증 오류 또는 네트워크 — 잠시 후 재시도)",
-      };
-    }
+  messages: {
+    ok: "WeatherAPI.com 글로벌 예보 모델",
+    stale: "일시적 연결 오류 — 최근 캐시 데이터 표시 중",
+    needsConfig: "WEATHERAPI_KEY를 설정하면 비교 소스로 활성화됩니다",
+    error: "WeatherAPI 연결 실패 (인증 오류 또는 네트워크 — 잠시 후 재시도)",
   },
-
-  async readForecast() {
-    return (await getSnapshot()).value;
-  },
-};
+  missingConfiguration: () => apiKey() ? [] : ["WEATHERAPI_KEY"],
+  ttlMs: CACHE_TTL_MS,
+  load: fetchSnapshot,
+  failureMessage: () => "WeatherAPI 연결 실패 (인증 오류 또는 네트워크 — 잠시 후 재시도)",
+});

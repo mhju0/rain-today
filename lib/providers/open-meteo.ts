@@ -1,13 +1,11 @@
-import { cachedFetch } from "../cache.ts";
 import { conditionFromWmoCode } from "../conditions.ts";
 import { CACHE_TTL_MS, SEOUL } from "../seoul.ts";
 import type {
   CurrentWeather,
   DailyForecast,
   HourlyForecast,
-  WeatherProviderStatus,
 } from "../types";
-import type { WeatherProvider } from "./base";
+import { createWeatherProvider } from "./read.ts";
 
 /**
  * Open-Meteo — the default provider. Free, no API key, no signup.
@@ -135,45 +133,17 @@ async function fetchSnapshot(): Promise<Snapshot> {
   return { current, hourly, daily };
 }
 
-function getSnapshot() {
-  return cachedFetch("open-meteo", CACHE_TTL_MS, fetchSnapshot);
-}
-
-export const openMeteoProvider: WeatherProvider = {
+export const openMeteoProvider = createWeatherProvider({
   id: "open-meteo",
   name: "Open-Meteo",
-
-  async getProviderStatus(): Promise<WeatherProviderStatus> {
-    const base: WeatherProviderStatus = {
-      id: "open-meteo",
-      name: "Open-Meteo",
-      availability: "ok",
-      message: "무료 글로벌 예보 모델 (API 키 불필요)",
-      missingEnvVars: [],
-      lastUpdated: null,
-      fromCache: false,
-    };
-    try {
-      const result = await getSnapshot();
-      return {
-        ...base,
-        lastUpdated: result.value.current.time,
-        fromCache: result.fromCache,
-        stale: result.stale,
-        message: result.stale
-          ? "일시적 연결 오류 — 최근 캐시 데이터 표시 중"
-          : base.message,
-      };
-    } catch {
-      return {
-        ...base,
-        availability: "error",
-        message: "Open-Meteo 서버에 연결할 수 없습니다",
-      };
-    }
+  messages: {
+    ok: "무료 글로벌 예보 모델 (API 키 불필요)",
+    stale: "일시적 연결 오류 — 최근 캐시 데이터 표시 중",
+    needsConfig: "",
+    error: "Open-Meteo 서버에 연결할 수 없습니다",
   },
-
-  async readForecast() {
-    return (await getSnapshot()).value;
-  },
-};
+  missingConfiguration: () => [],
+  ttlMs: CACHE_TTL_MS,
+  load: fetchSnapshot,
+  failureMessage: () => "Open-Meteo 서버에 연결할 수 없습니다",
+});

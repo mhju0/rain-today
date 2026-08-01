@@ -7,8 +7,8 @@ import type {
   NormalizedWarning,
   WeatherProviderStatus,
 } from "../types";
-import type { WeatherProvider } from "./base";
 import { conditionFromKma, extractWarnings, tmFcToIso } from "./kma-mapping.ts";
+import { createWeatherProvider } from "./read.ts";
 
 /**
  * 기상청 (Korea Meteorological Administration) — optional provider.
@@ -324,10 +324,6 @@ async function fetchSnapshot(): Promise<Snapshot> {
   return { current, hourly, daily };
 }
 
-function getSnapshot() {
-  return cachedFetch("kma", CACHE_TTL_MS, fetchSnapshot);
-}
-
 /**
  * Official 특보 (warnings) from WthrWrnInfoService/getWthrWrnList for the Seoul
  * station. The list endpoint returns issuance bulletins; we keep only the most
@@ -461,55 +457,25 @@ export async function getKmaWarnings(): Promise<NormalizedWarning[]> {
   }
 }
 
-export const kmaProvider: WeatherProvider = {
+export const kmaProvider = createWeatherProvider({
   id: "kma",
   name: "기상청 (KMA)",
-
-  async getProviderStatus(): Promise<WeatherProviderStatus> {
-    const base: WeatherProviderStatus = {
-      id: "kma",
-      name: "기상청 단기예보 (KMA)",
-      availability: "ok",
-      message: "대한민국 기상청 공식 관측·예보 데이터",
-      missingEnvVars: [],
-      lastUpdated: null,
-      fromCache: false,
-    };
-    if (!shortTermServiceKey()) {
-      return {
-        ...base,
-        availability: "needs-config",
-        missingEnvVars: ["KMA_SHORT_TERM_API_KEY"],
-        message: "단기예보 조회서비스 키가 없습니다 (data.go.kr 활용신청 필요)",
-      };
-    }
-    try {
-      const result = await getSnapshot();
-      return {
-        ...base,
-        lastUpdated: result.value.current.time,
-        fromCache: result.fromCache,
-        stale: result.stale,
-        message: result.stale
-          ? "일시적 연결 오류 — 최근 캐시 데이터 표시 중"
-          : base.message,
-      };
-    } catch (err) {
-      const klass = err instanceof KmaError ? err.klass : "error";
-      return {
-        ...base,
-        availability: "error",
-        message:
-          klass === "forbidden"
-            ? "단기예보 키가 승인되지 않았습니다 (활용신청 상태를 확인하세요)"
-            : klass === "rate-limited"
-              ? "단기예보 API 호출 한도를 초과했습니다"
-              : "기상청 API 호출에 실패했습니다",
-      };
-    }
+  statusName: "기상청 단기예보 (KMA)",
+  messages: {
+    ok: "대한민국 기상청 공식 관측·예보 데이터",
+    stale: "일시적 연결 오류 — 최근 캐시 데이터 표시 중",
+    needsConfig: "단기예보 조회서비스 키가 없습니다 (data.go.kr 활용신청 필요)",
+    error: "기상청 API 호출에 실패했습니다",
   },
-
-  async readForecast() {
-    return (await getSnapshot()).value;
+  missingConfiguration: () => shortTermServiceKey() ? [] : ["KMA_SHORT_TERM_API_KEY"],
+  ttlMs: CACHE_TTL_MS,
+  load: fetchSnapshot,
+  failureMessage(error) {
+    const klass = error instanceof KmaError ? error.klass : "error";
+    return klass === "forbidden"
+      ? "단기예보 키가 승인되지 않았습니다 (활용신청 상태를 확인하세요)"
+      : klass === "rate-limited"
+        ? "단기예보 API 호출 한도를 초과했습니다"
+        : "기상청 API 호출에 실패했습니다";
   },
-};
+});

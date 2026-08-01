@@ -146,7 +146,8 @@ test("short-term forecast reads KMA_SHORT_TERM_API_KEY and hits VilageFcstInfoSe
     return new Response("not mocked", { status: 500 });
   }) as typeof fetch;
 
-  const { current } = await kmaProvider.readForecast();
+  const { current } = await kmaProvider.read();
+  assert.ok(current);
   assert.equal(current.temperature, 21);
   assert.ok(calls.length >= 1);
   assert.ok(calls.every((c) => c.service === "short-term"));
@@ -171,7 +172,7 @@ test("short-term works when the warning key is absent", async () => {
     return new Response("not mocked", { status: 500 });
   }) as typeof fetch;
 
-  const status = await kmaProvider.getProviderStatus();
+  const { status } = await kmaProvider.read();
   assert.equal(status.availability, "ok");
 });
 
@@ -188,7 +189,7 @@ test("neither service reads the obsolete KMA_API_KEY", async () => {
   process.env.KMA_API_KEY = OBSOLETE_KEY; // only the old var is set
   installFetch({}); // both default to OK-empty if called
 
-  const shortTerm = await kmaProvider.getProviderStatus();
+  const { status: shortTerm } = await kmaProvider.read();
   const warning = await getKmaWarningStatus();
 
   assert.equal(shortTerm.availability, "needs-config");
@@ -202,7 +203,7 @@ test("neither service reads the obsolete KMA_API_KEY", async () => {
 // ── Safe statuses when keys are missing ──────────────────────────────────────
 
 test("missing keys produce safe needs-config statuses (no throw, no crash)", async () => {
-  const shortTerm = await kmaProvider.getProviderStatus();
+  const { status: shortTerm } = await kmaProvider.read();
   const warning = await getKmaWarningStatus();
   assert.equal(shortTerm.availability, "needs-config");
   assert.equal(warning.availability, "needs-config");
@@ -237,7 +238,7 @@ test("no status or response contains either key value", async () => {
     warning: { status: 200, body: `<returnReasonCode>30</returnReasonCode>` },
   });
 
-  const shortTerm = await kmaProvider.getProviderStatus();
+  const { status: shortTerm } = await kmaProvider.read();
   clearCache();
   const warning = await getKmaWarningStatus();
   const warnings = await getKmaWarnings();

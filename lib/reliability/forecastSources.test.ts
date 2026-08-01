@@ -2,23 +2,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { clearCache } from "../cache.ts";
 import type { WeatherProvider } from "../providers/base";
-import type { DailyForecast, ProviderId, WeatherProviderStatus } from "../types";
+import type { DailyForecast, ProviderId, ProviderSnapshot, WeatherProviderStatus } from "../types";
 import { boundedSourceTimeout, collectForecastSources } from "./forecastSources.ts";
 
 test("source timeouts are clamped to a finite operational range", () => {
   assert.equal(boundedSourceTimeout(Number.NaN, 4_000), 4_000);
   assert.equal(boundedSourceTimeout(-1, 4_000), 10);
   assert.equal(boundedSourceTimeout(90_000, 4_000), 15_000);
-});
-
-const okStatus = (id: ProviderId): WeatherProviderStatus => ({
-  id: id as WeatherProviderStatus["id"],
-  name: id,
-  availability: "ok",
-  message: "",
-  missingEnvVars: [],
-  lastUpdated: null,
-  fromCache: false,
 });
 
 const day = (date: string, pop: number): DailyForecast => ({
@@ -45,12 +35,21 @@ function spy(id: ProviderId, opts: SpyOpts = {}): WeatherProvider {
   return {
     id: id as WeatherProviderStatus["id"],
     name: id,
-    getProviderStatus: async () => okStatus(id),
-    readForecast: async () => {
+    read: async (): Promise<ProviderSnapshot> => {
       if (calls) calls.n += 1;
       if (mode === "fail") throw new Error("upstream down");
       if (mode === "slow") await new Promise((r) => setTimeout(r, delayMs));
       return {
+        id: id as WeatherProviderStatus["id"],
+        status: {
+          id: id as WeatherProviderStatus["id"],
+          name: id,
+          availability: "ok",
+          message: "",
+          missingEnvVars: [],
+          lastUpdated: "2026-06-19T12:00:00+09:00",
+          fromCache: false,
+        },
         current: {
           time: "2026-06-19T12:00:00+09:00",
           temperature: 27,

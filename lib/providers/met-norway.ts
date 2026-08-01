@@ -1,13 +1,11 @@
-import { cachedFetch } from "../cache.ts";
 import { SEOUL } from "../seoul.ts";
 import type {
   CurrentWeather,
   DailyForecast,
   HourlyForecast,
   WeatherCondition,
-  WeatherProviderStatus,
 } from "../types";
-import type { WeatherProvider } from "./base";
+import { createWeatherProvider } from "./read.ts";
 
 /**
  * MET Norway (Norwegian Meteorological Institute) — free, no API key, but their
@@ -173,53 +171,17 @@ async function fetchSnapshot(): Promise<Snapshot> {
   return { current, hourly, daily };
 }
 
-function getSnapshot() {
-  return cachedFetch("met-norway", MET_TTL_MS, fetchSnapshot);
-}
-
-export const metNorwayProvider: WeatherProvider = {
+export const metNorwayProvider = createWeatherProvider({
   id: "met-norway",
   name: "MET Norway",
-
-  async getProviderStatus(): Promise<WeatherProviderStatus> {
-    const base: WeatherProviderStatus = {
-      id: "met-norway",
-      name: "MET Norway",
-      availability: "ok",
-      message: "노르웨이 기상청 글로벌 모델 (식별 User-Agent 필요)",
-      missingEnvVars: [],
-      lastUpdated: null,
-      fromCache: false,
-    };
-    if (!userAgent()) {
-      return {
-        ...base,
-        availability: "needs-config",
-        message: "MET_NO_USER_AGENT(연락처 포함)를 설정하면 비교 소스로 활성화됩니다",
-        missingEnvVars: ["MET_NO_USER_AGENT"],
-      };
-    }
-    try {
-      const result = await getSnapshot();
-      return {
-        ...base,
-        lastUpdated: result.value.current.time,
-        fromCache: result.fromCache,
-        stale: result.stale,
-        message: result.stale
-          ? "일시적 연결 오류 — 최근 캐시 데이터 표시 중"
-          : base.message,
-      };
-    } catch {
-      return {
-        ...base,
-        availability: "error",
-        message: "MET Norway 연결 실패 (403/429 또는 네트워크 — 잠시 후 재시도)",
-      };
-    }
+  messages: {
+    ok: "노르웨이 기상청 글로벌 모델 (식별 User-Agent 필요)",
+    stale: "일시적 연결 오류 — 최근 캐시 데이터 표시 중",
+    needsConfig: "MET_NO_USER_AGENT(연락처 포함)를 설정하면 비교 소스로 활성화됩니다",
+    error: "MET Norway 연결 실패 (403/429 또는 네트워크 — 잠시 후 재시도)",
   },
-
-  async readForecast() {
-    return (await getSnapshot()).value;
-  },
-};
+  missingConfiguration: () => userAgent() ? [] : ["MET_NO_USER_AGENT"],
+  ttlMs: MET_TTL_MS,
+  load: fetchSnapshot,
+  failureMessage: () => "MET Norway 연결 실패 (403/429 또는 네트워크 — 잠시 후 재시도)",
+});

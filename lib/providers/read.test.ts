@@ -153,6 +153,42 @@ test("createWeatherProvider isolates a loader failure as an empty error snapshot
   });
 });
 
+test("createWeatherProvider exposes only a sanitized provider-specific failure message", async () => {
+  clearCache();
+  const provider = createWeatherProvider({
+    id: "kma",
+    name: "KMA",
+    messages,
+    missingConfiguration: () => [],
+    ttlMs: 60_000,
+    load: async () => Promise.reject(new Error("serviceKey=SECRET")),
+    failureMessage: () => "authorization failed",
+  });
+
+  const snapshot = await provider.read();
+
+  assert.equal(snapshot.status.message, "authorization failed");
+  assert.ok(!JSON.stringify(snapshot).includes("SECRET"));
+});
+
+test("createWeatherProvider preserves distinct adapter and status display names", async () => {
+  clearCache();
+  const provider = createWeatherProvider({
+    id: "kma",
+    name: "기상청 (KMA)",
+    statusName: "기상청 단기예보 (KMA)",
+    messages,
+    missingConfiguration: () => ["KMA_SHORT_TERM_API_KEY"],
+    ttlMs: 60_000,
+    load: async () => ({ current, hourly, daily }),
+  });
+
+  const snapshot = await provider.read();
+
+  assert.equal(provider.name, "기상청 (KMA)");
+  assert.equal(snapshot.status.name, "기상청 단기예보 (KMA)");
+});
+
 test("readAvailableProviderDaily projects one atomic provider read", async () => {
   const snapshot: ProviderSnapshot = {
     id: "kma",
