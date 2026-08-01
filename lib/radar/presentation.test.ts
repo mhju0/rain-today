@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { KmaRadarFrame } from "../types.ts";
 import {
+  advanceAvailableRadarFrame,
   advanceRadarFrame,
   buildRadarMosaic,
   formatRadarFrameTime,
@@ -69,6 +70,16 @@ test("advanceRadarFrame loops without producing invalid indices", () => {
   assert.equal(advanceRadarFrame(1, 3), 2);
   assert.equal(advanceRadarFrame(2, 3), 0);
   assert.equal(advanceRadarFrame(99, 3), 0);
+});
+
+test("advanceAvailableRadarFrame loops past a failed terminal frame", () => {
+  const frames = [
+    frame("2026-07-14T06:45:00.000Z"),
+    frame("2026-07-14T06:50:00.000Z"),
+    frame("2026-07-14T06:55:00.000Z"),
+  ];
+
+  assert.equal(advanceAvailableRadarFrame(1, frames, new Set([frames[2].t])), 0);
 });
 
 test("orderedRadarWarmup starts at the active frame and follows playback order once", () => {

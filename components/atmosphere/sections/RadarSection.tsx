@@ -6,7 +6,7 @@ import type { CSSProperties } from "react";
 import { useDeferredJson } from "@/hooks/useDeferredJson";
 import { RADAR_CONFIG, RADAR_LEGEND } from "@/lib/radar/config";
 import {
-  advanceRadarFrame,
+  advanceAvailableRadarFrame,
   buildRadarMosaic,
   formatRadarFrameTime,
   orderedRadarWarmup,
@@ -432,10 +432,7 @@ export default function RadarSection() {
   useEffect(() => {
     if (!playing || frames.length <= 1) return;
     const id = setInterval(() => {
-      setIndex((i) => {
-        const nextIndex = advanceRadarFrame(i, frames.length);
-        return nearestNonFailedFrameIndex(frames, nextIndex, failedFrameKeys, 1) ?? nextIndex;
-      });
+      setIndex((i) => advanceAvailableRadarFrame(i, frames, failedFrameKeys));
     }, RADAR_CONFIG.playIntervalMs);
     return () => clearInterval(id);
   }, [playing, frames, failedFrameKeys]);

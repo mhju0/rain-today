@@ -84,6 +84,22 @@ export function advanceRadarFrame(currentIndex: number, frameCount: number): num
   return currentIndex + 1 >= frameCount ? 0 : currentIndex + 1;
 }
 
+/** Advance circular playback past frames whose image requests have failed. */
+export function advanceAvailableRadarFrame(
+  currentIndex: number,
+  frames: readonly Pick<KmaRadarFrame, "t">[],
+  failedKeys: ReadonlySet<string>,
+): number {
+  let candidate = advanceRadarFrame(currentIndex, frames.length);
+  for (let visited = 0; visited < frames.length; visited++) {
+    if (!failedKeys.has(frames[candidate].t)) return candidate;
+    candidate = advanceRadarFrame(candidate, frames.length);
+  }
+  return Number.isInteger(currentIndex) && currentIndex >= 0 && currentIndex < frames.length
+    ? currentIndex
+    : 0;
+}
+
 /** Prioritize the active frame, then warm each later playback frame exactly once. */
 export function orderedRadarWarmup(
   frames: readonly KmaRadarFrame[],
