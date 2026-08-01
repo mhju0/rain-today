@@ -55,6 +55,7 @@ next-env.d.ts
 /docs/cinematic-plates.md
 /docs/shot-prompts.md
 /docs/design/
+/docs/superpowers/
 
 # Local assistant and editor configuration. These files support individual
 # workflows but are not part of the application or its public documentation.
