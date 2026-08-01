@@ -4,7 +4,17 @@ SeoulSky can learn bounded per-provider precipitation weights from completed Seo
 
 ## Daily pipeline
 
-`npm run reliability:daily` runs the thin `scripts/precip-reliability.ts` adapter over the dependency-injected cycle in `cycle.ts`:
+`npm run reliability:daily -- [--recover <ref>]` runs the thin `scripts/precip-reliability.ts` adapter. It delegates durable work to `runReliabilityStateTransaction`.
+
+The transaction:
+
+1. Reads the current snapshot from the remote `reliability-state` branch.
+2. Optionally fetches and unions an explicit recovery ref.
+3. Materializes the snapshot in an isolated temporary directory and runs `cycle.ts` there.
+4. Re-reads the remote tip and rejects invalid or regressive candidates.
+5. Publishes the exact manifest with revision compare-and-swap protection.
+
+Inside the isolated candidate, the daily cycle:
 
 1. Read one Provider Snapshot from every provider, project tomorrow's daily precipitation forecast only from available snapshots, and append one record per returned source to `forecast-log.jsonl`.
 2. Fetch yesterday's completed KMA ASOS daily precipitation observation for station 108.
@@ -26,7 +36,9 @@ All thresholds and loss constants are named and unit-tested in `score.ts` and `w
 
 ## Runtime gate
 
-The web runtime reads `source-weights.json` through the narrow HTTP reader in `runtimeWeightsSource.ts`; it never imports the batch filesystem adapter into the Next request bundle. The production reader is pinned to this repository's raw `main` URL so deployment configuration cannot redirect the server-side request. The injectable reader factory still restricts callers to HTTPS on `raw.githubusercontent.com`.
+The web runtime reads `source-weights.json` through the narrow HTTP reader in `runtimeWeightsSource.ts`. It never imports the batch filesystem or Git adapters into the Next request bundle.
+
+The production reader is pinned to this repository's raw `reliability-state` URL. The injectable reader factory still restricts callers to HTTPS on `raw.githubusercontent.com`.
 
 Every remote response is schema-validated (timestamp, event count, unique dates, finite non-negative normalized weights). Missing, unavailable, or invalid state never throws into `/api/sky`: the loader retains a cached last-good state when possible, otherwise the gate uses equal weights. The gate behaves as follows:
 
@@ -40,21 +52,29 @@ Every remote response is schema-validated (timestamp, event count, unique dates,
 
 ## Storage and automation
 
-Runtime files live under `data/reliability/` and are tracked on `main`:
+The public `reliability-state` branch owns the durable manifest under `data/reliability/`:
 
 - `forecast-log.jsonl`
 - `daily-skill.jsonl`
 - `source-weights.json`
 
-`.github/workflows/precip-reliability.yml` runs daily and can also be dispatched manually. It restores and persists only those state files on `main`, using a detached worktree so no state branch is created. The workflow serializes runs to avoid competing updates. Before every push, a tested monotonic guard re-reads the remote tip and refuses to lose or replace any forecast/skill row, processed date, event count, or newer weight timestamp. Only an explicit known-good recovery may repair the content of an existing row or replace a reset-only newer timestamp with a checkpoint backed by more events and a superset of processed dates. A rejected push leaves `main` unchanged.
+Release branches ignore the JSON/JSONL outputs and retain only `data/reliability/.gitkeep`. `vercel.json` disables deployments for `reliability-state`.
 
-For an explicit recovery, dispatch the workflow with `recovery_ref` set to the full 40-character SHA of a known-good commit (including a detached commit no longer reachable from the current tip), or a valid remote ref. Recovery fetches that object directly and unions it with the current state: known-good values win duplicate row keys, unique newer rows survive, and the checkpoint with the stronger evidence (event count plus processed-date coverage) is retained even when a reset wrote a later timestamp. An invalid/unfetchable ref or genuinely incomparable checkpoint fails closed without entering the persistence step.
+The workflow runs daily and supports manual dispatch. It preserves checkout credentials and `contents: write`, then invokes the transaction CLI once after Node setup.
 
-For the July 2026 regression, the verified checkpoint is `29eea596fa3f538856733542c20967fdebdc93b7` (117 forecast rows through July 14, 51 skill rows, and 51 learned events updated July 10). Use that full SHA as `recovery_ref`; do not use its abbreviated form because detached short SHAs cannot be fetched reliably.
+Concurrency serializes jobs. The Git adapter reads the branch through private refs, materializes temporary worktrees, commits only the canonical manifest, and publishes normal fast-forward commits guarded by a lease.
+
+The transaction refreshes the remote tip before publication. It refuses to lose or replace forecast/skill keys, processed dates, event count, or a newer learned checkpoint.
+
+Only explicit recovery may repair an existing row or prefer a checkpoint backed by stronger evidence. Any invalid snapshot, regression, or revision conflict fails without moving `reliability-state`.
+
+For recovery, dispatch with `recovery_ref` set to a full known-good commit SHA or valid remote ref. The Git adapter fetches it into a private temporary ref; the workflow contains no restore or recovery shell.
+
+Known-good values win duplicate row keys, unique newer rows survive, and the checkpoint with stronger event and processed-date evidence is retained. Invalid, unfetchable, or incomparable recovery fails before publication.
 
 Scoring requires `KMA_OBSERVATION_API_KEY` for the KMA ASOS daily service. `KMA_SHORT_TERM_API_KEY` is only a fallback and may not have the required subscription. A missing or unauthorized observation key causes a scoring skip, not fabricated ground truth.
 
-Before relying on learned production weights, personally verify the latest scheduled workflow and the tracked state on `main`. Local tests cannot prove that remote scheduling, secrets, or persistence are healthy.
+Before relying on learned production weights, verify the latest scheduled workflow and the public `reliability-state` snapshot. Local tests cannot prove that remote scheduling, secrets, or publication are healthy.
 
 ## Files
 
@@ -69,6 +89,8 @@ Before relying on learned production weights, personally verify the latest sched
 | `forecastSources.ts` | Single-flight, TTL-cached provider fan-out with timeouts |
 | `cycle.ts` | Dependency-injected daily reliability orchestration |
 | `stateSnapshot.ts` | Recovery union and monotonic history/checkpoint guard |
-| `persistence.ts` | Batch/local filesystem adapter and state snapshot I/O |
-| `scripts/precip-reliability.ts` | Daily CLI adapter |
-| `scripts/reliability-state.ts` | Recovery and pre-push guard CLI adapter |
+| `persistence.ts` | Isolated/local filesystem adapter and snapshot I/O |
+| `gitStateTarget.ts` | Versioned remote `reliability-state` read/publish adapter |
+| `stateTransaction.ts` | Restore, recover, run, validate, refresh, and publish transaction |
+| `scripts/precip-reliability.ts` | Scheduled transaction CLI and reporting adapter |
+| `scripts/reliability-state.ts` | Manual directory inspection/recovery utilities |

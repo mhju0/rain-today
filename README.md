@@ -50,9 +50,15 @@ Every day at approximately 06:10 KST, the [`precip-reliability`](.github/workflo
 1. Log tomorrow's precipitation forecast from every available provider.
 2. Fetch yesterday's completed KMA ASOS daily precipitation observation for Seoul station 108.
 3. Score informative provider forecasts against that independent observation.
-4. Update bounded multiplicative weights and persist the append-only history under [`data/reliability`](data/reliability) on `main`.
+4. Update bounded multiplicative weights and publish the validated snapshot to the public [`reliability-state`](https://github.com/mhju0/seoulsky/tree/reliability-state/data/reliability) branch.
 
-The web runtime reads and validates that state before blending precipitation forecasts. It starts with equal weights, gradually mixes in learned weights as evidence accumulates, and returns to equal weighting when the state is missing, stale, malformed, or explicitly disabled. Only providers that answer the current request participate, and their effective weights are renormalized rather than treating unavailable data as zero.
+The action restores, runs, validates, and publishes through one transaction. A revision conflict or invalid/regressive candidate fails without replacing the remote snapshot.
+
+Release commits ignore generated reliability files. Vercel also skips deployments for `reliability-state`, so learning updates do not create application releases.
+
+The web runtime reads and validates learned weights from that branch before blending forecasts. It begins with equal weights and gradually mixes in learning as evidence accumulates.
+
+Missing, stale, malformed, or disabled state returns to equal weighting. Only providers that answer participate, and weights renormalize over that subset instead of treating missing data as zero.
 
 This is precipitation-only forecast verification, not a claim that SeoulSky retrains a weather model or is proven more accurate than its sources. Correct-dry days and missing observations do not manufacture evidence. The advanced diagnostics make the current mode, completed-date count, scored provider forecasts, observation freshness, and exact effective versus stored weights visible. See [`lib/reliability/README.md`](lib/reliability/README.md) for scoring, persistence, recovery, and runtime-gate details.
 
@@ -84,12 +90,13 @@ flowchart TB
   Delivery --> RadarCache["Recent immutable PNG cache (per process)"]
   RadarRoutes --> EdgeCache["Immutable frame responses (browser/CDN)"]
   Providers --> Cache["TTL cache with stale-on-error fallback"]
-  Action["Daily GitHub Action"] --> ForecastLog["Provider forecast log"]
-  Action --> KMAObservation["KMA ASOS completed observation"]
+  Action["Daily GitHub Action"] --> Transaction["Validated state transaction"]
+  Transaction --> ForecastLog["Provider forecast log"]
+  Transaction --> KMAObservation["KMA ASOS completed observation"]
   ForecastLog --> Weights["Bounded precipitation weights"]
   KMAObservation --> Weights
-  Weights --> MainState["main: data/reliability"]
-  MainState --> SkyAPI
+  Weights --> StateBranch["public reliability-state branch"]
+  StateBranch --> SkyAPI
 ```
 
 Forecast providers are read through one Provider Snapshot boundary. A snapshot keeps status (including cache and stale metadata) coherent with the current, hourly, and daily weather it serves; a stale last-good snapshot remains an available snapshot, while missing configuration or a failed fetch produces an empty non-OK snapshot. The shared provider cache is reused by the live Sky snapshot, deferred Weather Intelligence comparison, runtime precipitation collection, and daily forecast log. Those consumers omit non-OK sources instead of fabricating weather or treating missing values as zero. Provider priority remains Open-Meteo, MET Norway, KMA, Pirate Weather, then WeatherAPI; the first live current snapshot remains the diagnostics primary.

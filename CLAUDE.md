@@ -27,6 +27,8 @@ The application works without environment variables. Copy `.env.example` to `.en
 - `/api/radar/frames` and `/api/radar/frame` are thin adapters over `RadarDelivery`, serving optional KMA reflectivity metadata and server-rendered PNG frames. `RadarDelivery` owns key/window validation, bounded newest-deliverable discovery, process-local admission, same-key single-flight, cancellation, and recent immutable PNG caching; KMA keys and raw grids must never reach the client.
 - Forecast providers use `WeatherProvider.read()` to return one Provider Snapshot: availability, cache freshness, and normalized current, hourly, and daily weather from the same cached generation. The live Sky snapshot, Weather Intelligence, runtime precipitation collection, and scheduled forecast log reuse this boundary.
 - `lib/cache.ts` provides process-local single-flight TTL caching with stale-on-error fallback.
+- The scheduled reliability CLI delegates restore, optional recovery, isolated cycle execution, validation, and publication to `runReliabilityStateTransaction`.
+- `GitStateTarget` owns the public `reliability-state` branch. The web runtime reads only its raw learned-weights file; `vercel.json` prevents state commits from creating deployments.
 - `public/sky/manifest.json` is the runtime still-image manifest. The live scene does not use a video gallery.
 
 ## Invariants
@@ -49,7 +51,8 @@ The application works without environment variables. Copy `.env.example` to `.en
 - The radar's raw `<img>` tiles are intentional because exact percentage positioning is required.
 - Radar warm-up must remain progressive and controller-owned: keep one abortable fetch/decode lifecycle in flight, prioritize active then next playback frame, render only decoded blob URLs, gate autoplay on readiness, retry bounded 429/503 pressure without marking it terminal, capture visible-image failures, revoke owned URLs, skip terminal failures, and retain circular playback.
 - The development-only visual override is `/sky?cond=<condition>&hour=<0-23>`; it must remain inert in production.
-- Reliability records under `data/reliability/` are currently tracked and published on `main`; a later dedicated plan will migrate them atomically. Radar cache output under `data/radar/` is ignored and must not be committed.
+- Release branches ignore generated reliability JSON/JSONL. Durable state belongs only on `reliability-state`; preserve its exact three-file manifest and compare-and-swap publication boundary.
+- Radar cache output under `data/radar/` is ignored and must not be committed.
 
 ## Documentation
 
