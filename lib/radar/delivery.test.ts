@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { setImmediate as nextTurn } from "node:timers/promises";
 import { test } from "node:test";
+import { deliverRadarFrame } from "../../app/api/radar/frame/route.ts";
+import { deliverRadarTimeline } from "../../app/api/radar/frames/route.ts";
+import type { KmaRadarFrames } from "../types.ts";
 import {
   createRadarDelivery,
   type RadarDeliveryDependencies,
@@ -445,4 +448,89 @@ test("timeline degrades to an honest empty state when KMA is not configured", as
     bounds: null,
   });
   assert.deepEqual({ boundsReads, renders }, { boundsReads: 0, renders: 0 });
+});
+
+test("radar timeline route forwards the request signal to RadarDelivery", async () => {
+  const controller = new AbortController();
+  let receivedSignal: AbortSignal | undefined;
+  const timeline: KmaRadarFrames = {
+    available: false,
+    frames: [],
+    attribution: "기상청 (KMA)",
+    bounds: null,
+  };
+
+  const request = new Request("https://seoulsky.test/api/radar/frames", {
+    signal: controller.signal,
+  });
+  const response = await deliverRadarTimeline(request, {
+    timeline: async (signal) => {
+      receivedSignal = signal;
+      return timeline;
+    },
+  });
+
+  assert.equal(receivedSignal, request.signal);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("Cache-Control"), "no-store");
+  assert.deepEqual(await response.json(), timeline);
+});
+
+test("radar frame route maps delivery results to stable HTTP responses", async () => {
+  const cases: Array<{
+    result: RadarFrameResult;
+    status: number;
+    body: string | Uint8Array;
+    cacheControl: string;
+    retryAfter?: string;
+  }> = [
+    {
+      result: { kind: "ready", png: Buffer.from([137, 80, 78, 71]) },
+      status: 200,
+      body: new Uint8Array([137, 80, 78, 71]),
+      cacheControl: "public, max-age=86400, s-maxage=86400, immutable",
+    },
+    { result: { kind: "invalid" }, status: 400, body: "bad request", cacheControl: "no-store" },
+    {
+      result: { kind: "busy" },
+      status: 503,
+      body: "radar busy",
+      cacheControl: "no-store",
+      retryAfter: "1",
+    },
+    { result: { kind: "cancelled" }, status: 499, body: "request cancelled", cacheControl: "no-store" },
+    {
+      result: { kind: "unavailable" },
+      status: 502,
+      body: "radar unavailable",
+      cacheControl: "no-store",
+    },
+  ];
+  for (const expected of cases) {
+    const controller = new AbortController();
+    let receivedKey: string | undefined;
+    let receivedSignal: AbortSignal | undefined;
+    const request = new Request("https://seoulsky.test/api/radar/frame?t=202606261105", {
+      signal: controller.signal,
+    });
+    const response = await deliverRadarFrame(request, {
+      frame: async (key, signal) => {
+        receivedKey = key;
+        receivedSignal = signal;
+        return expected.result;
+      },
+    });
+
+    assert.equal(receivedKey, "202606261105");
+    assert.equal(receivedSignal, request.signal);
+    assert.equal(response.status, expected.status);
+    assert.equal(response.headers.get("Cache-Control"), expected.cacheControl);
+    assert.equal(response.headers.get("Retry-After"), expected.retryAfter ?? null);
+    if (expected.body instanceof Uint8Array) {
+      assert.equal(response.headers.get("Content-Type"), "image/png");
+      assert.deepEqual(new Uint8Array(await response.arrayBuffer()), expected.body);
+    } else {
+      assert.equal(await response.text(), expected.body);
+    }
+  }
 });
