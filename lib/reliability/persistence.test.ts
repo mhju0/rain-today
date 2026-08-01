@@ -28,6 +28,25 @@ test("reliability publication rejects files outside its canonical manifest", () 
   );
 });
 
+test("reliability publication rejects a missing canonical file", () => {
+  assert.throws(
+    () => assertReliabilityStateFiles(RELIABILITY_STATE_FILES.slice(0, -1)),
+    /unexpected reliability state file/i,
+  );
+});
+
+test("reliability publication rejects reordered canonical files", () => {
+  assert.throws(
+    () =>
+      assertReliabilityStateFiles([
+        RELIABILITY_STATE_FILES[1],
+        RELIABILITY_STATE_FILES[0],
+        RELIABILITY_STATE_FILES[2],
+      ]),
+    /unexpected reliability state file/i,
+  );
+});
+
 test("reliability snapshot round-trips canonical bytes and records", async () => {
   const dir = mkdtempSync(path.join(tmpdir(), "seoulsky-reliability-"));
   const snapshot = {
