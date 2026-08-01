@@ -231,6 +231,77 @@ test("read returns the published revision and snapshot", async () => {
   });
 });
 
+test("explicit recovery reads a remote ref that is absent from the local checkout", async () => {
+  await withRepository(async ({ bareRepository, target, workingRepository }) => {
+    const state = snapshot(1);
+    const published = await target.publish({
+      expectedRevision: null,
+      snapshot: state,
+      message: "publish initial reliability state",
+    });
+    const recoveryRef = "refs/heads/recovery-checkpoint";
+    await git(bareRepository, "update-ref", recoveryRef, published.revision);
+    await assert.rejects(
+      () => git(workingRepository, "rev-parse", "--verify", recoveryRef),
+    );
+
+    assert.deepEqual(await target.read(recoveryRef), {
+      revision: published.revision,
+      snapshot: state,
+    });
+    assert.equal(
+      await git(workingRepository, "for-each-ref", "--format=%(refname)", "refs/seoulsky/recovery"),
+      "",
+    );
+  });
+});
+
+test("explicit recovery fetches a full remote commit SHA missing from the local object store", async () => {
+  await withRepository(async ({
+    bareRepository,
+    root,
+    target,
+    temporaryDirectory,
+    workingRepository,
+  }) => {
+    const first = await target.publish({
+      expectedRevision: null,
+      snapshot: snapshot(1),
+      message: "publish initial reliability state",
+    });
+    const writerRepository = path.join(root, "recovery-writer");
+    await git(
+      root,
+      "clone",
+      "--branch",
+      "reliability-state",
+      bareRepository,
+      writerRepository,
+    );
+    const writer = new GitStateTarget({
+      repository: writerRepository,
+      temporaryDirectory,
+    });
+    const remoteOnly = await writer.publish({
+      expectedRevision: first.revision,
+      snapshot: snapshot(2),
+      message: "publish remote recovery checkpoint",
+    });
+    await assert.rejects(
+      () => git(workingRepository, "cat-file", "-e", `${remoteOnly.revision}^{commit}`),
+    );
+
+    assert.deepEqual(await target.read(remoteOnly.revision), {
+      revision: remoteOnly.revision,
+      snapshot: snapshot(2),
+    });
+    assert.equal(
+      await git(workingRepository, "for-each-ref", "--format=%(refname)", "refs/seoulsky/recovery"),
+      "",
+    );
+  });
+});
+
 test("unchanged publication returns the existing revision without a commit", async () => {
   await withRepository(async ({ bareRepository, target }) => {
     const state = snapshot(1);

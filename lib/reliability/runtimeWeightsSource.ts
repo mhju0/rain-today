@@ -5,7 +5,7 @@ import type { WeightsState } from "./types.ts";
 import { parseWeightsState } from "./weightsState.ts";
 
 export const DEFAULT_RELIABILITY_WEIGHTS_URL =
-  "https://raw.githubusercontent.com/mhju0/seoulsky/main/data/reliability/source-weights.json";
+  "https://raw.githubusercontent.com/mhju0/seoulsky/reliability-state/data/reliability/source-weights.json";
 
 const DEFAULT_TIMEOUT_MS = 4_000;
 const MAX_WEIGHTS_BYTES = 512 * 1024;

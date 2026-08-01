@@ -24,8 +24,9 @@
 .DS_Store
 *.pem
 
-# precipitation source-reliability batch outputs are intentionally tracked on
-# main so the repository can retain durable state without a second branch.
+# precipitation source-reliability batch outputs live on reliability-state
+/data/reliability/*.json
+/data/reliability/*.jsonl
 
 # radar georeference cache (built once from the KMA latlon grids; regenerable)
 /data/radar/

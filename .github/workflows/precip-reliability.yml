@@ -1,22 +1,9 @@
-# Daily precipitation source-reliability batch (log → ground truth → score → Hedge
-# weights). Runs scripts/precip-reliability.ts on a schedule and — critically —
-# PERSISTS the learning state across runs by committing the data files back to
-# the default branch (`main`). The accumulator's only memory is
-# data/reliability/source-weights.json (+ the two .jsonl logs); an uploaded
-# artifact does NOT carry state between runs, so we commit the tracked files.
-#
-# What is persisted (and ONLY this — never secrets, never fabricated data):
-#   data/reliability/forecast-log.jsonl   (each source's logged forecast per day)
-#   data/reliability/daily-skill.jsonl    (scored per-source skill per completed day)
-#   data/reliability/source-weights.json  (the stateful Hedge weights — the memory)
-#
-# Idempotency is preserved end-to-end: the restored source-weights.json carries
-# WeightsState.processedDates, so re-runs never double-apply a scored day, and the
-# .jsonl stores skip (date, source) pairs already present.
+# Daily precipitation source-reliability transaction: restore the public
+# reliability-state branch, run one cycle in isolation, validate the complete
+# snapshot, and publish with compare-and-swap protection.
 #
 # IMPORTANT — the `schedule:` trigger only fires when this file is on the repo's
-# DEFAULT branch (main). On a feature branch you can still run it via the
-# "Run workflow" button (workflow_dispatch). See lib/reliability/README.md.
+# default branch. Feature branches can still use workflow_dispatch.
 name: precip-reliability
 
 on:
@@ -30,154 +17,41 @@ on:
     # 21:10 UTC ≈ 06:10 KST — after yesterday's KMA ASOS daily data is published.
     - cron: "10 21 * * *"
 
-# Serialize runs: two batches must never race to update the tracked state.
 concurrency:
   group: precip-reliability
   cancel-in-progress: false
 
-# Needed so the job can push the learned state back to the default branch.
 permissions:
   contents: read
-
-env:
-  STATE_BRANCH: main
-  # Absolute, cwd-independent so restore/run/persist all agree.
-  RELIABILITY_DATA_DIR: ${{ github.workspace }}/data/reliability
 
 jobs:
   run:
     runs-on: ubuntu-latest
     permissions:
-      # This scheduled job alone persists validated learning state to main.
       contents: write
     steps:
       - name: Checkout code
-        # Persists a credential used later to push the state branch.
+        # The transaction's Git adapter uses this persisted credential to publish.
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "24"
 
-      - name: Restore prior learning state from main
-        run: |
-          mkdir -p "$RELIABILITY_DATA_DIR"
-          if git fetch --depth 100 origin "$STATE_BRANCH" 2>/dev/null; then
-            for f in forecast-log.jsonl daily-skill.jsonl source-weights.json; do
-              if git cat-file -e "FETCH_HEAD:data/reliability/$f" 2>/dev/null; then
-                # `git show` of a blob is byte-exact (trailing newline preserved),
-                # so the append-only stores stay well-formed across runs.
-                git show "FETCH_HEAD:data/reliability/$f" > "$RELIABILITY_DATA_DIR/$f"
-                echo "restored $f ($(wc -l < "$RELIABILITY_DATA_DIR/$f") line(s))"
-              else
-                echo "no prior $f on $STATE_BRANCH (cold start for this file)"
-              fi
-            done
-          else
-            echo "default branch '$STATE_BRANCH' not found — cannot restore state" >&2
-            exit 1
-          fi
-
-      - name: Union an explicitly selected known-good recovery checkpoint
-        id: recovery
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.recovery_ref != '' }}
+      - name: Run daily reliability transaction
         env:
           RECOVERY_REF: ${{ inputs.recovery_ref }}
-        run: |
-          # Fetch the supplied object directly into FETCH_HEAD. This also works
-          # for a detached known-good commit that is no longer reachable from the
-          # current state-branch tip. Input is constrained to a full SHA or a
-          # syntactically valid ref before it reaches git.
-          if [[ "$RECOVERY_REF" =~ ^[0-9a-fA-F]{40}$ ]]; then
-            FETCH_SPEC="$RECOVERY_REF"
-          elif git check-ref-format "$RECOVERY_REF" >/dev/null 2>&1; then
-            FETCH_SPEC="$RECOVERY_REF"
-          elif git check-ref-format --branch "$RECOVERY_REF" >/dev/null 2>&1; then
-            FETCH_SPEC="$RECOVERY_REF"
-          else
-            echo "invalid recovery_ref; use a full 40-character SHA or valid remote ref" >&2
-            exit 1
-          fi
-          git fetch --no-tags --depth 1 origin "$FETCH_SPEC"
-          RECOVERY_COMMIT="$(git rev-parse --verify 'FETCH_HEAD^{commit}')"
-          RECOVERY_DIR="$RUNNER_TEMP/reliability-recovery"
-          mkdir -p "$RECOVERY_DIR"
-          for f in forecast-log.jsonl daily-skill.jsonl source-weights.json; do
-            if git cat-file -e "$RECOVERY_COMMIT:data/reliability/$f" 2>/dev/null; then
-              git show "$RECOVERY_COMMIT:data/reliability/$f" > "$RECOVERY_DIR/$f"
-            fi
-          done
-          npm run reliability:state -- recover "$RECOVERY_DIR" "$RELIABILITY_DATA_DIR"
-
-      - name: Run daily reliability batch
-        env:
           # All optional and server-side. Open-Meteo logs forecasts with no key;
-          # the others activate only when their secret is set. Ground-truth scoring
-          # needs KMA_OBSERVATION_API_KEY — if it is missing/unsubscribed the ASOS
-          # call returns 403, the day is SCORING-SKIPPED (not a job failure), and the
-          # forecast log still grows so warm-up can proceed once the key is added.
+          # other providers activate only when their secret is configured.
           MET_NO_USER_AGENT: ${{ secrets.MET_NO_USER_AGENT }}
           KMA_SHORT_TERM_API_KEY: ${{ secrets.KMA_SHORT_TERM_API_KEY }}
           PIRATE_WEATHER_API_KEY: ${{ secrets.PIRATE_WEATHER_API_KEY }}
           WEATHERAPI_KEY: ${{ secrets.WEATHERAPI_KEY }}
           KMA_OBSERVATION_API_KEY: ${{ secrets.KMA_OBSERVATION_API_KEY }}
-          # Tuning knobs (optional; sensible defaults baked into the code).
           RELIABILITY_ETA: ${{ secrets.RELIABILITY_ETA }}
-        run: npm run reliability:daily
-
-      - name: Persist learning state back to main
-        # Always run so the forecast log is saved even on a scoring-skip day; the
-        # commit is a no-op when nothing actually changed.
-        if: ${{ always() && steps.recovery.outcome != 'failure' }}
-        env:
-          RECOVERY_APPLIED: ${{ steps.recovery.outcome == 'success' }}
         run: |
-          shopt -s nullglob
-          produced=("$RELIABILITY_DATA_DIR"/*.jsonl "$RELIABILITY_DATA_DIR"/*.json)
-          if [ ${#produced[@]} -eq 0 ]; then
-            echo "no state files produced; nothing to persist"
-            exit 0
+          recovery_args=()
+          if [ -n "${RECOVERY_REF:-}" ]; then
+            recovery_args=(--recover "$RECOVERY_REF")
           fi
-
-          # Re-read the remote tip immediately before persistence. The tested
-          # guard refuses any candidate that loses a forecast/skill row key,
-          # moves events/processed dates backward, or carries older weights.
-          LATEST_DIR="$RUNNER_TEMP/reliability-latest"
-          mkdir -p "$LATEST_DIR"
-          git fetch --depth 1 origin "$STATE_BRANCH"
-          LATEST_REF="$(git rev-parse FETCH_HEAD)"
-          for f in forecast-log.jsonl daily-skill.jsonl source-weights.json; do
-            if git cat-file -e "$LATEST_REF:data/reliability/$f" 2>/dev/null; then
-              git show "$LATEST_REF:data/reliability/$f" > "$LATEST_DIR/$f"
-            fi
-          done
-          if [ "$RECOVERY_APPLIED" = "true" ]; then
-            # Only an explicit known-good recovery may repair the content of an
-            # existing (date, source) row. Normal scheduled runs are append-only.
-            npm run reliability:state -- assert-monotonic "$LATEST_DIR" "$RELIABILITY_DATA_DIR" --allow-content-repair
-          else
-            npm run reliability:state -- assert-monotonic "$LATEST_DIR" "$RELIABILITY_DATA_DIR"
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          STATE_WT="$(mktemp -d)/state"
-          # Use a detached worktree so the workflow never needs a second branch.
-          # The final push is a normal fast-forward from the latest main tip.
-          git worktree add --detach "$STATE_WT" "$LATEST_REF"
-
-          mkdir -p "$STATE_WT/data/reliability"
-          cp -f "$RELIABILITY_DATA_DIR"/*.jsonl "$STATE_WT/data/reliability/" 2>/dev/null || true
-          cp -f "$RELIABILITY_DATA_DIR"/*.json  "$STATE_WT/data/reliability/" 2>/dev/null || true
-
-          # Only these tracked data files are staged — no source, no secrets.
-          git -C "$STATE_WT" add data/reliability
-          if git -C "$STATE_WT" diff --cached --quiet; then
-            echo "learning state unchanged; nothing to commit"
-          else
-            git -C "$STATE_WT" commit -m "chore(reliability): persist learning state $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            git -C "$STATE_WT" push origin "HEAD:$STATE_BRANCH"
-            echo "pushed updated state to $STATE_BRANCH"
-          fi
-          git worktree remove --force "$STATE_WT"
+          npm run reliability:daily -- "${recovery_args[@]}"

@@ -169,8 +169,7 @@ export class GitStateTarget {
       if (revision === null) return null;
     } else {
       assertGitRef(ref);
-      revision = await this.resolveCommit(ref);
-      if (revision === null) throw new Error(`Git ref does not resolve to a commit: ${ref}`);
+      revision = await this.fetchRecoveryRevision(ref);
     }
 
     await this.assertCommittedManifest(revision);
@@ -301,6 +300,31 @@ export class GitStateTarget {
     }
     if (operationError !== undefined) throw operationError;
     if (cleanupError !== undefined) throw cleanupError;
+    return revision;
+  }
+
+  private async fetchRecoveryRevision(ref: string): Promise<string> {
+    const fetchRef = `refs/seoulsky/recovery/${process.pid}-${this.fetchSequence++}-${Date.now()}-${Math.random()
+      .toString(16)
+      .slice(2)}`;
+    let operationError: unknown;
+    let revision: string | null = null;
+    try {
+      await this.git(["fetch", "--no-tags", "--depth", "1", this.remote, `${ref}:${fetchRef}`]);
+      revision = await this.resolveCommit(fetchRef);
+      if (revision === null) throw new Error(`Fetched Git ref did not resolve to a commit: ${ref}`);
+    } catch (error) {
+      operationError = error;
+    }
+    let cleanupError: unknown;
+    try {
+      await this.git(["update-ref", "-d", fetchRef]);
+    } catch (error) {
+      cleanupError = error;
+    }
+    if (operationError !== undefined) throw operationError;
+    if (cleanupError !== undefined) throw cleanupError;
+    if (revision === null) throw new Error(`Git ref did not resolve to a commit: ${ref}`);
     return revision;
   }
 

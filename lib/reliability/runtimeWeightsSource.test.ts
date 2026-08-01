@@ -16,16 +16,16 @@ const validState: WeightsState = {
 };
 
 const validUrl =
-  "https://raw.githubusercontent.com/mhju0/seoulsky/main/data/reliability/source-weights.json";
+  "https://raw.githubusercontent.com/mhju0/seoulsky/reliability-state/data/reliability/source-weights.json";
 
 function fetchReturning(response: Response): typeof fetch {
   return (async () => response) as typeof fetch;
 }
 
-test("default runtime weights are read from the single main branch", () => {
+test("default runtime weights are read from the public reliability-state branch", () => {
   assert.equal(
     DEFAULT_RELIABILITY_WEIGHTS_URL,
-    "https://raw.githubusercontent.com/mhju0/seoulsky/main/data/reliability/source-weights.json",
+    "https://raw.githubusercontent.com/mhju0/seoulsky/reliability-state/data/reliability/source-weights.json",
   );
 });
 
