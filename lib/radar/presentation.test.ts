@@ -5,6 +5,7 @@ import {
   advanceRadarFrame,
   buildRadarMosaic,
   formatRadarFrameTime,
+  orderedRadarWarmup,
   radarApproachSummary,
   radarFrameTag,
   resolveRadarTimeline,
@@ -68,6 +69,32 @@ test("advanceRadarFrame loops without producing invalid indices", () => {
   assert.equal(advanceRadarFrame(1, 3), 2);
   assert.equal(advanceRadarFrame(2, 3), 0);
   assert.equal(advanceRadarFrame(99, 3), 0);
+});
+
+test("orderedRadarWarmup starts at the active frame and follows playback order once", () => {
+  const frames = [
+    frame("2026-07-14T06:45:00.000Z"),
+    frame("2026-07-14T06:50:00.000Z"),
+    frame("2026-07-14T06:55:00.000Z"),
+    frame("2026-07-14T07:00:00.000Z"),
+  ];
+
+  assert.deepEqual(
+    orderedRadarWarmup(frames, 2).map((candidate) => candidate.time),
+    [
+      "2026-07-14T06:55:00.000Z",
+      "2026-07-14T07:00:00.000Z",
+      "2026-07-14T06:45:00.000Z",
+      "2026-07-14T06:50:00.000Z",
+    ],
+  );
+});
+
+test("orderedRadarWarmup is safe for empty and single-frame timelines", () => {
+  const only = frame("2026-07-14T07:00:00.000Z");
+
+  assert.deepEqual(orderedRadarWarmup([], 0), []);
+  assert.deepEqual(orderedRadarWarmup([only], 0), [only]);
 });
 
 test("buildRadarMosaic keeps basemap tiles and labels registered to the bounds", () => {

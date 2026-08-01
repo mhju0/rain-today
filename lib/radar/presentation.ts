@@ -84,6 +84,19 @@ export function advanceRadarFrame(currentIndex: number, frameCount: number): num
   return currentIndex + 1 >= frameCount ? 0 : currentIndex + 1;
 }
 
+/** Prioritize the active frame, then warm each later playback frame exactly once. */
+export function orderedRadarWarmup(
+  frames: readonly KmaRadarFrame[],
+  activeIndex: number,
+): KmaRadarFrame[] {
+  if (frames.length === 0) return [];
+  const start = Math.max(
+    0,
+    Math.min(Number.isFinite(activeIndex) ? Math.trunc(activeIndex) : 0, frames.length - 1),
+  );
+  return [...frames.slice(start), ...frames.slice(0, start)];
+}
+
 export interface RadarMosaic {
   /** Bounding-box size in world pixels, used for the cover-fit aspect ratio. */
   wpW: number;

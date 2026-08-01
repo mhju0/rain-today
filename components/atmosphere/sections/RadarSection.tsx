@@ -9,6 +9,7 @@ import {
   advanceRadarFrame,
   buildRadarMosaic,
   formatRadarFrameTime,
+  orderedRadarWarmup,
   radarApproachSummary,
   RADAR_BASEMAP_ATTRIBUTION,
   radarFrameTag,
@@ -213,7 +214,7 @@ function Scrubber({
   frames: KmaRadarFrame[];
   index: number;
   nowIndex: number;
-  onSeek: (i: number) => void;
+  onSeek: (i: number, direction?: -1 | 1) => void;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
@@ -258,10 +259,10 @@ function Scrubber({
         e.currentTarget.releasePointerCapture(e.pointerId);
       }}
       onKeyDown={(e) => {
-        if (e.key === "ArrowLeft") onSeek(Math.max(0, index - 1));
-        else if (e.key === "ArrowRight") onSeek(Math.min(n - 1, index + 1));
-        else if (e.key === "Home") onSeek(0);
-        else if (e.key === "End") onSeek(n - 1);
+        if (e.key === "ArrowLeft") onSeek(Math.max(0, index - 1), -1);
+        else if (e.key === "ArrowRight") onSeek(Math.min(n - 1, index + 1), 1);
+        else if (e.key === "Home") onSeek(0, 1);
+        else if (e.key === "End") onSeek(n - 1, -1);
         else return;
         e.preventDefault();
       }}
@@ -313,11 +314,36 @@ function Scrubber({
 
 const REFRESH_INTERVAL_MS = 10 * 60 * 1000; // re-pull the frame list periodically
 
+function nearestNonFailedFrameIndex(
+  frames: readonly KmaRadarFrame[],
+  activeIndex: number,
+  failedKeys: ReadonlySet<string>,
+  preferredDirection: -1 | 1 = -1,
+): number | null {
+  if (frames.length === 0) return null;
+  if (!failedKeys.has(frames[activeIndex].t)) return activeIndex;
+
+  for (let distance = 1; distance < frames.length; distance++) {
+    const preferred = activeIndex + distance * preferredDirection;
+    if (preferred >= 0 && preferred < frames.length && !failedKeys.has(frames[preferred].t)) {
+      return preferred;
+    }
+
+    const alternate = activeIndex - distance * preferredDirection;
+    if (alternate >= 0 && alternate < frames.length && !failedKeys.has(frames[alternate].t)) {
+      return alternate;
+    }
+  }
+
+  return null;
+}
+
 export default function RadarSection() {
   const { snapshot } = useWeatherField();
   const reduce = !!useReducedMotion();
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const [failedFrameKeys, setFailedFrameKeys] = useState<Set<string>>(() => new Set());
 
   const sectionRef = useRef<HTMLDivElement>(null);
   const near = useInView(sectionRef, { once: true, margin: "0px 0px 400px 0px" });
@@ -336,6 +362,12 @@ export default function RadarSection() {
   const nowIndex = timeline.latestIndex;
   const nowMs = timeline.latestObservedMs ?? 0;
   const activeIndex = available ? timeline.activeIndex : 0;
+  const displayIndex = available
+    ? nearestNonFailedFrameIndex(frames, activeIndex, failedFrameKeys)
+    : null;
+  const displayFrame = displayIndex === null ? null : frames[displayIndex];
+  const activeFrameFailed =
+    available && failedFrameKeys.has(frames[activeIndex].t);
 
   useEffect(() => {
     if (!summary) return;
@@ -344,31 +376,77 @@ export default function RadarSection() {
     setPlaying(!reduce && summary.available && summary.frames.length > 1);
   }, [summary, reduce]);
 
-  // Preload every frame so scrubbing/playback is flash-free. Kept in a ref so the
-  // in-flight Image() objects aren't GC'd before they warm the browser cache.
+  // Warm one frame at a time so the client never opens thirteen cold requests at
+  // once. Keep each Image alive until cleanup and continue after either outcome.
   const preloadRef = useRef<HTMLImageElement[]>([]);
   useEffect(() => {
     if (!available) return;
-    preloadRef.current = frames.map((f) => {
+
+    let cancelled = false;
+    const images: HTMLImageElement[] = [];
+    const orderedFrames = orderedRadarWarmup(frames, nowIndex);
+    let nextIndex = 0;
+
+    preloadRef.current = images;
+    setFailedFrameKeys(new Set());
+
+    const warmNext = () => {
+      if (cancelled || nextIndex >= orderedFrames.length) return;
+
+      const frame = orderedFrames[nextIndex++];
       const img = new Image();
-      img.src = `/api/radar/frame?t=${f.t}`;
-      return img;
-    });
-  }, [frames, available]);
+      images.push(img);
+
+      const settle = (didFail: boolean) => {
+        if (cancelled) return;
+        img.onload = null;
+        img.onerror = null;
+        if (didFail) {
+          setFailedFrameKeys((current) => {
+            const next = new Set(current);
+            next.add(frame.t);
+            return next;
+          });
+        }
+        warmNext();
+      };
+
+      img.onload = () => settle(false);
+      img.onerror = () => settle(true);
+      img.src = `/api/radar/frame?t=${frame.t}`;
+    };
+
+    warmNext();
+
+    return () => {
+      cancelled = true;
+      for (const img of images) {
+        img.onload = null;
+        img.onerror = null;
+      }
+      if (preloadRef.current === images) preloadRef.current = [];
+    };
+  }, [frames, available, nowIndex]);
 
   // Local playback timer — advances the playhead; loops back to the oldest frame.
   useEffect(() => {
     if (!playing || frames.length <= 1) return;
     const id = setInterval(() => {
-      setIndex((i) => advanceRadarFrame(i, frames.length));
+      setIndex((i) => {
+        const nextIndex = advanceRadarFrame(i, frames.length);
+        return nearestNonFailedFrameIndex(frames, nextIndex, failedFrameKeys, 1) ?? nextIndex;
+      });
     }, RADAR_CONFIG.playIntervalMs);
     return () => clearInterval(id);
-  }, [playing, frames.length]);
+  }, [playing, frames, failedFrameKeys]);
 
-  const onSeek = useCallback((i: number) => {
-    setPlaying(false);
-    setIndex(i);
-  }, []);
+  const onSeek = useCallback(
+    (i: number, direction?: -1 | 1) => {
+      setPlaying(false);
+      setIndex(nearestNonFailedFrameIndex(frames, i, failedFrameKeys, direction) ?? i);
+    },
+    [frames, failedFrameKeys],
+  );
 
   return (
     <SkySection id="rain" compact>
@@ -381,14 +459,18 @@ export default function RadarSection() {
       <div ref={sectionRef} className="flex flex-1 flex-col justify-center">
         <ScrollReveal amount={0.12}>
           <div className="sky-film-surface sky-outline-surface mx-auto w-full max-w-[80rem] px-5 py-6 sm:px-8 sm:py-8 lg:px-10 lg:py-10">
-            {!available || !bounds ? (
-              <RadarEmpty near={near} failed={failed} loaded={summary !== null} />
+            {!available || !bounds || !displayFrame || displayIndex === null ? (
+              <RadarEmpty
+                near={near}
+                failed={failed || (available && displayIndex === null)}
+                loaded={summary !== null}
+              />
             ) : (
               <>
                 <div className="grid gap-8 lg:grid-cols-[minmax(22rem,0.9fr)_minmax(0,1fr)] lg:items-center lg:gap-12">
                   {/* Scope */}
                   <div className="mx-auto w-full max-w-[34rem] lg:mx-0">
-                    <RadarScope frame={frames[activeIndex]} nowMs={nowMs} bounds={bounds} />
+                    <RadarScope frame={displayFrame} nowMs={nowMs} bounds={bounds} />
                   </div>
 
                   {/* Readout + legend */}
@@ -399,8 +481,13 @@ export default function RadarSection() {
                         {radarApproachSummary(snapshot?.radar)}
                       </p>
                       <p className="font-mono text-[12px] tracking-[0.12em] text-white">
-                        {formatRadarFrameTime(frames[activeIndex].time)} · {radarFrameTag(frames[activeIndex], nowMs)}
+                        {formatRadarFrameTime(displayFrame.time)} · {radarFrameTag(displayFrame, nowMs)}
                       </p>
+                      {activeFrameFailed && (
+                        <p className="max-w-md text-sm leading-relaxed text-white/75">
+                          기상청 레이더 이미지를 불러오지 못했습니다. 잠시 후 다시 확인해 주세요.
+                        </p>
+                      )}
                     </div>
 
                     {/* Intensity legend (light → heavy). */}
@@ -440,7 +527,7 @@ export default function RadarSection() {
                     )}
                   </button>
                   <div className="flex-1">
-                    <Scrubber frames={frames} index={activeIndex} nowIndex={nowIndex} onSeek={onSeek} />
+                    <Scrubber frames={frames} index={displayIndex} nowIndex={nowIndex} onSeek={onSeek} />
                   </div>
                 </div>
 
