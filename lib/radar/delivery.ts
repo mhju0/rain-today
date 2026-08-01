@@ -1,23 +1,28 @@
 import type { KmaRadarFrame, KmaRadarFrames, RadarBounds } from "../types.ts";
 import { productionKmaRadarAdapter } from "./apihub.ts";
+import {
+  frameKey,
+  frameKeyToIso,
+  isAllowedFrameKey,
+  type KmaRadarAdapter,
+  KMA_RADAR_ATTRIBUTION,
+  KmaRadarSourceError,
+  latestFrameInstant,
+  RADAR_FRAME_STEP_MINUTES,
+  RADAR_MAX_FRAME_AGE_MINUTES,
+} from "./kma.ts";
 
-const FRAME_STEP_MIN = 5;
 const FRAME_COUNT = 13;
-const PUBLISH_LAG_MIN = 7;
-const MAX_FRAME_AGE_MIN = 90;
 const DEFAULT_MAX_CONCURRENT = 2;
 const DEFAULT_MAX_QUEUED = 8;
+const DEFAULT_BUSY_RETRY_AFTER_SECONDS = 1;
+const MAX_TIMELINE_FALLBACK_STEPS = Math.floor(
+  (RADAR_MAX_FRAME_AGE_MINUTES - (FRAME_COUNT - 1) * RADAR_FRAME_STEP_MINUTES) /
+    RADAR_FRAME_STEP_MINUTES,
+);
 
 const BUSY = Symbol("radar delivery busy");
 const CANCELLED = Symbol("radar delivery cancelled");
-
-export const KMA_RADAR_ATTRIBUTION = "기상청 (KMA)";
-
-export interface KmaRadarAdapter {
-  configured(): boolean;
-  bounds(signal?: AbortSignal): Promise<RadarBounds>;
-  render(key: string, signal?: AbortSignal): Promise<Buffer>;
-}
 
 export interface RadarDeliveryDependencies {
   kma: KmaRadarAdapter;
@@ -27,14 +32,17 @@ export interface RadarDeliveryOptions {
   now?: () => number;
   maxConcurrent?: number;
   maxQueued?: number;
+  busyRetryAfterSeconds?: number;
 }
 
 export type RadarFrameResult =
   | { kind: "ready"; png: Buffer }
   | { kind: "invalid" }
-  | { kind: "busy" }
+  | { kind: "busy"; retryAfterSeconds: number }
   | { kind: "cancelled" }
   | { kind: "unavailable" };
+
+type InternalRadarFrameResult = RadarFrameResult | { kind: "not-yet-published" };
 
 export interface RadarDelivery {
   timeline(signal?: AbortSignal): Promise<KmaRadarFrames>;
@@ -50,70 +58,8 @@ interface QueueEntry {
 
 interface PendingRender {
   controller: AbortController;
-  promise: Promise<RadarFrameResult>;
+  promise: Promise<InternalRadarFrameResult>;
   subscribers: number;
-}
-
-function pad(n: number): string {
-  return String(n).padStart(2, "0");
-}
-
-/** The latest five-minute boundary at or before the KMA publication lag, KST-shifted. */
-export function latestFrameInstant(nowMs = Date.now()): Date {
-  const stepMs = FRAME_STEP_MIN * 60_000;
-  const kstMs = nowMs + 9 * 3600_000 - PUBLISH_LAG_MIN * 60_000;
-  return new Date(Math.floor(kstMs / stepMs) * stepMs);
-}
-
-/** yyyyMMddHHmm (KST) key for a KST-shifted Date. */
-export function frameKey(kst: Date): string {
-  return (
-    `${kst.getUTCFullYear()}${pad(kst.getUTCMonth() + 1)}${pad(kst.getUTCDate())}` +
-    `${pad(kst.getUTCHours())}${pad(kst.getUTCMinutes())}`
-  );
-}
-
-/** True ISO instant (UTC) for a KST yyyyMMddHHmm key. */
-export function frameKeyToIso(key: string): string {
-  const year = Number(key.slice(0, 4));
-  const month = Number(key.slice(4, 6)) - 1;
-  const day = Number(key.slice(6, 8));
-  const hour = Number(key.slice(8, 10));
-  const minute = Number(key.slice(10, 12));
-  return new Date(Date.UTC(year, month, day, hour, minute) - 9 * 3600_000).toISOString();
-}
-
-/** A real calendar instant aligned to the KMA five-minute frame cadence. */
-export function isValidFrameKey(key: string): boolean {
-  if (!/^\d{12}$/.test(key)) return false;
-  const year = Number(key.slice(0, 4));
-  const month = Number(key.slice(4, 6));
-  const day = Number(key.slice(6, 8));
-  const hour = Number(key.slice(8, 10));
-  const minute = Number(key.slice(10, 12));
-  if (minute % FRAME_STEP_MIN !== 0) return false;
-  const parsed = new Date(Date.UTC(year, month - 1, day, hour, minute));
-  return (
-    parsed.getUTCFullYear() === year &&
-    parsed.getUTCMonth() === month - 1 &&
-    parsed.getUTCDate() === day &&
-    parsed.getUTCHours() === hour &&
-    parsed.getUTCMinutes() === minute
-  );
-}
-
-/** Restrict expensive KMA work to the recent observed playback window. */
-export function isAllowedFrameKey(key: string, nowMs = Date.now()): boolean {
-  if (!isValidFrameKey(key)) return false;
-  const frameMs = Date.UTC(
-    Number(key.slice(0, 4)),
-    Number(key.slice(4, 6)) - 1,
-    Number(key.slice(6, 8)),
-    Number(key.slice(8, 10)),
-    Number(key.slice(10, 12)),
-  );
-  const newestMs = latestFrameInstant(nowMs).getTime();
-  return frameMs <= newestMs && frameMs >= newestMs - MAX_FRAME_AGE_MIN * 60_000;
 }
 
 function emptyTimeline(): KmaRadarFrames {
@@ -125,7 +71,7 @@ function emptyTimeline(): KmaRadarFrames {
   };
 }
 
-function cloneResult(result: RadarFrameResult): RadarFrameResult {
+function cloneResult(result: InternalRadarFrameResult): InternalRadarFrameResult {
   return result.kind === "ready" ? { kind: "ready", png: Buffer.from(result.png) } : result;
 }
 
@@ -147,6 +93,11 @@ export function createRadarDelivery(
     1,
   );
   const maxQueued = requiredInteger(options.maxQueued ?? DEFAULT_MAX_QUEUED, "maxQueued", 0);
+  const busyRetryAfterSeconds = requiredInteger(
+    options.busyRetryAfterSeconds ?? DEFAULT_BUSY_RETRY_AFTER_SECONDS,
+    "busyRetryAfterSeconds",
+    1,
+  );
   const cache = new Map<string, Buffer>();
   const pending = new Map<string, PendingRender>();
   const queue: QueueEntry[] = [];
@@ -209,7 +160,10 @@ export function createRadarDelivery(
     }
   }
 
-  async function executeRender(key: string, signal: AbortSignal): Promise<RadarFrameResult> {
+  async function executeRender(
+    key: string,
+    signal: AbortSignal,
+  ): Promise<InternalRadarFrameResult> {
     try {
       const png = await admitted(signal, async () => {
         const rendered = await dependencies.kma.render(key, signal);
@@ -221,8 +175,14 @@ export function createRadarDelivery(
       cache.set(key, immutablePng);
       return { kind: "ready", png: immutablePng };
     } catch (error) {
-      if (error === BUSY) return { kind: "busy" };
+      if (error === BUSY) return { kind: "busy", retryAfterSeconds: busyRetryAfterSeconds };
       if (error === CANCELLED || signal.aborted) return { kind: "cancelled" };
+      if (
+        error instanceof KmaRadarSourceError &&
+        error.kind === "not-yet-published"
+      ) {
+        return { kind: "not-yet-published" };
+      }
       return { kind: "unavailable" };
     }
   }
@@ -245,7 +205,7 @@ export function createRadarDelivery(
   async function subscribe(
     work: PendingRender,
     signal?: AbortSignal,
-  ): Promise<RadarFrameResult> {
+  ): Promise<InternalRadarFrameResult> {
     work.subscribers += 1;
     if (!signal) {
       try {
@@ -259,9 +219,9 @@ export function createRadarDelivery(
       return { kind: "cancelled" };
     }
 
-    return new Promise<RadarFrameResult>((resolve) => {
+    return new Promise<InternalRadarFrameResult>((resolve) => {
       let settled = false;
-      const settle = (result: RadarFrameResult, aborted: boolean) => {
+      const settle = (result: InternalRadarFrameResult, aborted: boolean) => {
         if (settled) return;
         settled = true;
         signal.removeEventListener("abort", onAbort);
@@ -277,7 +237,10 @@ export function createRadarDelivery(
     });
   }
 
-  async function frame(key: string, signal?: AbortSignal): Promise<RadarFrameResult> {
+  async function loadFrame(
+    key: string,
+    signal?: AbortSignal,
+  ): Promise<InternalRadarFrameResult> {
     const nowMs = now();
     if (!isAllowedFrameKey(key, nowMs)) return { kind: "invalid" };
     if (signal?.aborted) return { kind: "cancelled" };
@@ -298,12 +261,29 @@ export function createRadarDelivery(
     return subscribe(startRender(key), signal);
   }
 
+  async function frame(key: string, signal?: AbortSignal): Promise<RadarFrameResult> {
+    const result = await loadFrame(key, signal);
+    return result.kind === "not-yet-published" ? { kind: "unavailable" } : result;
+  }
+
   async function timeline(signal?: AbortSignal): Promise<KmaRadarFrames> {
     if (signal?.aborted) return emptyTimeline();
-    const newest = latestFrameInstant(now());
-    const newestKey = frameKey(newest);
-    const probe = await frame(newestKey, signal);
-    if (probe.kind !== "ready" || signal?.aborted) return emptyTimeline();
+    const nominalNewest = latestFrameInstant(now());
+    let newest: Date | null = null;
+
+    for (let step = 0; step <= MAX_TIMELINE_FALLBACK_STEPS; step += 1) {
+      if (signal?.aborted) return emptyTimeline();
+      const candidate = new Date(
+        nominalNewest.getTime() - step * RADAR_FRAME_STEP_MINUTES * 60_000,
+      );
+      const probe = await loadFrame(frameKey(candidate), signal);
+      if (probe.kind === "ready") {
+        newest = candidate;
+        break;
+      }
+      if (probe.kind !== "not-yet-published") return emptyTimeline();
+    }
+    if (!newest || signal?.aborted) return emptyTimeline();
 
     let bounds: RadarBounds;
     try {
@@ -315,7 +295,9 @@ export function createRadarDelivery(
 
     const frames: KmaRadarFrame[] = [];
     for (let i = FRAME_COUNT - 1; i >= 0; i -= 1) {
-      const instant = new Date(newest.getTime() - i * FRAME_STEP_MIN * 60_000);
+      const instant = new Date(
+        newest.getTime() - i * RADAR_FRAME_STEP_MINUTES * 60_000,
+      );
       const key = frameKey(instant);
       frames.push({ t: key, time: frameKeyToIso(key), nowcast: false });
     }

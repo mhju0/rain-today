@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { setImmediate as nextTurn } from "node:timers/promises";
 import { test } from "node:test";
-import { deliverRadarFrame } from "../../app/api/radar/frame/route.ts";
-import { deliverRadarTimeline } from "../../app/api/radar/frames/route.ts";
 import type { KmaRadarFrames } from "../types.ts";
 import {
   createRadarDelivery,
   type RadarDeliveryDependencies,
   type RadarFrameResult,
 } from "./delivery.ts";
+import { deliverRadarFrame, deliverRadarTimeline } from "./http.ts";
+import { KmaRadarSourceError } from "./kma.ts";
 
 const NOW = Date.parse("2026-06-26T02:14:00.000Z");
 const KEYS = [
@@ -319,14 +319,17 @@ test("a full admission queue returns busy without reaching KMA", async () => {
         return Buffer.from(key);
       }),
     },
-    { now: () => NOW, maxConcurrent: 1, maxQueued: 1 },
+    { now: () => NOW, maxConcurrent: 1, maxQueued: 1, busyRetryAfterSeconds: 4 },
   );
 
   const first = delivery.frame(KEYS[0]);
   await firstStarted.promise;
   const queued = delivery.frame(KEYS[1]);
 
-  assert.deepEqual(await delivery.frame(KEYS[2]), { kind: "busy" });
+  assert.deepEqual(await delivery.frame(KEYS[2]), {
+    kind: "busy",
+    retryAfterSeconds: 4,
+  });
   assert.deepEqual(renderedKeys, [KEYS[0]]);
 
   releaseFirst.resolve(Buffer.from(KEYS[0]));
@@ -365,6 +368,87 @@ test("render capacity recovers after a KMA failure", async () => {
   assertKind(recovered, "ready");
   assert.equal(maxObserved, 1);
   assert.deepEqual(renderedKeys, [KEYS[0], KEYS[1]]);
+});
+
+test("render capacity recovers after a timeout", async () => {
+  let renders = 0;
+  const delivery = createRadarDelivery(
+    {
+      kma: configuredKma(async (key) => {
+        renders += 1;
+        if (key === KEYS[0]) throw new DOMException("timed out", "TimeoutError");
+        return Buffer.from(key);
+      }),
+    },
+    { now: () => NOW, maxConcurrent: 1, maxQueued: 1 },
+  );
+
+  const [timedOut, recovered] = await Promise.all([
+    delivery.frame(KEYS[0]),
+    delivery.frame(KEYS[1]),
+  ]);
+
+  assert.deepEqual(timedOut, { kind: "unavailable" });
+  assertKind(recovered, "ready");
+  assert.equal(renders, 2);
+});
+
+test("render capacity recovers after malformed radar data", async () => {
+  let renders = 0;
+  const delivery = createRadarDelivery(
+    {
+      kma: configuredKma(async (key) => {
+        renders += 1;
+        if (key === KEYS[0]) throw new RangeError("malformed grid");
+        return Buffer.from(key);
+      }),
+    },
+    { now: () => NOW, maxConcurrent: 1, maxQueued: 1 },
+  );
+
+  const [malformed, recovered] = await Promise.all([
+    delivery.frame(KEYS[0]),
+    delivery.frame(KEYS[1]),
+  ]);
+
+  assert.deepEqual(malformed, { kind: "unavailable" });
+  assertKind(recovered, "ready");
+  assert.equal(renders, 2);
+});
+
+test("active cancellation releases render capacity for queued work", async () => {
+  const firstStarted = deferred<void>();
+  let active = 0;
+  let maxObserved = 0;
+  const delivery = createRadarDelivery(
+    {
+      kma: configuredKma(async (key, signal) => {
+        active += 1;
+        maxObserved = Math.max(maxObserved, active);
+        try {
+          if (key !== KEYS[0]) return Buffer.from(key);
+          firstStarted.resolve();
+          await new Promise<void>((_resolve, reject) => {
+            signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+          });
+          return Buffer.from("unreachable");
+        } finally {
+          active -= 1;
+        }
+      }),
+    },
+    { now: () => NOW, maxConcurrent: 1, maxQueued: 1 },
+  );
+
+  const controller = new AbortController();
+  const cancelled = delivery.frame(KEYS[0], controller.signal);
+  await firstStarted.promise;
+  const queued = delivery.frame(KEYS[1]);
+  controller.abort();
+
+  assert.deepEqual(await cancelled, { kind: "cancelled" });
+  assertKind(await queued, "ready");
+  assert.equal(maxObserved, 1);
 });
 
 test("timeline probes through frame delivery and reuses its immutable cache", async () => {
@@ -419,6 +503,136 @@ test("timeline probes through frame delivery and reuses its immutable cache", as
   assertKind(protectedCache, "ready");
   assert.equal(protectedCache.png.toString(), "newest-png");
   assert.equal(renders, 1);
+});
+
+test("timeline scans backward only through not-yet-published frames and anchors all thirteen frames", async () => {
+  const renderedKeys: string[] = [];
+  const delivery = createRadarDelivery(
+    {
+      kma: configuredKma(async (key) => {
+        renderedKeys.push(key);
+        if (key === "202606261105" || key === "202606261100") {
+          throw new KmaRadarSourceError("not-yet-published");
+        }
+        return Buffer.from(key);
+      }),
+    },
+    { now: () => NOW, maxConcurrent: 1, maxQueued: 1 },
+  );
+
+  const timeline = await delivery.timeline();
+
+  assert.equal(timeline.available, true);
+  assert.deepEqual(renderedKeys, ["202606261105", "202606261100", "202606261055"]);
+  assert.deepEqual(timeline.frames.map((candidate) => candidate.t), [
+    "202606260955",
+    "202606261000",
+    "202606261005",
+    "202606261010",
+    "202606261015",
+    "202606261020",
+    "202606261025",
+    "202606261030",
+    "202606261035",
+    "202606261040",
+    "202606261045",
+    "202606261050",
+    "202606261055",
+  ]);
+});
+
+test("timeline fallback is bounded by the oldest complete thirteen-frame window", async () => {
+  const renderedKeys: string[] = [];
+  const delivery = createRadarDelivery(
+    {
+      kma: configuredKma(async (key) => {
+        renderedKeys.push(key);
+        throw new KmaRadarSourceError("not-yet-published");
+      }),
+    },
+    { now: () => NOW, maxConcurrent: 1, maxQueued: 1 },
+  );
+
+  assert.equal((await delivery.timeline()).available, false);
+  assert.deepEqual(renderedKeys, [
+    "202606261105",
+    "202606261100",
+    "202606261055",
+    "202606261050",
+    "202606261045",
+    "202606261040",
+    "202606261035",
+  ]);
+});
+
+test("timeline does not scan backward after a terminal upstream failure", async () => {
+  const renderedKeys: string[] = [];
+  const delivery = createRadarDelivery(
+    {
+      kma: configuredKma(async (key) => {
+        renderedKeys.push(key);
+        throw new KmaRadarSourceError("terminal");
+      }),
+    },
+    { now: () => NOW, maxConcurrent: 1, maxQueued: 1 },
+  );
+
+  assert.equal((await delivery.timeline()).available, false);
+  assert.deepEqual(renderedKeys, ["202606261105"]);
+});
+
+test("timeline returns promptly when its nominal probe is busy", async () => {
+  const held = deferred<Buffer>();
+  const heldStarted = deferred<void>();
+  const delivery = createRadarDelivery(
+    {
+      kma: configuredKma(async (key) => {
+        if (key === KEYS[0]) {
+          heldStarted.resolve();
+          return held.promise;
+        }
+        return Buffer.from(key);
+      }),
+    },
+    { now: () => NOW, maxConcurrent: 1, maxQueued: 0, busyRetryAfterSeconds: 6 },
+  );
+
+  const occupying = delivery.frame(KEYS[0]);
+  await heldStarted.promise;
+  const timeline = await delivery.timeline();
+
+  assert.equal(timeline.available, false);
+  held.resolve(Buffer.from(KEYS[0]));
+  assertKind(await occupying, "ready");
+});
+
+test("timeline cancellation stops a fallback scan and releases capacity", async () => {
+  const secondStarted = deferred<void>();
+  const renderedKeys: string[] = [];
+  const delivery = createRadarDelivery(
+    {
+      kma: configuredKma(async (key, signal) => {
+        renderedKeys.push(key);
+        if (key === KEYS[0]) return Buffer.from(key);
+        if (renderedKeys.length === 1) throw new KmaRadarSourceError("not-yet-published");
+        secondStarted.resolve();
+        await new Promise<void>((_resolve, reject) => {
+          signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+        });
+        return Buffer.from("unreachable");
+      }),
+    },
+    { now: () => NOW, maxConcurrent: 1, maxQueued: 1 },
+  );
+
+  const controller = new AbortController();
+  const timeline = delivery.timeline(controller.signal);
+  await Promise.race([secondStarted.promise, timeline.then(() => undefined)]);
+  controller.abort();
+
+  assert.equal((await timeline).available, false);
+  assert.deepEqual(renderedKeys, ["202606261105", "202606261100"]);
+  assertKind(await delivery.frame(KEYS[0]), "ready");
 });
 
 test("timeline degrades to an honest empty state when KMA is not configured", async () => {
@@ -492,11 +706,11 @@ test("radar frame route maps delivery results to stable HTTP responses", async (
     },
     { result: { kind: "invalid" }, status: 400, body: "bad request", cacheControl: "no-store" },
     {
-      result: { kind: "busy" },
+      result: { kind: "busy", retryAfterSeconds: 7 },
       status: 503,
       body: "radar busy",
       cacheControl: "no-store",
-      retryAfter: "1",
+      retryAfter: "7",
     },
     { result: { kind: "cancelled" }, status: 499, body: "request cancelled", cacheControl: "no-store" },
     {

@@ -3,7 +3,11 @@ import path from "node:path";
 import { readResponseBytes } from "../httpResponse.ts";
 import { cropToSeoul, CROP_W, encodePng, GRID_NX, GRID_NY } from "./grid.ts";
 import { buildGeo, type GeoModel, reproject } from "./geo.ts";
-import type { KmaRadarAdapter } from "./delivery.ts";
+import {
+  classifyKmaRadarResponseStatus,
+  type KmaRadarAdapter,
+  KmaRadarSourceError,
+} from "./kma.ts";
 // Committed, bundler-inlined georeference model. A static JSON import is guaranteed to be
 // traced into the serverless function (unlike a runtime read of the gitignored disk cache),
 // so the steady-state path needs no latlon fetch at cold start. See buildOrReadGeo.
@@ -131,9 +135,11 @@ async function fetchFrameGrid(tm: string, signal?: AbortSignal): Promise<ArrayBu
     authKey: apiKey(),
   })}`;
   const res = await fetch(url, { redirect: "error", signal: requestSignal(signal, 25_000) });
-  if (!res.ok) throw new Error(`KMA radar HTTP ${res.status}`);
+  if (res.status === 204 || !res.ok) {
+    throw new KmaRadarSourceError(classifyKmaRadarResponseStatus(res.status));
+  }
   const bytes = await readResponseBytes(res, { maxBytes: FRAME_GRID_BYTES });
-  if (bytes.byteLength !== FRAME_GRID_BYTES) throw new Error("KMA radar: unexpected payload length");
+  if (bytes.byteLength !== FRAME_GRID_BYTES) throw new KmaRadarSourceError("terminal");
   return bytes.buffer as ArrayBuffer;
 }
 
@@ -160,11 +166,3 @@ export const productionKmaRadarAdapter: KmaRadarAdapter = {
   bounds: frameBounds,
   render: renderKmaFrame,
 };
-
-/** Compatibility for the frame route until it migrates to RadarDelivery in Task 2. */
-export async function renderFrame(tm: string, signal?: AbortSignal): Promise<Buffer> {
-  const { productionRadarDelivery } = await import("./delivery.ts");
-  const result = await productionRadarDelivery.frame(tm, signal);
-  if (result.kind === "ready") return result.png;
-  throw new Error(`radar ${result.kind}`);
-}

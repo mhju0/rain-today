@@ -4,12 +4,16 @@ import { useInView, useReducedMotion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { useDeferredJson } from "@/hooks/useDeferredJson";
+import {
+  createRadarFrameLoader,
+  type RadarClientFrameState,
+  type RadarFrameLoader,
+} from "@/lib/radar/clientLoader";
 import { RADAR_CONFIG, RADAR_LEGEND } from "@/lib/radar/config";
 import {
-  advanceAvailableRadarFrame,
+  advanceReadyRadarFrame,
   buildRadarMosaic,
   formatRadarFrameTime,
-  orderedRadarWarmup,
   radarApproachSummary,
   RADAR_BASEMAP_ATTRIBUTION,
   radarFrameTag,
@@ -40,12 +44,16 @@ import { SectionHeading, SkySection } from "./SectionParts";
 
 function RadarScope({
   frame,
+  frameSrc,
   nowMs,
   bounds,
+  onFrameError,
 }: {
   frame: KmaRadarFrame;
+  frameSrc: string;
   nowMs: number;
   bounds: RadarBounds;
+  onFrameError: (key: string, src: string) => void;
 }) {
   // The scope is a self-contained DARK panel in BOTH adaptive modes, so re-establish
   // real white for its descendants (the surrounding glass re-scopes --color-white).
@@ -85,16 +93,17 @@ function RadarScope({
             />
           ))}
 
-          {/* KMA echo, georeferenced to the full bbox (= this layer). Reprojected +
-              bilinear-smoothed server-side; a touch of blur softens any residual steps.
-              A frame that fails to render simply leaves the basemap showing. */}
+          {/* Controller-decoded KMA echo, georeferenced to the full bbox (= this layer).
+              Reprojected + bilinear-smoothed server-side; a touch of blur softens any
+              residual steps. The visible element receives only an owned blob URL. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            key={frame.t}
-            src={`/api/radar/frame?t=${frame.t}`}
+            key={`${frame.t}:${frameSrc}`}
+            src={frameSrc}
             alt=""
             aria-hidden
             draggable={false}
+            onError={() => onFrameError(frame.t, frameSrc)}
             className="pointer-events-none absolute inset-0 h-full w-full select-none"
             style={{ filter: "blur(0.4px) saturate(1.05)" }}
           />
@@ -314,23 +323,27 @@ function Scrubber({
 
 const REFRESH_INTERVAL_MS = 10 * 60 * 1000; // re-pull the frame list periodically
 
-function nearestNonFailedFrameIndex(
+function nearestReadyFrameIndex(
   frames: readonly KmaRadarFrame[],
   activeIndex: number,
+  readyKeys: ReadonlySet<string>,
   failedKeys: ReadonlySet<string>,
   preferredDirection: -1 | 1 = -1,
 ): number | null {
   if (frames.length === 0) return null;
-  if (!failedKeys.has(frames[activeIndex].t)) return activeIndex;
+  const activeKey = frames[activeIndex]?.t;
+  if (!activeKey) return null;
+  if (readyKeys.has(activeKey)) return activeIndex;
+  if (!failedKeys.has(activeKey)) return null;
 
   for (let distance = 1; distance < frames.length; distance++) {
     const preferred = activeIndex + distance * preferredDirection;
-    if (preferred >= 0 && preferred < frames.length && !failedKeys.has(frames[preferred].t)) {
+    if (preferred >= 0 && preferred < frames.length && readyKeys.has(frames[preferred].t)) {
       return preferred;
     }
 
     const alternate = activeIndex - distance * preferredDirection;
-    if (alternate >= 0 && alternate < frames.length && !failedKeys.has(frames[alternate].t)) {
+    if (alternate >= 0 && alternate < frames.length && readyKeys.has(frames[alternate].t)) {
       return alternate;
     }
   }
@@ -343,7 +356,11 @@ export default function RadarSection() {
   const reduce = !!useReducedMotion();
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
-  const [failedFrameKeys, setFailedFrameKeys] = useState<Set<string>>(() => new Set());
+  const [autoPlayRequested, setAutoPlayRequested] = useState(false);
+  const [frameStates, setFrameStates] = useState<
+    ReadonlyMap<string, RadarClientFrameState>
+  >(() => new Map());
+  const frameLoaderRef = useRef<RadarFrameLoader | null>(null);
 
   const sectionRef = useRef<HTMLDivElement>(null);
   const near = useInView(sectionRef, { once: true, margin: "0px 0px 400px 0px" });
@@ -362,88 +379,117 @@ export default function RadarSection() {
   const nowIndex = timeline.latestIndex;
   const nowMs = timeline.latestObservedMs ?? 0;
   const activeIndex = available ? timeline.activeIndex : 0;
+  const readyFrameKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const [key, state] of frameStates) {
+      if (state.kind === "ready") keys.add(key);
+    }
+    return keys;
+  }, [frameStates]);
+  const failedFrameKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const [key, state] of frameStates) {
+      if (state.kind === "failed") keys.add(key);
+    }
+    return keys;
+  }, [frameStates]);
+  const warmupBlocked = useMemo(
+    () =>
+      [...frameStates.values()].some(
+        (state) => state.kind === "deferred" && !state.retryScheduled,
+      ),
+    [frameStates],
+  );
   const displayIndex = available
-    ? nearestNonFailedFrameIndex(frames, activeIndex, failedFrameKeys)
+    ? nearestReadyFrameIndex(frames, activeIndex, readyFrameKeys, failedFrameKeys)
     : null;
   const displayFrame = displayIndex === null ? null : frames[displayIndex];
+  const displayState = displayFrame ? frameStates.get(displayFrame.t) : null;
+  const displayFrameSrc = displayState?.kind === "ready" ? displayState.src : null;
   const activeFrameFailed =
     available && failedFrameKeys.has(frames[activeIndex].t);
+  const activeFrameReady =
+    available && readyFrameKeys.has(frames[activeIndex].t);
+  const playbackFrameReady =
+    activeFrameReady || (activeFrameFailed && displayIndex !== null);
+
+  useEffect(() => {
+    const loader = createRadarFrameLoader();
+    frameLoaderRef.current = loader;
+    const unsubscribe = loader.subscribe(setFrameStates);
+    return () => {
+      unsubscribe();
+      loader.dispose();
+      if (frameLoaderRef.current === loader) frameLoaderRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    frameLoaderRef.current?.update(available ? frames : [], activeIndex);
+  }, [activeIndex, available, frames]);
 
   useEffect(() => {
     if (!summary) return;
-    // Park the playhead at the latest observed frame and auto-play (unless reduced).
+    // Park at the latest observation; decoded readiness gates actual playback.
     setIndex(Math.max(0, summary.frames.length - 1));
-    setPlaying(!reduce && summary.available && summary.frames.length > 1);
+    setPlaying(false);
+    setAutoPlayRequested(!reduce && summary.available && summary.frames.length > 1);
   }, [summary, reduce]);
 
-  // Warm one frame at a time so the client never opens thirteen cold requests at
-  // once. Keep each Image alive until cleanup and continue after either outcome.
-  const preloadRef = useRef<HTMLImageElement[]>([]);
   useEffect(() => {
-    if (!available) return;
+    if (!autoPlayRequested || reduce || !playbackFrameReady || frames.length <= 1) return;
+    setPlaying(true);
+    setAutoPlayRequested(false);
+  }, [autoPlayRequested, frames.length, playbackFrameReady, reduce]);
 
-    let cancelled = false;
-    const images: HTMLImageElement[] = [];
-    const orderedFrames = orderedRadarWarmup(frames, nowIndex);
-    let nextIndex = 0;
-
-    preloadRef.current = images;
-    setFailedFrameKeys(new Set());
-
-    const warmNext = () => {
-      if (cancelled || nextIndex >= orderedFrames.length) return;
-
-      const frame = orderedFrames[nextIndex++];
-      const img = new Image();
-      images.push(img);
-
-      const settle = (didFail: boolean) => {
-        if (cancelled) return;
-        img.onload = null;
-        img.onerror = null;
-        if (didFail) {
-          setFailedFrameKeys((current) => {
-            const next = new Set(current);
-            next.add(frame.t);
-            return next;
-          });
-        }
-        warmNext();
-      };
-
-      img.onload = () => settle(false);
-      img.onerror = () => settle(true);
-      img.src = `/api/radar/frame?t=${frame.t}`;
-    };
-
-    warmNext();
-
-    return () => {
-      cancelled = true;
-      for (const img of images) {
-        img.onload = null;
-        img.onerror = null;
-      }
-      if (preloadRef.current === images) preloadRef.current = [];
-    };
-  }, [frames, available, nowIndex]);
-
-  // Local playback timer — advances the playhead; loops back to the oldest frame.
+  // Playback waits at an unloaded next frame and skips only known terminal failures.
   useEffect(() => {
-    if (!playing || frames.length <= 1) return;
+    if (!playing || !playbackFrameReady || frames.length <= 1) return;
     const id = setInterval(() => {
-      setIndex((i) => advanceAvailableRadarFrame(i, frames, failedFrameKeys));
+      setIndex((currentIndex) =>
+        advanceReadyRadarFrame(
+          currentIndex,
+          frames,
+          readyFrameKeys,
+          failedFrameKeys,
+        ),
+      );
     }, RADAR_CONFIG.playIntervalMs);
     return () => clearInterval(id);
-  }, [playing, frames, failedFrameKeys]);
+  }, [failedFrameKeys, frames, playbackFrameReady, playing, readyFrameKeys]);
+
+  useEffect(() => {
+    if (playing && warmupBlocked) setPlaying(false);
+  }, [playing, warmupBlocked]);
 
   const onSeek = useCallback(
-    (i: number, direction?: -1 | 1) => {
+    (i: number) => {
       setPlaying(false);
-      setIndex(nearestNonFailedFrameIndex(frames, i, failedFrameKeys, direction) ?? i);
+      setAutoPlayRequested(false);
+      setIndex(i);
     },
-    [frames, failedFrameKeys],
+    [],
   );
+
+  const onTogglePlayback = useCallback(() => {
+    if (playing) {
+      setPlaying(false);
+      setAutoPlayRequested(false);
+      return;
+    }
+    frameLoaderRef.current?.retry();
+    if (playbackFrameReady) {
+      setPlaying(true);
+      return;
+    }
+    setAutoPlayRequested(true);
+  }, [playbackFrameReady, playing]);
+
+  const onVisibleFrameError = useCallback((key: string, src: string) => {
+    frameLoaderRef.current?.reportVisibleError(key, src);
+  }, []);
+
+  const waitingForFrame = available && displayIndex === null && !activeFrameFailed;
 
   return (
     <SkySection id="rain" compact>
@@ -456,18 +502,24 @@ export default function RadarSection() {
       <div ref={sectionRef} className="flex flex-1 flex-col justify-center">
         <ScrollReveal amount={0.12}>
           <div className="sky-film-surface sky-outline-surface mx-auto w-full max-w-[80rem] px-5 py-6 sm:px-8 sm:py-8 lg:px-10 lg:py-10">
-            {!available || !bounds || !displayFrame || displayIndex === null ? (
+            {!available || !bounds || !displayFrame || !displayFrameSrc || displayIndex === null ? (
               <RadarEmpty
                 near={near}
-                failed={failed || (available && displayIndex === null)}
-                loaded={summary !== null}
+                failed={failed || (available && activeFrameFailed && displayIndex === null)}
+                loaded={summary !== null && !waitingForFrame}
               />
             ) : (
               <>
                 <div className="grid gap-8 lg:grid-cols-[minmax(22rem,0.9fr)_minmax(0,1fr)] lg:items-center lg:gap-12">
                   {/* Scope */}
                   <div className="mx-auto w-full max-w-[34rem] lg:mx-0">
-                    <RadarScope frame={displayFrame} nowMs={nowMs} bounds={bounds} />
+                    <RadarScope
+                      frame={displayFrame}
+                      frameSrc={displayFrameSrc}
+                      nowMs={nowMs}
+                      bounds={bounds}
+                      onFrameError={onVisibleFrameError}
+                    />
                   </div>
 
                   {/* Readout + legend */}
@@ -508,7 +560,7 @@ export default function RadarSection() {
                 <div className="mt-5 flex items-center gap-4">
                   <button
                     type="button"
-                    onClick={() => setPlaying((p) => !p)}
+                    onClick={onTogglePlayback}
                     aria-label={playing ? "일시정지" : "재생"}
                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full ring-1 ring-inset ring-white/25 text-white transition hover:bg-white/10"
                   >

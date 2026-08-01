@@ -1,12 +1,32 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  classifyKmaRadarResponseStatus,
   frameKey,
   frameKeyToIso,
   isAllowedFrameKey,
   isValidFrameKey,
+  KmaRadarSourceError,
   latestFrameInstant,
 } from "./kma.ts";
+
+test("KMA HTTP classification treats only an absent observation as publication lag", () => {
+  assert.equal(classifyKmaRadarResponseStatus(204), "not-yet-published");
+  assert.equal(classifyKmaRadarResponseStatus(404), "not-yet-published");
+  assert.equal(classifyKmaRadarResponseStatus(401), "terminal");
+  assert.equal(classifyKmaRadarResponseStatus(429), "terminal");
+  assert.equal(classifyKmaRadarResponseStatus(503), "terminal");
+});
+
+test("KMA source failures distinguish publication lag from terminal failures", () => {
+  const lag = new KmaRadarSourceError("not-yet-published");
+  const terminal = new KmaRadarSourceError("terminal");
+
+  assert.equal(lag.kind, "not-yet-published");
+  assert.equal(terminal.kind, "terminal");
+  assert.equal(lag.message, "KMA radar source unavailable");
+  assert.equal(terminal.message, "KMA radar source unavailable");
+});
 
 test("isValidFrameKey accepts a 12-digit KST key and rejects everything else", () => {
   assert.equal(isValidFrameKey("202606261105"), true);

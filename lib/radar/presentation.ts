@@ -84,27 +84,37 @@ export function advanceRadarFrame(currentIndex: number, frameCount: number): num
   return currentIndex + 1 >= frameCount ? 0 : currentIndex + 1;
 }
 
-/** Advance circular playback past frames whose image requests have failed. */
-export function advanceAvailableRadarFrame(
+/** Advance only when the next observed frame is decoded; skip known terminal failures. */
+export function advanceReadyRadarFrame(
   currentIndex: number,
   frames: readonly Pick<KmaRadarFrame, "t">[],
+  readyKeys: ReadonlySet<string>,
   failedKeys: ReadonlySet<string>,
 ): number {
-  let candidate = advanceRadarFrame(currentIndex, frames.length);
-  for (let visited = 0; visited < frames.length; visited++) {
-    if (!failedKeys.has(frames[candidate].t)) return candidate;
-    candidate = advanceRadarFrame(candidate, frames.length);
+  const validCurrent =
+    Number.isInteger(currentIndex) && currentIndex >= 0 && currentIndex < frames.length
+      ? currentIndex
+      : 0;
+  let candidate = advanceRadarFrame(validCurrent, frames.length);
+
+  for (let visited = 0; visited < frames.length; visited += 1) {
+    const key = frames[candidate]?.t;
+    if (!key) return validCurrent;
+    if (failedKeys.has(key)) {
+      candidate = advanceRadarFrame(candidate, frames.length);
+      continue;
+    }
+    return readyKeys.has(key) ? candidate : validCurrent;
   }
-  return Number.isInteger(currentIndex) && currentIndex >= 0 && currentIndex < frames.length
-    ? currentIndex
-    : 0;
+
+  return validCurrent;
 }
 
 /** Prioritize the active frame, then warm each later playback frame exactly once. */
-export function orderedRadarWarmup(
-  frames: readonly KmaRadarFrame[],
+export function orderedRadarWarmup<TFrame extends Pick<KmaRadarFrame, "t">>(
+  frames: readonly TFrame[],
   activeIndex: number,
-): KmaRadarFrame[] {
+): TFrame[] {
   if (frames.length === 0) return [];
   const start = Math.max(
     0,
