@@ -189,7 +189,9 @@ export async function writeReliabilitySnapshot(
           if (!parsed) throw new Error("Refusing to write invalid reliability weight state");
           await writeFile(filePath(dataDir, file), JSON.stringify(parsed, null, 2) + "\n", "utf8");
         } else {
-          await unlink(filePath(dataDir, file)).catch(() => undefined);
+          await unlink(filePath(dataDir, file)).catch((error: unknown) => {
+            if (!isMissingFile(error)) throw error;
+          });
         }
         break;
     }

@@ -52,6 +52,22 @@ export interface GitStatePublicationResult {
   revision: string;
 }
 
+export class GitStatePublicationError extends Error {
+  readonly publishedRevision: string;
+  readonly cause: unknown;
+
+  constructor(publishedRevision: string, cause: unknown) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    super(
+      `Reliability state may already be published at revision ${publishedRevision}; ` +
+        `publication cleanup or confirmation failed: ${detail}`,
+    );
+    this.name = "GitStatePublicationError";
+    this.publishedRevision = publishedRevision;
+    this.cause = cause;
+  }
+}
+
 export class GitStateConflictError extends Error {
   readonly expectedRevision: string | null;
   readonly observedRevision: string | null;
@@ -107,6 +123,7 @@ function assertGitRef(ref: string): void {
   if (
     !ref ||
     ref.startsWith("-") ||
+    ref === "@" ||
     ref.startsWith("/") ||
     ref.endsWith("/") ||
     ref.endsWith(".") ||
@@ -134,6 +151,7 @@ export class GitStateTarget {
   private readonly remote: string;
   private readonly repository: string;
   private readonly temporaryDirectory: string;
+  private fetchSequence = 0;
 
   constructor(options: GitStateTargetOptions) {
     if (!options.repository.trim()) throw new Error("Git repository path is required");
@@ -156,10 +174,11 @@ export class GitStateTarget {
     }
 
     await this.assertCommittedManifest(revision);
-    return this.withTemporaryWorktree(revision, undefined, async (worktree) => ({
-      revision,
-      snapshot: await readReliabilitySnapshot(path.join(worktree, STATE_DIRECTORY)),
-    }));
+    return this.withTemporaryWorktree(revision, undefined, async (worktree) => {
+      const stateDirectory = path.join(worktree, STATE_DIRECTORY);
+      await this.assertCandidateManifest(stateDirectory);
+      return { revision, snapshot: await readReliabilitySnapshot(stateDirectory) };
+    });
   }
 
   async publish(request: GitStatePublicationRequest): Promise<GitStatePublicationResult> {
@@ -173,9 +192,10 @@ export class GitStateTarget {
     return this.withTemporaryWorktree(
       baseRevision,
       temporaryBranch,
-      async (worktree): Promise<GitStatePublicationResult> => {
+      async (worktree, markTemporaryBranchOwned): Promise<GitStatePublicationResult> => {
         if (temporaryBranch) {
           await this.git(["checkout", "--orphan", temporaryBranch], worktree);
+          markTemporaryBranchOwned();
           await this.git(["rm", "-r", "--force", "--ignore-unmatch", "--", "."], worktree);
         } else {
           await this.assertCommittedManifest(baseRevision);
@@ -214,10 +234,23 @@ export class GitStateTarget {
 
         const refreshedRevision = await this.fetchStateRevision();
         this.assertExpectedRevision(request.expectedRevision, refreshedRevision);
+        await this.assertFastForwardCandidate(request.expectedRevision, revision, worktree);
+        const lease = `--force-with-lease=${STATE_REF}:${request.expectedRevision ?? ""}`;
         try {
-          await this.git(["push", this.remote, `HEAD:${STATE_REF}`], worktree);
+          await this.git(["push", lease, this.remote, `HEAD:${STATE_REF}`], worktree);
         } catch (error) {
-          const revisionAfterFailure = await this.fetchStateRevision().catch(() => refreshedRevision);
+          let revisionAfterFailure: string | null;
+          try {
+            revisionAfterFailure = await this.fetchStateRevision();
+          } catch (refreshError) {
+            throw new GitStatePublicationError(
+              revision,
+              new AggregateError([error, refreshError], "Unable to confirm reliability state publication"),
+            );
+          }
+          if (revisionAfterFailure === revision) {
+            return { changed: true, revision };
+          }
           if (revisionAfterFailure !== request.expectedRevision) {
             throw new GitStateConflictError(request.expectedRevision, revisionAfterFailure);
           }
@@ -248,9 +281,26 @@ export class GitStateTarget {
       throw error;
     }
 
-    await this.git(["fetch", "--no-tags", this.remote, STATE_REF]);
-    const revision = await this.resolveCommit("FETCH_HEAD");
-    if (revision === null) throw new Error(`Fetched ${STATE_REF} did not resolve to a commit`);
+    const fetchRef = `refs/seoulsky/reliability-state/${process.pid}-${this.fetchSequence++}-${Date.now()}-${Math.random()
+      .toString(16)
+      .slice(2)}`;
+    let operationError: unknown;
+    let revision: string | null = null;
+    try {
+      await this.git(["fetch", "--no-tags", this.remote, `${STATE_REF}:${fetchRef}`]);
+      revision = await this.resolveCommit(fetchRef);
+      if (revision === null) throw new Error(`Fetched ${STATE_REF} did not resolve to a commit`);
+    } catch (error) {
+      operationError = error;
+    }
+    let cleanupError: unknown;
+    try {
+      await this.git(["update-ref", "-d", fetchRef]);
+    } catch (error) {
+      cleanupError = error;
+    }
+    if (operationError !== undefined) throw operationError;
+    if (cleanupError !== undefined) throw cleanupError;
     return revision;
   }
 
@@ -294,25 +344,67 @@ export class GitStateTarget {
     if (expected !== observed) throw new GitStateConflictError(expected, observed);
   }
 
+  private async assertFastForwardCandidate(
+    expectedRevision: string | null,
+    candidateRevision: string,
+    worktree: string,
+  ): Promise<void> {
+    if (expectedRevision === null) {
+      const { stdout } = await this.git(["rev-list", "--parents", "-n", "1", candidateRevision], worktree);
+      if (stdout.trim().split(/\s+/).length !== 1) {
+        throw new Error("First reliability-state publication candidate must be a root commit");
+      }
+      return;
+    }
+    try {
+      await this.git(["merge-base", "--is-ancestor", expectedRevision, candidateRevision], worktree);
+    } catch (error) {
+      if (hasExitCode(error, 1)) {
+        throw new Error(
+          `Reliability state candidate ${candidateRevision} is not a fast-forward from ${expectedRevision}`,
+        );
+      }
+      throw error;
+    }
+  }
+
   private async assertCandidateManifest(stateDirectory: string): Promise<void> {
     const entries = await readdir(stateDirectory, { withFileTypes: true });
     const discovered = entries.map((entry) => (entry.isFile() ? entry.name : `${entry.name}/`));
     assertReliabilityStateFiles(orderDiscoveredManifest(discovered));
+    for (const file of RELIABILITY_STATE_FILES) {
+      const entry = entries.find((candidate) => candidate.name === file);
+      if (!entry?.isFile()) throw new Error(`Reliability manifest path is not a regular file: ${file}`);
+    }
   }
 
   private async assertCommittedManifest(revision: string): Promise<void> {
-    const { stdout } = await this.git(["ls-tree", "-r", "--name-only", revision, "--"]);
+    const { stdout } = await this.git(["ls-tree", "-r", revision, "--"]);
     const prefix = `${STATE_DIRECTORY.split(path.sep).join("/")}/`;
-    const committedPaths = stdout
+    const entries = stdout
       .split("\n")
-      .map((file) => file.trim())
+      .map((line) => {
+        const [metadata, file] = line.split("\t");
+        const [mode, type] = metadata?.split(/\s+/, 3) ?? [];
+        return { file, mode, type };
+      })
+      .filter((entry) => Boolean(entry.file));
+    const discovered = entries
+      .map(({ file }) => {
+        if (file?.startsWith(prefix) && !file.slice(prefix.length).includes("/")) {
+          return file.slice(prefix.length);
+        }
+        return file ?? "<unknown>";
+      })
       .filter(Boolean);
-    const discovered = committedPaths.map((file) =>
-      file.startsWith(prefix) && !file.slice(prefix.length).includes("/")
-        ? file.slice(prefix.length)
-        : file,
-    );
     assertReliabilityStateFiles(orderDiscoveredManifest(discovered));
+    for (const entry of entries) {
+      if (entry.mode !== "100644" || entry.type !== "blob") {
+        throw new Error(
+          `Reliability manifest path must be an ordinary 100644 blob: ${entry.file ?? "<unknown>"}`,
+        );
+      }
+    }
   }
 
   private async hasStagedChanges(worktree: string): Promise<boolean> {
@@ -334,37 +426,56 @@ export class GitStateTarget {
   private async withTemporaryWorktree<T>(
     revision: string,
     temporaryBranch: string | undefined,
-    run: (worktree: string) => Promise<T>,
+    run: (worktree: string, markTemporaryBranchOwned: () => void) => Promise<T>,
   ): Promise<T> {
     await mkdir(this.temporaryDirectory, { recursive: true });
     const worktree = await mkdtemp(path.join(this.temporaryDirectory, TEMPORARY_PREFIX));
-    let worktreeAdded = false;
+    let worktreeAttempted = false;
+    let temporaryBranchOwned = false;
     let result: T | undefined;
     let operationFailed = false;
     let operationError: unknown;
 
     try {
+      worktreeAttempted = true;
       await this.git(["worktree", "add", "--detach", worktree, revision]);
-      worktreeAdded = true;
-      result = await run(worktree);
+      result = await run(worktree, () => {
+        temporaryBranchOwned = true;
+      });
     } catch (error) {
       operationFailed = true;
       operationError = error;
     }
 
-    const cleanupError = await this.cleanupWorktree(worktree, worktreeAdded, temporaryBranch);
+    const cleanupError = await this.cleanupWorktree(
+      worktree,
+      worktreeAttempted,
+      temporaryBranchOwned ? temporaryBranch : undefined,
+    );
     if (operationFailed) throw operationError;
-    if (cleanupError !== undefined) throw cleanupError;
+    if (cleanupError !== undefined) {
+      if (
+        result &&
+        typeof result === "object" &&
+        "changed" in result &&
+        result.changed === true &&
+        "revision" in result &&
+        typeof result.revision === "string"
+      ) {
+        throw new GitStatePublicationError(result.revision, cleanupError);
+      }
+      throw cleanupError;
+    }
     return result as T;
   }
 
   private async cleanupWorktree(
     worktree: string,
-    worktreeAdded: boolean,
+    worktreeAttempted: boolean,
     temporaryBranch: string | undefined,
   ): Promise<unknown> {
     let cleanupError: unknown;
-    if (worktreeAdded) {
+    if (worktreeAttempted) {
       try {
         await this.git(["worktree", "remove", "--force", worktree]);
       } catch (error) {
@@ -375,15 +486,15 @@ export class GitStateTarget {
     await rm(worktree, { recursive: true, force: true }).catch((error: unknown) => {
       cleanupError ??= error;
     });
-    if (worktreeAdded && cleanupError !== undefined) {
+    if (worktreeAttempted && cleanupError !== undefined) {
       await this.git(["worktree", "prune", "--expire", "now"]).catch(() => undefined);
     }
     if (temporaryBranch) {
-      await this.git(["update-ref", "-d", `refs/heads/${temporaryBranch}`]).catch(
-        (error: unknown) => {
-          cleanupError ??= error;
-        },
-      );
+      try {
+        await this.git(["update-ref", "-d", `refs/heads/${temporaryBranch}`]);
+      } catch (error) {
+        cleanupError ??= error;
+      }
     }
     return cleanupError;
   }

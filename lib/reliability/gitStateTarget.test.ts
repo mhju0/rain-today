@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, mkdir, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -8,8 +8,10 @@ import { promisify } from "node:util";
 import {
   type GitCommandRunner,
   GitStateConflictError,
+  GitStatePublicationError,
   GitStateTarget,
 } from "./gitStateTarget.ts";
+import { writeReliabilitySnapshot } from "./persistence.ts";
 import type { ReliabilitySnapshot } from "./stateSnapshot.ts";
 
 const execFileAsync = promisify(execFile);
@@ -111,6 +113,52 @@ async function withRepository(
   } finally {
     await rm(fixture.root, { recursive: true, force: true });
   }
+}
+
+async function branchExists(repository: string, branch: string): Promise<boolean> {
+  return git(repository, "show-ref", "--verify", "--quiet", `refs/heads/${branch}`)
+    .then(() => true)
+    .catch(() => false);
+}
+
+async function rewriteStateBranch(
+  fixture: RepositoryFixture,
+  kind: "symlink" | "mode",
+): Promise<void> {
+  const malformedRepository = path.join(fixture.root, `malformed-${kind}`);
+  await git(
+    fixture.root,
+    "clone",
+    "--branch",
+    "reliability-state",
+    fixture.bareRepository,
+    malformedRepository,
+  );
+  const forecastPath = path.join(malformedRepository, "data", "reliability", "forecast-log.jsonl");
+  if (kind === "symlink") {
+    await rm(forecastPath);
+    await symlink("source-weights.json", forecastPath);
+  } else {
+    await chmod(forecastPath, 0o755);
+  }
+  await git(malformedRepository, "add", "--all", "--", "data/reliability");
+  await git(
+    malformedRepository,
+    "-c",
+    "user.name=Malformed Fixture",
+    "-c",
+    "user.email=malformed@example.test",
+    "commit",
+    "-m",
+    `malformed ${kind} state`,
+  );
+  await git(
+    malformedRepository,
+    "push",
+    "--force",
+    "origin",
+    "HEAD:refs/heads/reliability-state",
+  );
 }
 
 test("read returns null when the reliability-state branch is missing", async () => {
@@ -383,9 +431,312 @@ test("publication detects a concurrent advance on its immediate pre-push fetch",
   });
 });
 
+test("concurrent fetches from different remotes do not share FETCH_HEAD state", async () => {
+  await withRepository(async (fixture) => {
+    await fixture.target.publish({
+      expectedRevision: null,
+      snapshot: snapshot(1),
+      message: "publish initial reliability state",
+    });
+    const alternateBare = path.join(fixture.root, "alternate.git");
+    const alternateWorking = path.join(fixture.root, "alternate-working");
+    await git(fixture.root, "init", "--bare", alternateBare);
+    await git(
+      fixture.root,
+      "clone",
+      "--branch",
+      "reliability-state",
+      fixture.bareRepository,
+      alternateWorking,
+    );
+    await writeReliabilitySnapshot(
+      path.join(alternateWorking, "data", "reliability"),
+      snapshot(2),
+    );
+    await git(alternateWorking, "add", "--all", "--", "data/reliability");
+    await git(
+      alternateWorking,
+      "-c",
+      "user.name=Alternate Fixture",
+      "-c",
+      "user.email=alternate@example.test",
+      "commit",
+      "-m",
+      "alternate reliability state",
+    );
+    await git(alternateWorking, "remote", "set-url", "origin", alternateBare);
+    await git(alternateWorking, "push", "origin", "HEAD:refs/heads/reliability-state");
+    await git(fixture.workingRepository, "remote", "add", "alternate", alternateBare);
+
+    let concurrentFetchStarted = false;
+    const alternateTarget = new GitStateTarget({
+      remote: "alternate",
+      repository: fixture.workingRepository,
+      temporaryDirectory: fixture.temporaryDirectory,
+    });
+    const originRunner: GitCommandRunner = async (args, options) => {
+      const { stderr, stdout } = await execFileAsync("git", [...args], {
+        cwd: options.cwd,
+        encoding: "utf8",
+      });
+      if (!concurrentFetchStarted && args[0] === "fetch") {
+        concurrentFetchStarted = true;
+        await alternateTarget.read();
+      }
+      return { stderr, stdout };
+    };
+    const originTarget = new GitStateTarget({
+      commandRunner: originRunner,
+      repository: fixture.workingRepository,
+      temporaryDirectory: fixture.temporaryDirectory,
+    });
+
+    const originState = await originTarget.read();
+    assert.ok(originState);
+    assert.deepEqual(originState.snapshot, snapshot(1));
+    assert.equal(concurrentFetchStarted, true);
+  });
+});
+
+for (const malformedKind of ["symlink", "mode"] as const) {
+  test(`read rejects a committed ${malformedKind} reliability file`, async () => {
+    await withRepository(async (fixture) => {
+      await fixture.target.publish({
+        expectedRevision: null,
+        snapshot: snapshot(1),
+        message: "publish initial reliability state",
+      });
+      await rewriteStateBranch(fixture, malformedKind);
+
+      await assert.rejects(
+        () => fixture.target.read(),
+        /manifest|100644|100755|regular file/i,
+      );
+    });
+  });
+}
+
+for (const raceKind of ["delete", "rewind"] as const) {
+  test(`guarded lease rejects a remote ${raceKind} after the final fetch`, async () => {
+    await withRepository(async (fixture) => {
+      const first = await fixture.target.publish({
+        expectedRevision: null,
+        snapshot: snapshot(1),
+        message: "publish initial reliability state",
+      });
+      const second = await fixture.target.publish({
+        expectedRevision: first.revision,
+        snapshot: snapshot(2),
+        message: "publish second reliability state",
+      });
+      let commitFinished = false;
+      let finalFetchObserved = false;
+      const commandRunner: GitCommandRunner = async (args, options) => {
+        const { stderr, stdout } = await execFileAsync("git", [...args], {
+          cwd: options.cwd,
+          encoding: "utf8",
+        });
+        if (args.includes("commit")) commitFinished = true;
+        if (commitFinished && args[0] === "fetch" && !finalFetchObserved) {
+          finalFetchObserved = true;
+          if (raceKind === "delete") {
+            await git(
+              fixture.bareRepository,
+              "update-ref",
+              "-d",
+              "refs/heads/reliability-state",
+            );
+          } else {
+            await git(
+              fixture.bareRepository,
+              "update-ref",
+              "refs/heads/reliability-state",
+              first.revision,
+            );
+          }
+        }
+        return { stderr, stdout };
+      };
+      const racingTarget = new GitStateTarget({
+        commandRunner,
+        repository: fixture.workingRepository,
+        temporaryDirectory: fixture.temporaryDirectory,
+      });
+
+      await assert.rejects(
+        () =>
+          racingTarget.publish({
+            expectedRevision: second.revision,
+            snapshot: snapshot(3),
+            message: `race ${raceKind}`,
+          }),
+        GitStateConflictError,
+      );
+      assert.equal(finalFetchObserved, true);
+    });
+  });
+}
+
+test("push response loss recognizes the candidate revision already published", async () => {
+  await withRepository(async (fixture) => {
+    const first = await fixture.target.publish({
+      expectedRevision: null,
+      snapshot: snapshot(1),
+      message: "publish initial reliability state",
+    });
+    let responseLost = false;
+    const commandRunner: GitCommandRunner = async (args, options) => {
+      const { stderr, stdout } = await execFileAsync("git", [...args], {
+        cwd: options.cwd,
+        encoding: "utf8",
+      });
+      if (!responseLost && args[0] === "push") {
+        responseLost = true;
+        throw new Error("simulated lost push response");
+      }
+      return { stderr, stdout };
+    };
+    const target = new GitStateTarget({
+      commandRunner,
+      repository: fixture.workingRepository,
+      temporaryDirectory: fixture.temporaryDirectory,
+    });
+
+    const published = await target.publish({
+      expectedRevision: first.revision,
+      snapshot: snapshot(2),
+      message: "publish with lost response",
+    });
+    assert.equal(published.changed, true);
+    assert.equal(responseLost, true);
+  });
+});
+
+test("published revision is preserved when worktree cleanup fails", async () => {
+  await withRepository(async (fixture) => {
+    const first = await fixture.target.publish({
+      expectedRevision: null,
+      snapshot: snapshot(1),
+      message: "publish initial reliability state",
+    });
+    let cleanupFailed = false;
+    const commandRunner: GitCommandRunner = async (args, options) => {
+      const { stderr, stdout } = await execFileAsync("git", [...args], {
+        cwd: options.cwd,
+        encoding: "utf8",
+      });
+      if (!cleanupFailed && args[0] === "worktree" && args[1] === "remove") {
+        cleanupFailed = true;
+        throw new Error("simulated cleanup failure");
+      }
+      return { stderr, stdout };
+    };
+    const target = new GitStateTarget({
+      commandRunner,
+      repository: fixture.workingRepository,
+      temporaryDirectory: fixture.temporaryDirectory,
+    });
+
+    let publicationError: unknown;
+    await assert.rejects(
+      () =>
+        target.publish({
+          expectedRevision: first.revision,
+          snapshot: snapshot(2),
+          message: "publish with cleanup failure",
+        }),
+      (error: unknown) => {
+        publicationError = error;
+        return true;
+      },
+    );
+    assert.ok(publicationError instanceof GitStatePublicationError);
+    assert.match(publicationError.message, /published (?:at )?revision/i);
+    assert.equal(
+      publicationError.publishedRevision,
+      await git(fixture.bareRepository, "rev-parse", "refs/heads/reliability-state"),
+    );
+    assert.equal(cleanupFailed, true);
+  });
+});
+
+test("orphan checkout failure preserves a pre-existing local branch", async () => {
+  await withRepository(async (fixture) => {
+    let collidedBranch: string | undefined;
+    const commandRunner: GitCommandRunner = async (args, options) => {
+      if (args[0] === "checkout" && args[1] === "--orphan") {
+        collidedBranch = String(args[2]);
+        await git(options.cwd, "branch", collidedBranch, "HEAD");
+        throw new Error("simulated orphan checkout failure");
+      }
+      const { stderr, stdout } = await execFileAsync("git", [...args], {
+        cwd: options.cwd,
+        encoding: "utf8",
+      });
+      return { stderr, stdout };
+    };
+    const target = new GitStateTarget({
+      commandRunner,
+      repository: fixture.workingRepository,
+      temporaryDirectory: fixture.temporaryDirectory,
+    });
+
+    await assert.rejects(
+      () =>
+        target.publish({
+          expectedRevision: null,
+          snapshot: snapshot(1),
+          message: "publish colliding reliability state",
+        }),
+      /simulated orphan checkout failure/i,
+    );
+    assert.ok(collidedBranch);
+    assert.equal(await branchExists(fixture.workingRepository, collidedBranch), true);
+  });
+});
+
+test("worktree registration is cleaned when add succeeds then reports failure", async () => {
+  await withRepository(async (fixture) => {
+    await fixture.target.publish({
+      expectedRevision: null,
+      snapshot: snapshot(1),
+      message: "publish initial reliability state",
+    });
+    let addFailedAfterRegistration = false;
+    const commandRunner: GitCommandRunner = async (args, options) => {
+      const { stderr, stdout } = await execFileAsync("git", [...args], {
+        cwd: options.cwd,
+        encoding: "utf8",
+      });
+      if (!addFailedAfterRegistration && args[0] === "worktree" && args[1] === "add") {
+        addFailedAfterRegistration = true;
+        throw new Error("simulated worktree add response failure");
+      }
+      return { stderr, stdout };
+    };
+    const target = new GitStateTarget({
+      commandRunner,
+      repository: fixture.workingRepository,
+      temporaryDirectory: fixture.temporaryDirectory,
+    });
+
+    await assert.rejects(
+      () => target.read(),
+      /simulated worktree add response failure/i,
+    );
+    assert.equal(addFailedAfterRegistration, true);
+    assert.deepEqual(await readdir(fixture.temporaryDirectory), []);
+    assert.doesNotMatch(
+      await git(fixture.workingRepository, "worktree", "list", "--porcelain"),
+      /seoulsky-reliability-git-/,
+    );
+  });
+});
+
 test("read rejects option-shaped refs before invoking Git revision parsing", async () => {
   await withRepository(async ({ target }) => {
     await assert.rejects(() => target.read("--help"), /invalid git ref/i);
+    await assert.rejects(() => target.read("@"), /invalid git ref/i);
   });
 });
 

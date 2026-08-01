@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -162,6 +162,19 @@ test("batch persistence fails closed on an existing malformed weight checkpoint"
   writeFileSync(path.join(dir, "source-weights.json"), "{ malformed", "utf8");
   try {
     await assert.rejects(() => store.readWeights(), /invalid reliability weight state/i);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("snapshot replacement propagates non-missing weight unlink failures", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "seoulsky-reliability-"));
+  mkdirSync(path.join(dir, "source-weights.json"));
+  try {
+    await assert.rejects(
+      () => writeReliabilitySnapshot(dir, { forecasts: [], dailySkill: [], weights: null }),
+      /directory|EISDIR|EPERM/i,
+    );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
