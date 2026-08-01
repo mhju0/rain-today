@@ -29,6 +29,14 @@ function emptySnapshot(id: WeatherProviderStatus["id"], status: WeatherProviderS
   return { id, status, current: null, hourly: [], daily: [] };
 }
 
+function failureMessage(definition: WeatherProviderDefinition, error: unknown): string {
+  try {
+    return definition.failureMessage?.(error) ?? definition.messages.error;
+  } catch {
+    return definition.messages.error;
+  }
+}
+
 /** Create one provider boundary that reads coherent status and weather together. */
 export function createWeatherProvider(definition: WeatherProviderDefinition): WeatherProvider {
   const cacheKey = definition.id;
@@ -73,7 +81,7 @@ export function createWeatherProvider(definition: WeatherProviderDefinition): We
           id: definition.id,
           name: statusName,
           availability: "error",
-          message: definition.failureMessage?.(error) ?? definition.messages.error,
+          message: failureMessage(definition, error),
           missingEnvVars: [],
           lastUpdated: null,
           fromCache: false,

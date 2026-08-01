@@ -4,7 +4,7 @@ import type {
   HourlyForecast,
   ProviderSnapshot,
   WeatherProviderStatus,
-} from "../types";
+} from "../types.ts";
 
 /** One upstream response normalized into every forecast view consumers need. */
 export interface NormalizedForecast {

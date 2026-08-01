@@ -60,6 +60,39 @@ test("createWeatherProvider reads one cached generation with coherent data and s
   assert.deepEqual(second.daily, daily);
 });
 
+test("createWeatherProvider keeps generation markers coherent across every view in one read", async () => {
+  clearCache();
+  let calls = 0;
+  const provider = createWeatherProvider({
+    id: "open-meteo",
+    name: "Open-Meteo",
+    messages,
+    missingConfiguration: () => [],
+    ttlMs: 0,
+    load: async () => {
+      calls += 1;
+      const date = `2026-07-${13 + calls}`;
+      const time = `${date}T0${calls}:00:00.000Z`;
+      return {
+        current: { ...current, time, temperature: calls },
+        hourly: [{ ...hourly[0], time, temperature: calls }],
+        daily: [{ ...daily[0], date, temperatureMax: calls }],
+      };
+    },
+  });
+
+  const snapshot = await provider.read();
+
+  assert.equal(snapshot.status.lastUpdated, "2026-07-14T01:00:00.000Z");
+  assert.equal(snapshot.current?.time, "2026-07-14T01:00:00.000Z");
+  assert.equal(snapshot.current?.temperature, 1);
+  assert.equal(snapshot.hourly[0]?.time, "2026-07-14T01:00:00.000Z");
+  assert.equal(snapshot.hourly[0]?.temperature, 1);
+  assert.equal(snapshot.daily[0]?.date, "2026-07-14");
+  assert.equal(snapshot.daily[0]?.temperatureMax, 1);
+  assert.equal(calls, 1);
+});
+
 test("createWeatherProvider keeps stale fallback status and weather from the same cached generation", async () => {
   clearCache();
   let calls = 0;
@@ -169,6 +202,39 @@ test("createWeatherProvider exposes only a sanitized provider-specific failure m
 
   assert.equal(snapshot.status.message, "authorization failed");
   assert.ok(!JSON.stringify(snapshot).includes("SECRET"));
+});
+
+test("createWeatherProvider falls back to the generic error when failure classification throws", async () => {
+  clearCache();
+  const provider = createWeatherProvider({
+    id: "kma",
+    name: "KMA",
+    messages,
+    missingConfiguration: () => [],
+    ttlMs: 60_000,
+    load: async () => Promise.reject(new Error("serviceKey=SECRET")),
+    failureMessage: () => {
+      throw new Error("classifier failed");
+    },
+  });
+
+  const snapshot = await provider.read();
+
+  assert.deepEqual(snapshot, {
+    id: "kma",
+    status: {
+      id: "kma",
+      name: "KMA",
+      availability: "error",
+      message: "error",
+      missingEnvVars: [],
+      lastUpdated: null,
+      fromCache: false,
+    },
+    current: null,
+    hourly: [],
+    daily: [],
+  });
 });
 
 test("createWeatherProvider preserves distinct adapter and status display names", async () => {

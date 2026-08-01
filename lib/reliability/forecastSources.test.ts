@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { clearCache } from "../cache.ts";
-import type { WeatherProvider } from "../providers/base";
-import type { DailyForecast, ProviderId, ProviderSnapshot, WeatherProviderStatus } from "../types";
+import type { WeatherProvider } from "../providers/base.ts";
+import type { DailyForecast, ProviderId, ProviderSnapshot, WeatherProviderStatus } from "../types.ts";
 import { boundedSourceTimeout, collectForecastSources } from "./forecastSources.ts";
 
 test("source timeouts are clamped to a finite operational range", () => {

@@ -47,7 +47,7 @@ The application works without environment variables. Copy `.env.example` to `.en
 - The scoped ESLint exceptions for imperative WebGL/ref loops are intentional. Do not broaden them.
 - The radar's raw `<img>` tiles are intentional because exact percentage positioning is required.
 - The development-only visual override is `/sky?cond=<condition>&hour=<0-23>`; it must remain inert in production.
-- Runtime reliability output belongs under `data/reliability/` and radar cache output under `data/radar/`; both are ignored. Do not commit real observation state or local caches to `main`.
+- Reliability records under `data/reliability/` are currently tracked and published on `main`; a later dedicated plan will migrate them atomically. Radar cache output under `data/radar/` is ignored and must not be committed.
 
 ## Documentation
 
