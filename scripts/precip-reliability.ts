@@ -1,27 +1,44 @@
 /** CLI adapter for the dependency-injected daily reliability cycle. */
+import { parseArgs } from "node:util";
 import { providers } from "../lib/providers/registry.ts";
 import { runReliabilityCycle } from "../lib/reliability/cycle.ts";
 import { collectForecasts } from "../lib/reliability/forecastLog.ts";
+import { GitStateTarget } from "../lib/reliability/gitStateTarget.ts";
 import { fetchObservedPrecip } from "../lib/reliability/groundTruth.ts";
-import {
-  createFileReliabilityStore,
-  reliabilityDataDir,
-} from "../lib/reliability/persistence.ts";
+import { runReliabilityStateTransaction } from "../lib/reliability/stateTransaction.ts";
 import { resolveEta } from "../lib/reliability/weights.ts";
 
 async function main(): Promise<void> {
-  const dataDir = reliabilityDataDir();
-  const eta = resolveEta();
-  const result = await runReliabilityCycle({
-    now: () => new Date(),
-    sourceIds: providers.map((provider) => provider.id),
-    store: createFileReliabilityStore(dataDir),
-    collectForecasts,
-    fetchObservation: fetchObservedPrecip,
-    eta,
+  const { values } = parseArgs({
+    allowPositionals: false,
+    args: process.argv.slice(2),
+    options: { recover: { type: "string" } },
+    strict: true,
   });
+  const recoveryRef = values.recover?.trim();
+  if (values.recover !== undefined && !recoveryRef) {
+    throw new Error("Usage: precip-reliability.ts [--recover <git-ref>]");
+  }
 
-  console.log(`precip-reliability · run ${result.runAt} · data dir ${dataDir}`);
+  const eta = resolveEta();
+  const transaction = await runReliabilityStateTransaction(
+    {
+      target: new GitStateTarget({ repository: process.cwd() }),
+      runCycle: runReliabilityCycle,
+      now: () => new Date(),
+      sourceIds: providers.map((provider) => provider.id),
+      collectForecasts,
+      fetchObservation: fetchObservedPrecip,
+      eta,
+    },
+    recoveryRef ? { recoveryRef } : undefined,
+  );
+  const result = transaction.cycle;
+
+  console.log(
+    `precip-reliability · run ${result.runAt} · ${transaction.outcome} reliability-state ${transaction.revision}`,
+  );
+  if (recoveryRef) console.log(`[recovery] unioned explicit checkpoint ${recoveryRef}`);
   console.log(
     `[forecast] ${result.forecast.date}: ${result.forecast.records.length} live source(s) [${result.forecast.records
       .map((record) => record.source)

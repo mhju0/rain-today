@@ -1,4 +1,7 @@
-/** CLI adapter for recovery union and pre-push monotonic state checks. */
+/**
+ * Manual inspection/recovery utilities. Scheduled restore, validation, and
+ * publication are owned by runReliabilityStateTransaction.
+ */
 import {
   readReliabilitySnapshot,
   writeReliabilitySnapshot,
