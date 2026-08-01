@@ -4,10 +4,8 @@ SeoulSky is a completed, Seoul-only cinematic weather project. Keep changes focu
 
 ## Working standard
 
-Baseline behavioral rules for all work in this repo live in `~/.claude/CLAUDE.md`
-(§ "Coding standard") and load automatically every session. Rules in this file are
-**additive**: where a project rule is stricter, the stricter rule wins. Nothing
-here may loosen that baseline.
+Use the repository-contained architecture, invariants, code conventions, and
+documentation guidance in this file when working in SeoulSky.
 
 ## Runtime and commands
 
