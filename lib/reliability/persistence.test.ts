@@ -1,9 +1,94 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { appendForecasts, createFileReliabilityStore, readForecasts } from "./persistence.ts";
+import {
+  appendForecasts,
+  assertReliabilityStateFiles,
+  createFileReliabilityStore,
+  readForecasts,
+  readReliabilitySnapshot,
+  RELIABILITY_STATE_FILES,
+  writeReliabilitySnapshot,
+} from "./persistence.ts";
+
+test("reliability publication manifest names exactly the durable snapshot files", () => {
+  assert.deepEqual(RELIABILITY_STATE_FILES, [
+    "forecast-log.jsonl",
+    "daily-skill.jsonl",
+    "source-weights.json",
+  ]);
+});
+
+test("reliability publication rejects files outside its canonical manifest", () => {
+  assert.throws(
+    () => assertReliabilityStateFiles([...RELIABILITY_STATE_FILES, "unrelated.json"]),
+    /unexpected reliability state file/i,
+  );
+});
+
+test("reliability snapshot round-trips canonical bytes and records", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "seoulsky-reliability-"));
+  const snapshot = {
+    forecasts: [
+      {
+        date: "2026-07-15",
+        source: "open-meteo" as const,
+        region: "seoul",
+        pop: 30,
+        predicted_mm: 1.2,
+        loggedAt: "2026-07-14T00:00:00.000Z",
+      },
+    ],
+    dailySkill: [
+      {
+        date: "2026-07-14",
+        source: "kma" as const,
+        region: "seoul",
+        pop: 70,
+        predicted_mm: 3.1,
+        observed_mm: 4,
+        predicted_rain: true,
+        observed_rain: true,
+        outcome: "hit" as const,
+        contingency: { hits: 1, misses: 0, false_alarms: 0, correct_negatives: 0 },
+        csi: 1,
+        categorical_skill: 1,
+        quantitative_skill: 0.95,
+        mae: 0.9,
+        skill: 0.98,
+        scoredAt: "2026-07-15T00:00:00.000Z",
+      },
+    ],
+    weights: {
+      updatedAt: "2026-07-15T00:00:00.000Z",
+      eventsScored: 1,
+      processedDates: ["2026-07-14"],
+      weights: { "open-meteo": 0.6, kma: 0.4 },
+    },
+  };
+
+  try {
+    await writeReliabilitySnapshot(dir, snapshot);
+
+    assert.equal(
+      readFileSync(path.join(dir, "forecast-log.jsonl"), "utf8"),
+      `${JSON.stringify(snapshot.forecasts[0])}\n`,
+    );
+    assert.equal(
+      readFileSync(path.join(dir, "daily-skill.jsonl"), "utf8"),
+      `${JSON.stringify(snapshot.dailySkill[0])}\n`,
+    );
+    assert.equal(
+      readFileSync(path.join(dir, "source-weights.json"), "utf8"),
+      `${JSON.stringify(snapshot.weights, null, 2)}\n`,
+    );
+    assert.deepEqual(await readReliabilitySnapshot(dir), snapshot);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 test("reliability persistence keeps forecast writes idempotent", async () => {
   const previous = process.env.RELIABILITY_DATA_DIR;

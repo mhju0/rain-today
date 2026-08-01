@@ -8,9 +8,16 @@ import {
 import type { DailySkillRecord, ForecastRecord, WeightsState } from "./types.ts";
 import { parseWeightsState } from "./weightsState.ts";
 
-const FORECAST_LOG = "forecast-log.jsonl";
-const DAILY_SKILL = "daily-skill.jsonl";
-const WEIGHTS_FILE = "source-weights.json";
+/** The complete, canonical file set that may comprise a Reliability Snapshot. */
+export const RELIABILITY_STATE_FILES = [
+  "forecast-log.jsonl",
+  "daily-skill.jsonl",
+  "source-weights.json",
+] as const;
+
+export type ReliabilityStateFile = (typeof RELIABILITY_STATE_FILES)[number];
+
+const [FORECAST_LOG, DAILY_SKILL, WEIGHTS_FILE] = RELIABILITY_STATE_FILES;
 
 type DatedSourceRecord = { date: string; source: string };
 
@@ -19,15 +26,27 @@ export function reliabilityDataDir(): string {
   return process.env.RELIABILITY_DATA_DIR?.trim() || path.join(process.cwd(), "data", "reliability");
 }
 
-function filePath(dataDir: string, file: string): string {
+function filePath(dataDir: string, file: ReliabilityStateFile): string {
   return path.join(dataDir, file);
+}
+
+/** Reject a publication file list that is not the exact canonical manifest. */
+export function assertReliabilityStateFiles(
+  files: readonly string[],
+): asserts files is readonly ReliabilityStateFile[] {
+  if (
+    files.length !== RELIABILITY_STATE_FILES.length ||
+    files.some((file, index) => file !== RELIABILITY_STATE_FILES[index])
+  ) {
+    throw new Error(`Unexpected reliability state file: ${files.join(", ")}`);
+  }
 }
 
 function isMissingFile(error: unknown): boolean {
   return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
 
-async function readJsonl<T>(dataDir: string, file: string): Promise<T[]> {
+async function readJsonl<T>(dataDir: string, file: ReliabilityStateFile): Promise<T[]> {
   let text: string;
   try {
     text = await readFile(filePath(dataDir, file), "utf8");
@@ -41,7 +60,11 @@ async function readJsonl<T>(dataDir: string, file: string): Promise<T[]> {
     .map((line) => JSON.parse(line) as T);
 }
 
-async function appendJsonl(dataDir: string, file: string, rows: readonly object[]): Promise<void> {
+async function appendJsonl(
+  dataDir: string,
+  file: ReliabilityStateFile,
+  rows: readonly object[],
+): Promise<void> {
   if (rows.length === 0) return;
   await mkdir(dataDir, { recursive: true });
   await appendFile(filePath(dataDir, file), rows.map((row) => JSON.stringify(row)).join("\n") + "\n", "utf8");
@@ -49,7 +72,7 @@ async function appendJsonl(dataDir: string, file: string, rows: readonly object[
 
 async function appendUniqueJsonl<T extends DatedSourceRecord>(
   dataDir: string,
-  file: string,
+  file: ReliabilityStateFile,
   records: readonly T[],
 ): Promise<number> {
   const existing = await readJsonl<T>(dataDir, file);
@@ -127,11 +150,21 @@ export function createFileReliabilityStore(dataDir: string): ReliabilityCycleSto
 
 /** Read all three durable files for recovery and pre-push monotonic checks. */
 export async function readReliabilitySnapshot(dataDir: string): Promise<ReliabilitySnapshot> {
-  return {
-    forecasts: await readJsonl<ForecastRecord>(dataDir, FORECAST_LOG),
-    dailySkill: await readJsonl<DailySkillRecord>(dataDir, DAILY_SKILL),
-    weights: await readWeightsAt(dataDir, true),
-  };
+  const snapshot: ReliabilitySnapshot = { forecasts: [], dailySkill: [], weights: null };
+  for (const file of RELIABILITY_STATE_FILES) {
+    switch (file) {
+      case FORECAST_LOG:
+        snapshot.forecasts = await readJsonl<ForecastRecord>(dataDir, file);
+        break;
+      case DAILY_SKILL:
+        snapshot.dailySkill = await readJsonl<DailySkillRecord>(dataDir, file);
+        break;
+      case WEIGHTS_FILE:
+        snapshot.weights = await readWeightsAt(dataDir, true);
+        break;
+    }
+  }
+  return snapshot;
 }
 
 /** Replace a recovery workspace with an already-validated/merged snapshot. */
@@ -142,14 +175,24 @@ export async function writeReliabilitySnapshot(
   await mkdir(dataDir, { recursive: true });
   const jsonl = (records: readonly object[]) =>
     records.length === 0 ? "" : records.map((record) => JSON.stringify(record)).join("\n") + "\n";
-  await writeFile(filePath(dataDir, FORECAST_LOG), jsonl(snapshot.forecasts), "utf8");
-  await writeFile(filePath(dataDir, DAILY_SKILL), jsonl(snapshot.dailySkill), "utf8");
-  if (snapshot.weights) {
-    const parsed = parseWeightsState(snapshot.weights);
-    if (!parsed) throw new Error("Refusing to write invalid reliability weight state");
-    await writeFile(filePath(dataDir, WEIGHTS_FILE), JSON.stringify(parsed, null, 2) + "\n", "utf8");
-  } else {
-    await unlink(filePath(dataDir, WEIGHTS_FILE)).catch(() => undefined);
+  for (const file of RELIABILITY_STATE_FILES) {
+    switch (file) {
+      case FORECAST_LOG:
+        await writeFile(filePath(dataDir, file), jsonl(snapshot.forecasts), "utf8");
+        break;
+      case DAILY_SKILL:
+        await writeFile(filePath(dataDir, file), jsonl(snapshot.dailySkill), "utf8");
+        break;
+      case WEIGHTS_FILE:
+        if (snapshot.weights) {
+          const parsed = parseWeightsState(snapshot.weights);
+          if (!parsed) throw new Error("Refusing to write invalid reliability weight state");
+          await writeFile(filePath(dataDir, file), JSON.stringify(parsed, null, 2) + "\n", "utf8");
+        } else {
+          await unlink(filePath(dataDir, file)).catch(() => undefined);
+        }
+        break;
+    }
   }
 }
 
