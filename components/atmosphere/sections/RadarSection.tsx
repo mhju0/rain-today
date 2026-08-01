@@ -2,7 +2,7 @@
 
 import { useInView, useReducedMotion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useDeferredJson } from "@/hooks/useDeferredJson";
 import {
   createRadarFrameLoader,
@@ -185,11 +185,13 @@ function RadarStatePanel({
   description,
   detail,
   loading = false,
+  children,
 }: {
   title: string;
   description: string;
   detail: string;
   loading?: boolean;
+  children?: ReactNode;
 }) {
   return (
     <div
@@ -207,6 +209,7 @@ function RadarStatePanel({
         </p>
         <p className="max-w-md text-sm leading-relaxed text-white/75">{description}</p>
         <p className="font-mono text-[11px] leading-relaxed tracking-[0.12em] text-white/65">{detail}</p>
+        {children}
       </div>
     </div>
   );
@@ -489,6 +492,12 @@ export default function RadarSection() {
     frameLoaderRef.current?.reportVisibleError(key, src);
   }, []);
 
+  const onRetry = useCallback(() => {
+    setPlaying(false);
+    setAutoPlayRequested(false);
+    frameLoaderRef.current?.retry();
+  }, []);
+
   const waitingForFrame = available && displayIndex === null && !activeFrameFailed;
 
   return (
@@ -507,6 +516,7 @@ export default function RadarSection() {
                 near={near}
                 failed={failed || (available && activeFrameFailed && displayIndex === null)}
                 loaded={summary !== null && !waitingForFrame}
+                onRetry={onRetry}
               />
             ) : (
               <>
@@ -593,7 +603,17 @@ export default function RadarSection() {
 }
 
 /** Honest non-data states: not-yet-loading, loading, failed, or no frames — never invents radar. */
-function RadarEmpty({ near, failed, loaded }: { near: boolean; failed: boolean; loaded: boolean }) {
+function RadarEmpty({
+  near,
+  failed,
+  loaded,
+  onRetry,
+}: {
+  near: boolean;
+  failed: boolean;
+  loaded: boolean;
+  onRetry: () => void;
+}) {
   if (!near) {
     return (
       <RadarStatePanel
@@ -615,7 +635,15 @@ function RadarEmpty({ near, failed, loaded }: { near: boolean; failed: boolean; 
             : "현재 사용 가능한 레이더 이미지가 없습니다. 잠시 후 다시 확인해 주세요."
         }
         detail="출처 © 기상청(KMA)"
-      />
+      >
+        <button
+          type="button"
+          onClick={onRetry}
+          className="mt-4 rounded-full px-4 py-2 font-mono text-[11px] tracking-[0.12em] text-white ring-1 ring-inset ring-white/30 transition hover:bg-white/10"
+        >
+          다시 시도
+        </button>
+      </RadarStatePanel>
     );
   }
   // In view, fetch still in flight.
