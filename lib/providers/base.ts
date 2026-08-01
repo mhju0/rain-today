@@ -2,6 +2,7 @@ import type {
   CurrentWeather,
   DailyForecast,
   HourlyForecast,
+  ProviderSnapshot,
   WeatherProviderStatus,
 } from "../types";
 
@@ -23,6 +24,5 @@ export interface WeatherProvider {
   readonly id: WeatherProviderStatus["id"];
   /** Korean display name */
   readonly name: string;
-  getProviderStatus(): Promise<WeatherProviderStatus>;
-  readForecast(): Promise<NormalizedForecast>;
+  read(): Promise<ProviderSnapshot>;
 }
