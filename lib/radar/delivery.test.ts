@@ -270,6 +270,37 @@ test("a late cancelled render cannot populate the cache ahead of its retry", asy
   assert.equal(renders, 2);
 });
 
+test("a resolve-then-queued abort cannot cache the cancelled generation", async () => {
+  const firstStarted = deferred<void>();
+  const firstBytes = deferred<Buffer>();
+  let renders = 0;
+  const delivery = createRadarDelivery(
+    {
+      kma: configuredKma(() => {
+        renders += 1;
+        if (renders === 1) {
+          firstStarted.resolve();
+          return firstBytes.promise;
+        }
+        return Promise.resolve(Buffer.from("fresh-after-abort"));
+      }),
+    },
+    { now: () => NOW, maxConcurrent: 1, maxQueued: 2 },
+  );
+
+  const controller = new AbortController();
+  const cancelled = delivery.frame(KEYS[0], controller.signal);
+  await firstStarted.promise;
+  firstBytes.resolve(Buffer.from("resolved-before-abort"));
+  queueMicrotask(() => controller.abort());
+
+  assert.deepEqual(await cancelled, { kind: "cancelled" });
+  const retry = await delivery.frame(KEYS[0]);
+  assertKind(retry, "ready");
+  assert.equal(retry.png.toString(), "fresh-after-abort");
+  assert.equal(renders, 2);
+});
+
 test("a full admission queue returns busy without reaching KMA", async () => {
   const releaseFirst = deferred<Buffer>();
   const firstStarted = deferred<void>();

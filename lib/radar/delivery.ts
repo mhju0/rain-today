@@ -216,6 +216,7 @@ export function createRadarDelivery(
         signal.throwIfAborted();
         return rendered;
       });
+      signal.throwIfAborted();
       const immutablePng = Buffer.from(png);
       cache.set(key, immutablePng);
       return { kind: "ready", png: immutablePng };
