@@ -65,6 +65,7 @@ This is precipitation-only forecast verification, not a claim that SeoulSky retr
 - **Atomic provider snapshots:** each forecast provider returns its availability, cache freshness, and normalized current, hourly, and daily weather together from one cached generation. The live snapshot, deferred comparison, runtime consensus, and scheduled forecast log all reuse that read; unavailable sources are omitted where a value is required rather than invented.
 - **Graceful data degradation:** cached last-good data and provider-specific fallbacks avoid blank states or invented certainty.
 - **Server-side integrations:** provider keys, raw radar grids, and upstream requests remain off the client.
+- **Bounded radar delivery:** `RadarDelivery` validates a requested KMA frame against the recent observed window, uses a newest-frame readiness probe for the timeline, admits at most two renders and eight queued renders per process, and coalesces same-key work. It caches only recent immutable PNGs in that process; a produced frame is separately cacheable by the browser/CDN. The client warms frames one at a time in playback order and skips failed frames without breaking circular playback.
 
 ## Architecture
 
@@ -74,11 +75,14 @@ flowchart TB
   Shell --> SkyAPI["/api/sky"]
   Shell --> Scene["WebGL scene and CSS fallback"]
   Browser --> Deck["Data deck"]
-  Deck --> Radar["/api/radar/frames and /api/radar/frame"]
+  Deck --> RadarRoutes["/api/radar/frames and /api/radar/frame"]
   Deck --> Intelligence["/api/weather on demand"]
   SkyAPI --> Providers["Weather and air-quality providers"]
   Intelligence --> Providers
-  Radar --> KMA["KMA API Hub"]
+  RadarRoutes --> Delivery["RadarDelivery: validation, readiness, admission, rendering"]
+  Delivery --> KMA["KMA API Hub"]
+  Delivery --> RadarCache["Recent immutable PNG cache (per process)"]
+  RadarRoutes --> EdgeCache["Immutable frame responses (browser/CDN)"]
   Providers --> Cache["TTL cache with stale-on-error fallback"]
   Action["Daily GitHub Action"] --> ForecastLog["Provider forecast log"]
   Action --> KMAObservation["KMA ASOS completed observation"]
@@ -89,6 +93,8 @@ flowchart TB
 ```
 
 Forecast providers are read through one Provider Snapshot boundary. A snapshot keeps status (including cache and stale metadata) coherent with the current, hourly, and daily weather it serves; a stale last-good snapshot remains an available snapshot, while missing configuration or a failed fetch produces an empty non-OK snapshot. The shared provider cache is reused by the live Sky snapshot, deferred Weather Intelligence comparison, runtime precipitation collection, and daily forecast log. Those consumers omit non-OK sources instead of fabricating weather or treating missing values as zero. Provider priority remains Open-Meteo, MET Norway, KMA, Pirate Weather, then WeatherAPI; the first live current snapshot remains the diagnostics primary.
+
+Radar routes are thin HTTP adapters over `RadarDelivery`. A timeline first renders/probes only its newest permitted key, then returns the observed playback keys and bounds if that probe and bounds lookup succeed; it does not pre-render the other keys or promise their later cache hits. Frame work is limited to real five-minute keys in the current 90-minute observed window. The in-memory PNG cache and render admission are process-local, while each successfully produced immutable PNG carries a one-day browser/CDN cache policy. Source, bounds, or readiness failure produces an empty timeline; invalid, busy, cancelled, and unavailable frame requests return explicit non-cacheable responses.
 
 ## Stack
 
@@ -133,7 +139,8 @@ For a manual check, verify `/sky` at desktop and mobile widths, open the data de
 
 - Seoul-only and desktop-first by design.
 - Optional providers may be unavailable without interrupting the baseline experience.
-- Radar availability depends on the configured KMA service and server execution time.
+- Radar requires `KMA_APIHUB_KEY` and an available KMA source. Its delivery limits are two active renders plus eight queued renders per process; a full queue is temporarily busy, and the process-local PNG cache is neither shared nor durable.
+- The timeline's newest-frame readiness probe establishes only that the timeline can be offered at that moment. Other frames render on demand; browser warming is progressive and a failed frame is skipped.
 - Learned weights cover Seoul precipitation only. They describe historical provider skill, not certainty about today's weather.
 - Evidence advances on informative completed precipitation forecasts, not simply once per calendar day.
 - Weather information is not suitable for safety-critical decisions.

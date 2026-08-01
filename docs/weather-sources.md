@@ -11,13 +11,15 @@ The application is usable without keys: Open-Meteo supplies weather and air qual
 | MET Norway | Provider comparison | `MET_NO_USER_AGENT` with contact | 15 min | Provider reports `needs-config` or `error` |
 | KMA short-term | Preferred temperature and active precipitation observation | `KMA_SHORT_TERM_API_KEY` | 5 min | Open-Meteo remains authoritative |
 | KMA warnings | Official active warnings | `KMA_WARNING_API_KEY` | 5 min | Warnings become `[]` |
-| KMA API Hub radar | Displayed HSR reflectivity frames | `KMA_APIHUB_KEY` | 6 h per immutable frame | Basemap and explicit empty state remain |
+| KMA API Hub radar | Displayed HSR reflectivity frames | `KMA_APIHUB_KEY` | Recent PNGs in a process-local `RadarDelivery` cache; successful immutable frame responses are browser/CDN-cacheable for 1 day | Timeline becomes an explicit empty state when not ready; an invalid frame is rejected, a full render queue is temporarily busy, and an unavailable render fails without exposing the key |
 | AirKorea | Preferred measured air quality | `AIRKOREA_API_KEY` | 20 min | Open-Meteo air quality remains |
 | Pirate Weather | Optional provider comparison and precipitation consensus | `PIRATE_WEATHER_API_KEY` | 5 min | Source is omitted |
 | WeatherAPI | Optional provider comparison and precipitation consensus | `WEATHERAPI_KEY` | 5 min | Source is omitted |
 | RainViewer | Keyless precipitation-approach signal only | None | 10 min | Approach signal becomes `null` |
 
 `lib/cache.ts` provides process-local TTL caching with single-flight refreshes. If a refresh fails and an expired value exists, the provider serves that value with `stale: true`. This is an availability fallback, not durable storage; serverless instances do not share it.
+
+Radar uses a separate `RadarDelivery` boundary rather than `lib/cache.ts`. It accepts only real five-minute KST keys in the current 90-minute observed window, and the timeline probes/renders its newest permitted key only to establish readiness before looking up bounds and returning the 13-frame playback list. That probe does not render the remaining frames or guarantee later process-local cache hits. Per process, delivery admits at most two renders and queues at most eight more; same-key requests share one render, and queued or unneeded work can be cancelled. Ready PNG bytes are defensively copied into a process-local cache and are pruned when they leave the allowed window. This cache is not shared or durable. Separately, a successfully produced immutable frame response is public-cacheable for one day by the browser/CDN. A source, bounds, or readiness failure returns an empty timeline; frame responses distinguish invalid input (400), admission pressure (503 with `Retry-After`), cancellation (499), and unavailable rendering (502), all without caching the failure.
 
 Each forecast provider exposes one Provider Snapshot read. Its availability, cache/freshness metadata, and normalized current, hourly, and daily weather come from the same cached generation. The shared provider instance and its ID-keyed cache are reused by the live Sky snapshot, deferred Weather Intelligence comparison, runtime precipitation collection, and scheduled forecast logging. A missing configuration or failed fetch yields an empty non-OK snapshot; stale last-good data stays an available snapshot with `stale: true`.
 
@@ -44,7 +46,7 @@ The UI must retain the applicable credits: Open-Meteo; MET Norway; 기상청 (KM
 - Fusion: `lib/skyFusion.ts`, `lib/liveSkySnapshot.ts`, `lib/liveSkySnapshot.production.ts`
 - Comparison: `lib/compare.ts`, `lib/weatherIntelligence.ts`, `lib/weatherIntelligence.production.ts`
 - HTTP adapters: `app/api/sky/route.ts`, `app/api/weather/route.ts`
-- Radar rendering: `lib/radar/*`, `app/api/radar/*`
+- Radar delivery and rendering: `lib/radar/delivery.ts` owns key/window validation, readiness probing, bounded admission, same-key single-flight, cancellation, and immutable PNG caching; `lib/radar/apihub.ts` supplies KMA bounds/rendering; `app/api/radar/*` are HTTP adapters.
 - Shared cache: `lib/cache.ts`
 
 The application does not authenticate users, store profiles, accept uploads, or persist an application database.

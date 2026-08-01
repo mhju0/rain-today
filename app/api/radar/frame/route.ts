@@ -9,9 +9,8 @@ import { enforceRequestRateLimit } from "../../../../lib/rateLimit.ts";
  * response is cached hard.
  */
 export const dynamic = "force-dynamic";
-// Cold start fetches the ~13 MB echo grid (AbortSignal.timeout 25s in apihub.ts) plus
-// boot + reproject/encode. That can exceed Vercel's low default function ceiling, so raise
-// it to Hobby's max (60s). This widens the budget; it can't make a >60s upstream succeed.
+// Rendering can include one ~13 MB grid fetch plus reprojection/encoding. The route's
+// 60-second configured maximum does not change the KMA frame fetch timeout in apihub.ts.
 export const maxDuration = 60;
 
 export async function deliverRadarFrame(

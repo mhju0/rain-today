@@ -9,10 +9,10 @@ import { enforceRequestRateLimit } from "../../../../lib/rateLimit.ts";
  * { available:false, frames:[] } (not an error) when the source is unavailable.
  */
 export const dynamic = "force-dynamic";
-// recentRadarFrames() warms the newest frame on cold start: one echo-grid fetch
-// (AbortSignal.timeout 25s in apihub.ts) + boot + reproject/encode. Raise the function
-// ceiling to Hobby's max (60s) so that work isn't killed by the low default. This widens
-// the budget; it cannot make a >60s upstream succeed.
+// productionRadarDelivery.timeline() renders/probes only the newest permitted frame to
+// establish readiness, then returns the timeline; it does not warm or promise cache hits
+// for later frames. The route's 60-second configured maximum does not change the KMA
+// frame fetch timeout in apihub.ts.
 export const maxDuration = 60;
 
 export async function deliverRadarTimeline(
