@@ -62,6 +62,7 @@ This is precipitation-only forecast verification, not a claim that SeoulSky retr
 - **Raw WebGL with a CSS fallback:** the background uses a small custom shader rather than a scene graph, while a fallback preserves the experience when WebGL is unavailable.
 - **React stays outside the animation loop:** scene updates use refs and browser APIs, avoiding per-frame React renders.
 - **Fast and detailed APIs are separate:** `/api/sky` serves the live scene; `/api/weather` supplies deferred provider comparison and confidence details.
+- **Atomic provider snapshots:** each forecast provider returns its availability, cache freshness, and normalized current, hourly, and daily weather together from one cached generation. The live snapshot, deferred comparison, runtime consensus, and scheduled forecast log all reuse that read; unavailable sources are omitted where a value is required rather than invented.
 - **Graceful data degradation:** cached last-good data and provider-specific fallbacks avoid blank states or invented certainty.
 - **Server-side integrations:** provider keys, raw radar grids, and upstream requests remain off the client.
 
@@ -86,6 +87,8 @@ flowchart TB
   Weights --> MainState["main: data/reliability"]
   MainState --> SkyAPI
 ```
+
+Forecast providers are read through one Provider Snapshot boundary. A snapshot keeps status (including cache and stale metadata) coherent with the current, hourly, and daily weather it serves; a stale last-good snapshot remains an available snapshot, while missing configuration or a failed fetch produces an empty non-OK snapshot. The shared provider cache is reused by the live Sky snapshot, deferred Weather Intelligence comparison, runtime precipitation collection, and daily forecast log. Those consumers omit non-OK sources instead of fabricating weather or treating missing values as zero. Provider priority remains Open-Meteo, MET Norway, KMA, Pirate Weather, then WeatherAPI; the first live current snapshot remains the diagnostics primary.
 
 ## Stack
 

@@ -19,6 +19,8 @@ The application is usable without keys: Open-Meteo supplies weather and air qual
 
 `lib/cache.ts` provides process-local TTL caching with single-flight refreshes. If a refresh fails and an expired value exists, the provider serves that value with `stale: true`. This is an availability fallback, not durable storage; serverless instances do not share it.
 
+Each forecast provider exposes one Provider Snapshot read. Its availability, cache/freshness metadata, and normalized current, hourly, and daily weather come from the same cached generation. The shared provider instance and its ID-keyed cache are reused by the live Sky snapshot, deferred Weather Intelligence comparison, runtime precipitation collection, and scheduled forecast logging. A missing configuration or failed fetch yields an empty non-OK snapshot; stale last-good data stays an available snapshot with `stale: true`.
+
 ## Fusion rules
 
 - `/api/sky` uses Open-Meteo as the complete baseline.
@@ -28,6 +30,8 @@ The application is usable without keys: Open-Meteo supplies weather and air qual
 - Displayed radar imagery comes from KMA API Hub. RainViewer remains a separate approach signal and never supplies the displayed map.
 - Daily precipitation fields use the gated learned multi-provider consensus documented in `lib/reliability/README.md` by default. Set `MULTI_SOURCE_PRECIP=0` only as an emergency opt-out to the single Open-Meteo baseline.
 - `/api/weather` compares every configured provider that returns a valid current snapshot. Missing measurements are excluded, never treated as zero.
+- Runtime precipitation collection and scheduled forecast logging project daily data only from available snapshots. A non-OK provider or a missing target date is omitted, never represented as a made-up forecast.
+- Forecast-provider order remains Open-Meteo, MET Norway, KMA, Pirate Weather, then WeatherAPI. The first available current snapshot in that order is the comparison primary.
 
 ## Attribution
 
@@ -35,7 +39,7 @@ The UI must retain the applicable credits: Open-Meteo; MET Norway; 기상청 (KM
 
 ## Implementation map
 
-- Provider contract and registry: `lib/providers/base.ts`, `lib/providers/registry.ts`
+- Provider contract, atomic snapshot factory, and registry: `lib/providers/base.ts`, `lib/providers/read.ts`, `lib/providers/registry.ts`
 - Provider implementations: `lib/providers/*`
 - Fusion: `lib/skyFusion.ts`, `lib/liveSkySnapshot.ts`, `lib/liveSkySnapshot.production.ts`
 - Comparison: `lib/compare.ts`, `lib/weatherIntelligence.ts`, `lib/weatherIntelligence.production.ts`

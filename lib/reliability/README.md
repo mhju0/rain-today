@@ -6,12 +6,12 @@ SeoulSky can learn bounded per-provider precipitation weights from completed Seo
 
 `npm run reliability:daily` runs the thin `scripts/precip-reliability.ts` adapter over the dependency-injected cycle in `cycle.ts`:
 
-1. Collect tomorrow's daily precipitation forecast from every available provider and append one record per source to `forecast-log.jsonl`.
+1. Read one Provider Snapshot from every provider, project tomorrow's daily precipitation forecast only from available snapshots, and append one record per returned source to `forecast-log.jsonl`.
 2. Fetch yesterday's completed KMA ASOS daily precipitation observation for station 108.
 3. Join prior forecasts to that independent observation and append informative skill records to `daily-skill.jsonl`.
 4. Apply unprocessed daily losses to the bounded multiplicative-weights state in `source-weights.json`.
 
-Missing observation data, missing forecasts, and correct-dry days are skipped where they carry no useful scoring information. A successful independent observation still refreshes the state's health timestamp, so a dry stretch does not make healthy learned weights look stale; a missing observation does not refresh it. Repeated runs are idempotent by date and source.
+Missing observation data, non-OK provider snapshots, target-date-missing forecasts, and correct-dry days are skipped where they carry no useful scoring information. A provider snapshot keeps availability and daily data from the same cached generation, so skipped sources are honestly omitted rather than fabricated. A successful independent observation still refreshes the state's health timestamp, so a dry stretch does not make healthy learned weights look stale; a missing observation does not refresh it. Repeated runs are idempotent by date and source.
 
 ## Scoring
 
@@ -34,7 +34,7 @@ Every remote response is schema-validated (timestamp, event count, unique dates,
 - Intermediate training linearly blends equal and learned weights.
 - Fully warmed state uses the bounded learned weights.
 - Multi-source learned precipitation weighting defaults to on. `MULTI_SOURCE_PRECIP=0` is the emergency opt-out; when off, `/api/sky` retains the Open-Meteo precipitation baseline byte-for-byte.
-- When enabled, sources fetch concurrently with a per-source timeout. Only returned values participate, and weights renormalize over the available subset.
+- When enabled, sources fetch concurrently with a per-source timeout through the shared Provider Snapshot read. A snapshot's availability, freshness metadata, and daily weather stay coherent; only available returned values participate, and weights renormalize over that subset.
 - Missing precipitation values are excluded rather than converted to zero. If every optional source fails, the baseline remains unchanged.
 - `/api/sky` always exposes a small, non-secret `precipLearning` summary for the advanced diagnostics: gate mode, evidence depth, last observation check, and exact effective versus stored weights. `RELIABILITY_DEBUG=1` additionally exposes the legacy raw `precipWeighting` block; leave it unset in production unless actively investigating the model.
 
