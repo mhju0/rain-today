@@ -10,6 +10,12 @@ updates:
       timezone: Asia/Seoul
     open-pull-requests-limit: 5
     rebase-strategy: auto
+    # Next.js 16.2 only supports TypeScript 7 through an experimental CLI path,
+    # while eslint-config-next's TypeScript ESLint stack requires TypeScript <6.1.
+    ignore:
+      - dependency-name: typescript
+        versions:
+          - ">=7.0.0"
     groups:
       production-minor-and-patch:
         dependency-type: production
