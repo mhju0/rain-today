@@ -13,11 +13,6 @@ SeoulSky is a Seoul-only weather experience that pairs a cinematic live scene wi
 
 **Live demo:** [seoulsky.vercel.app/sky](https://seoulsky.vercel.app/sky)
 
-## License
-
-Copyright (c) 2026 Michael Ju. All rights reserved.
-No license is granted for use, copying, modification, or distribution of this code as of 2026-07-30. This repository is public for portfolio review purposes only.
-
 ## What it solves
 
 Weather apps often make a user choose between an atmospheric overview and a dense data dashboard. SeoulSky keeps both in one focused flow:
@@ -151,3 +146,8 @@ For a manual check, verify `/sky` at desktop and mobile widths, open the data de
 - Learned weights cover Seoul precipitation only. They describe historical provider skill, not certainty about today's weather.
 - Evidence advances on informative completed precipitation forecasts, not simply once per calendar day.
 - Weather information is not suitable for safety-critical decisions.
+
+## License
+
+Copyright (c) 2026 Michael Ju. All rights reserved.
+No license is granted for use, copying, modification, or distribution of this code as of 2026-07-30. This repository is public for portfolio review purposes only.
