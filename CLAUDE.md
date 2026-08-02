@@ -2,11 +2,6 @@
 
 SeoulSky is a completed, Seoul-only cinematic weather project. Keep changes focused on maintenance, correctness, security, and compatibility; do not add new product scope unless explicitly requested. `README.md` is the canonical public overview.
 
-## Working standard
-
-Use the repository-contained architecture, invariants, code conventions, and
-documentation guidance in this file when working in SeoulSky.
-
 ## Runtime and commands
 
 - Node 22 or newer; npm with the committed `package-lock.json`.
@@ -61,6 +56,10 @@ The application works without environment variables. Copy `.env.example` to `.en
 - `lib/reliability/README.md` — scheduled precipitation-scoring pipeline.
 
 Update these documents when their corresponding behavior changes. Do not add session handoffs, temporary plans, dated test counts, private machine paths, or personal prompting conventions to the repository.
+
+## Licensing
+
+This repository is deliberately all-rights-reserved: `package.json` declares `UNLICENSED` and there is no `LICENSE` file. An earlier MIT license was added and then reverted in `0e8f7c7` ("Remove MIT license, reserve all rights", 2026-07-31) — do not reintroduce one. The repository is public for portfolio review only.
 
 ## Agent skills
 
