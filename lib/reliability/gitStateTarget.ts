@@ -17,6 +17,8 @@ const STATE_BRANCH = "reliability-state";
 const STATE_REF = `refs/heads/${STATE_BRANCH}`;
 const STATE_DIRECTORY = path.join("data", "reliability");
 const STATE_PATHS = RELIABILITY_STATE_FILES.map((file) => path.join(STATE_DIRECTORY, file));
+/** Root file the state branch carries to keep Vercel from deploying state commits. */
+const DEPLOYMENT_GUARD_FILE = "vercel.json";
 const TEMPORARY_PREFIX = "seoulsky-reliability-git-";
 
 export interface GitCommandResult {
@@ -420,7 +422,7 @@ export class GitStateTarget {
         }
         return file ?? "<unknown>";
       })
-      .filter(Boolean);
+      .filter((file) => Boolean(file) && file !== DEPLOYMENT_GUARD_FILE);
     assertReliabilityStateFiles(orderDiscoveredManifest(discovered));
     for (const entry of entries) {
       if (entry.mode !== "100644" || entry.type !== "blob") {

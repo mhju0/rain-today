@@ -409,6 +409,43 @@ test("publication commits only the exact reliability manifest", async () => {
   });
 });
 
+test("a state branch carrying the vercel deployment guard stays readable and publishable", async () => {
+  await withRepository(async ({ target, workingRepository }) => {
+    const first = await target.publish({
+      expectedRevision: null,
+      snapshot: snapshot(1),
+      message: "publish initial reliability state",
+    });
+
+    const guarded = path.join(workingRepository, "guard");
+    await git(workingRepository, "worktree", "add", "--detach", guarded, first.revision);
+    await writeFile(path.join(guarded, "vercel.json"), '{ "git": {} }\n', "utf8");
+    await git(guarded, "add", "--", "vercel.json");
+    await git(
+      guarded,
+      "-c",
+      "user.name=Fixture Author",
+      "-c",
+      "user.email=fixture@example.test",
+      "commit",
+      "-m",
+      "add deployment guard",
+    );
+    const guardedRevision = await git(guarded, "rev-parse", "HEAD");
+    await git(guarded, "push", "origin", `HEAD:refs/heads/reliability-state`);
+    await git(workingRepository, "worktree", "remove", "--force", guarded);
+
+    const read = await target.read();
+    assert.equal(read?.revision, guardedRevision);
+    const published = await target.publish({
+      expectedRevision: guardedRevision,
+      snapshot: snapshot(2),
+      message: "publish next reliability state",
+    });
+    assert.equal(published.changed, true);
+  });
+});
+
 test("publication rejects a snapshot that cannot materialize the exact manifest", async () => {
   await withRepository(async ({ bareRepository, target }) => {
     await assert.rejects(

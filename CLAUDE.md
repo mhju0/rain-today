@@ -46,7 +46,7 @@ The application works without environment variables. Copy `.env.example` to `.en
 - The radar's raw `<img>` tiles are intentional because exact percentage positioning is required.
 - Radar warm-up must remain progressive and controller-owned: keep one abortable fetch/decode lifecycle in flight, prioritize active then next playback frame, render only decoded blob URLs, gate autoplay on readiness, retry bounded 429/503 pressure without marking it terminal, capture visible-image failures, revoke owned URLs, skip terminal failures, and retain circular playback.
 - The development-only visual override is `/sky?cond=<condition>&hour=<0-23>`; it must remain inert in production.
-- Release branches ignore generated reliability JSON/JSONL. Durable state belongs only on `reliability-state`; preserve its exact three-file manifest and compare-and-swap publication boundary.
+- Release branches ignore generated reliability JSON/JSONL. Durable state belongs only on `reliability-state`; preserve its exact three-file manifest (plus the root `vercel.json` deployment guard the branch carries) and compare-and-swap publication boundary.
 - Radar cache output under `data/radar/` is ignored and must not be committed.
 
 ## Documentation
