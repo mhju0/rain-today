@@ -43,6 +43,7 @@ Each forecast provider exposes one Provider Snapshot read. Its availability, cac
 - Shadow-validation defaults are a 100 km station-distance gate, 400 m elevation-difference gate, 0.1 mm rain threshold, 50% decision threshold, 30-to-60-capture influence ramp, 5–60% provider bounds, and an `exp(-4 × Brier)` score transform. The initial wet-evidence minimum is one rainy day. These are operating defaults to validate, not coverage or accuracy guarantees.
 - The Prospective Benchmark freezes adaptive and equal outputs at capture time and later scores them on identical completed rows. Regression or insufficient benchmark evidence suspends learned influence.
 - Missing current providers are omitted and the remaining current weights renormalize. Missing performance evidence selects equal influence; it never becomes a numeric zero score.
+- Recent Performance Profile influence applies only to the measured next-day horizon. Days 2–7 use equal influence until separately captured prospective evidence exists for those lead times.
 
 - `/api/sky` uses Open-Meteo as the complete baseline.
 - `chooseCurrent()` prefers KMA temperature and active precipitation when a valid KMA observation is available. It only adopts KMA's condition when KMA reports active precipitation, because the observation feed does not provide complete dry-sky cloud semantics.

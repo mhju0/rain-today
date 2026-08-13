@@ -31,6 +31,8 @@ The serving profile keeps the two capture cohorts separate. Provider probability
 
 Learned influence requires at least 30 comparable captures per provider plus both wet and dry evidence. It ramps from equal to learned influence, applies provider floors and caps, and renormalizes over the providers that actually answered the current request. The Prospective Benchmark freezes adaptive and equal outputs before outcomes and suspends learning if the adaptive output regresses or lacks a fair comparison set.
 
+Learned influence applies only to tomorrow, the lead time the Capture Cohorts measure. Days 2–7 remain an equal-provider outlook until those horizons have their own prospective evidence.
+
 This supports the claim “weighted by recently observed local performance.” It does not yet support a claim that SeoulSky is more accurate overall; that requires accumulated prospective results.
 
 ## User flow

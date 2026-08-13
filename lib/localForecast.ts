@@ -313,7 +313,11 @@ export async function readLocalForecast(
     .sort()
     .slice(0, 7)
     .flatMap((date) => {
-      const day = buildForecastDay(date, snapshots, operatingWeights);
+      const day = buildForecastDay(
+        date,
+        snapshots,
+        date === targetDate ? operatingWeights : {},
+      );
       return day ? [day] : [];
     });
   const recommendation = buildForecastDay(targetDate, snapshots, operatingWeights) ?? {

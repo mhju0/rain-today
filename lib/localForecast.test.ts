@@ -270,3 +270,40 @@ test("runtime evidence reads do not run schema setup or close the shared store",
   assert.equal(store.initializeCalls, 0);
   assert.equal(store.closeCalls, 0);
 });
+
+test("next-day performance influence does not leak into later outlook horizons", async () => {
+  const location = createKoreanLocation({
+    name: "서울",
+    latitude: 37.5665,
+    longitude: 126.978,
+  });
+  const openMeteo = snapshot("open-meteo", 80, 5);
+  openMeteo.daily.push({
+    ...openMeteo.daily[0],
+    date: "2026-08-15",
+    precipitationProbability: 100,
+  });
+  const kma = snapshot("kma", 50, null);
+  kma.daily.push({
+    ...kma.daily[0],
+    date: "2026-08-15",
+    precipitationProbability: 0,
+  });
+
+  const response = await readLocalForecast(
+    { location, elevationM: null },
+    {
+      now: new Date("2026-08-13T18:20:00+09:00"),
+      readForecasts: async () => [openMeteo, kma],
+      readEvidence: async () => ({
+        status: "active",
+        reason: "eligible-station",
+        station: { id: "108", name: "서울", distanceKm: 1.2 },
+        profile,
+      }),
+    },
+  );
+
+  assert.equal(response.recommendation.precipitationProbability, 68);
+  assert.equal(response.outlook[1]?.precipitationProbability, 50);
+});

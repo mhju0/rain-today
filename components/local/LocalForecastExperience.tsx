@@ -386,7 +386,7 @@ function ForecastDashboard({ forecast, onReset }: {
               <p className="local-eyebrow">7 DAY OUTLOOK</p>
               <h2 id="outlook-heading">그다음 날씨</h2>
             </div>
-            <p>같은 가중 원칙으로 앞으로의 강수 확률을 나란히 봅니다.</p>
+            <p>검증된 익일 범위 밖의 날짜는 서비스별 동일 가중으로 비교합니다.</p>
           </div>
           <div className="local-outlook-grid">
             {forecast.outlook.map((day) => (
