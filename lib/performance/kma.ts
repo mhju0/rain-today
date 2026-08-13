@@ -1,9 +1,12 @@
 import { classifyKmaResponse } from "../providers/kma.ts";
+import { readResponseBytes } from "../httpResponse.ts";
 import type { ObservationStation, PrecipObservation } from "./types.ts";
 
 const STATION_CATALOG_URL = "https://apihub.kma.go.kr/api/typ01/url/stn_inf.php";
 const ASOS_DAILY_URL =
   "https://apis.data.go.kr/1360000/AsosDalyInfoService/getWthrDataList";
+const MAX_STATION_CATALOG_BYTES = 1024 * 1024;
+const MAX_ASOS_OBSERVATION_BYTES = 256 * 1024;
 
 function koreanDate(date: Date): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -90,7 +93,8 @@ export async function fetchKmaAsosStations(
     signal: AbortSignal.timeout(15_000),
   });
   if (!response.ok) throw new Error(`KMA station catalog returned HTTP ${response.status}`);
-  const stations = parseKmaStationCatalog(await response.text(), at);
+  const catalog = await readResponseBytes(response, { maxBytes: MAX_STATION_CATALOG_BYTES });
+  const stations = parseKmaStationCatalog(new TextDecoder().decode(catalog), at);
   if (stations.length === 0) throw new Error("KMA station catalog contained no usable ASOS rows");
   return stations;
 }
@@ -145,7 +149,8 @@ export async function fetchAsosObservation(
   } catch {
     return null;
   }
-  const text = await response.text();
+  const bytes = await readResponseBytes(response, { maxBytes: MAX_ASOS_OBSERVATION_BYTES });
+  const text = new TextDecoder().decode(bytes);
   const classified = classifyKmaResponse(response.status, text);
   if (classified.class !== "ok") return null;
   const observedMm = parseAsosDailyObservation(classified.json);

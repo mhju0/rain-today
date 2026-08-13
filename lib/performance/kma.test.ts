@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseAsosDailyObservation, parseKmaStationCatalog } from "./kma.ts";
+import {
+  fetchAsosObservation,
+  fetchKmaAsosStations,
+  parseAsosDailyObservation,
+  parseKmaStationCatalog,
+} from "./kma.ts";
 
 test("KMA station catalog parser keeps active South Korean ASOS coordinates", () => {
   const body = `# STN_ID LON LAT STN_SP HT HT_PA HT_TA HT_WD HT_RN STN_CD STN_KO STN_EN STN_AD FCT_ID LAW_ID BASIN
@@ -46,4 +51,33 @@ test("ASOS observation parser distinguishes a dry day from a missing row", () =>
     12.4,
   );
   assert.equal(parseAsosDailyObservation({ response: { body: {} } }), null);
+});
+
+test("KMA performance readers reject oversized upstream bodies", async () => {
+  const previousCatalogKey = process.env.KMA_APIHUB_KEY;
+  const previousObservationKey = process.env.KMA_OBSERVATION_API_KEY;
+  process.env.KMA_APIHUB_KEY = "test-key";
+  process.env.KMA_OBSERVATION_API_KEY = "test-key";
+  const oversized = async () => new Response(" ".repeat(1_048_577), { status: 200 });
+
+  try {
+    await assert.rejects(
+      () => fetchKmaAsosStations(new Date("2026-08-13T06:00:00+09:00"), oversized as typeof fetch),
+      /body too large/,
+    );
+    await assert.rejects(
+      () => fetchAsosObservation(
+        "108",
+        "2026-08-12",
+        new Date("2026-08-13T06:00:00+09:00"),
+        oversized as typeof fetch,
+      ),
+      /body too large/,
+    );
+  } finally {
+    if (previousCatalogKey === undefined) delete process.env.KMA_APIHUB_KEY;
+    else process.env.KMA_APIHUB_KEY = previousCatalogKey;
+    if (previousObservationKey === undefined) delete process.env.KMA_OBSERVATION_API_KEY;
+    else process.env.KMA_OBSERVATION_API_KEY = previousObservationKey;
+  }
 });
