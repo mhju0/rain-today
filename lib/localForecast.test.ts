@@ -236,6 +236,7 @@ test("runtime evidence reads do not run schema setup or close the shared store",
   class TrackingStore extends InMemoryPerformanceStore {
     initializeCalls = 0;
     closeCalls = 0;
+    comparisonLimits: number[] = [];
 
     override async initialize(): Promise<void> {
       this.initializeCalls += 1;
@@ -243,6 +244,15 @@ test("runtime evidence reads do not run schema setup or close the shared store",
 
     override async close(): Promise<void> {
       this.closeCalls += 1;
+    }
+
+    override async loadCompletedComparisons(
+      stationId: string,
+      cohort: "06" | "18",
+      limit: number,
+    ) {
+      this.comparisonLimits.push(limit);
+      return super.loadCompletedComparisons(stationId, cohort, limit);
     }
   }
 
@@ -269,6 +279,7 @@ test("runtime evidence reads do not run schema setup or close the shared store",
   assert.equal(evidence.status, "collecting");
   assert.equal(store.initializeCalls, 0);
   assert.equal(store.closeCalls, 0);
+  assert.deepEqual(store.comparisonLimits, [60]);
 });
 
 test("next-day performance influence does not leak into later outlook horizons", async () => {

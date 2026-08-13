@@ -1,5 +1,6 @@
 import type {
   CaptureCohort,
+  CompletedComparison,
   ForecastCapture,
   ObservationStation,
   PrecipObservation,
@@ -29,8 +30,11 @@ export interface PerformanceStore {
   listStations(): Promise<ObservationStation[]>;
   saveCapture(capture: ForecastCapture): Promise<CaptureWriteResult>;
   saveObservation(observation: PrecipObservation): Promise<void>;
-  loadCaptures(stationId: string, cohort: CaptureCohort): Promise<ForecastCapture[]>;
-  loadObservations(stationId: string): Promise<PrecipObservation[]>;
+  loadCompletedComparisons(
+    stationId: string,
+    cohort: CaptureCohort,
+    limit: number,
+  ): Promise<CompletedComparison[]>;
   close(): Promise<void>;
 }
 
@@ -104,6 +108,28 @@ export class InMemoryPerformanceStore implements PerformanceStore {
     return Array.from(this.#observations.values())
       .filter((observation) => observation.stationId === stationId)
       .sort((a, b) => a.date.localeCompare(b.date))
+      .map(clone);
+  }
+
+  async loadCompletedComparisons(
+    stationId: string,
+    cohort: CaptureCohort,
+    limit: number,
+  ): Promise<CompletedComparison[]> {
+    if (!Number.isSafeInteger(limit) || limit <= 0) throw new RangeError("invalid comparison limit");
+    const observations = new Map(
+      Array.from(this.#observations.values())
+        .filter((observation) => observation.stationId === stationId)
+        .map((observation) => [observation.date, observation]),
+    );
+    return Array.from(this.#captures.values())
+      .filter((capture) => capture.stationId === stationId && capture.cohort === cohort)
+      .flatMap((capture) => {
+        const observation = observations.get(capture.targetDate);
+        return observation ? [{ capture, observation }] : [];
+      })
+      .sort((a, b) => a.capture.targetDate.localeCompare(b.capture.targetDate))
+      .slice(-limit)
       .map(clone);
   }
 

@@ -81,6 +81,26 @@ test("corrected observations replace the same station-day without duplicating it
   ]);
 });
 
+test("completed comparison reads return only the latest requested evidence", async () => {
+  const store = new InMemoryPerformanceStore();
+  for (const day of ["10", "11", "12"]) {
+    const targetDate = `2026-08-${day}`;
+    await store.saveCapture({ ...capture, targetDate });
+    await store.saveObservation({ ...observation, date: targetDate });
+  }
+
+  const comparisons = await store.loadCompletedComparisons("108", "06", 2);
+
+  assert.deepEqual(
+    comparisons.map((comparison) => comparison.capture.targetDate),
+    ["2026-08-11", "2026-08-12"],
+  );
+  assert.deepEqual(
+    comparisons.map((comparison) => comparison.observation.date),
+    ["2026-08-11", "2026-08-12"],
+  );
+});
+
 test("station catalog sync closes stations missing from the next active catalog", async () => {
   const store = new InMemoryPerformanceStore();
   const retired: ObservationStation = {

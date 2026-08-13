@@ -110,15 +110,16 @@ export async function captureStationForecast(
     return { status: "skipped", reason: "no-next-day-probability", capture: null };
   }
 
-  const [captures, observations] = await Promise.all([
-    input.store.loadCaptures(input.station.id, input.cohort),
-    input.store.loadObservations(input.station.id),
-  ]);
+  const comparisons = await input.store.loadCompletedComparisons(
+    input.station.id,
+    input.cohort,
+    DEFAULT_PERFORMANCE_POLICY.fullInfluenceSamples,
+  );
   const profile = buildRecentPerformanceProfile({
     stationId: input.station.id,
     cohort: input.cohort,
-    captures,
-    observations,
+    captures: comparisons.map((comparison) => comparison.capture),
+    observations: comparisons.map((comparison) => comparison.observation),
     asOf: input.now,
   });
   const influence = normalizedInfluence(
