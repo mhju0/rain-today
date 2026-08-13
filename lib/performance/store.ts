@@ -10,7 +10,7 @@ export type CaptureWriteResult = "inserted" | "existing";
 /** Durable boundary for prospective forecast evidence. User coordinates never cross it. */
 export interface PerformanceStore {
   initialize(): Promise<void>;
-  upsertStations(stations: readonly ObservationStation[]): Promise<void>;
+  syncStations(stations: readonly ObservationStation[], catalogDate: string): Promise<void>;
   listStations(): Promise<ObservationStation[]>;
   saveCapture(capture: ForecastCapture): Promise<CaptureWriteResult>;
   saveObservation(observation: PrecipObservation): Promise<void>;
@@ -29,8 +29,28 @@ export class InMemoryPerformanceStore implements PerformanceStore {
 
   async initialize(): Promise<void> {}
 
-  async upsertStations(stations: readonly ObservationStation[]): Promise<void> {
-    for (const station of stations) this.#stations.set(station.id, clone(station));
+  async syncStations(
+    stations: readonly ObservationStation[],
+    catalogDate: string,
+  ): Promise<void> {
+    if (stations.length === 0) return;
+    const activeIds = new Set(stations.map((station) => station.id));
+    const previousDate = new Date(Date.parse(`${catalogDate}T00:00:00.000Z`) - 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    for (const [id, existing] of this.#stations) {
+      if (existing.activeTo === null && !activeIds.has(id)) {
+        this.#stations.set(id, { ...existing, activeTo: previousDate });
+      }
+    }
+    for (const station of stations) {
+      const existing = this.#stations.get(station.id);
+      this.#stations.set(station.id, clone({
+        ...station,
+        activeFrom: existing?.activeFrom ?? station.activeFrom,
+        activeTo: null,
+      }));
+    }
   }
 
   async listStations(): Promise<ObservationStation[]> {

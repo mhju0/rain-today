@@ -35,6 +35,10 @@ interface StationRow {
   active_to: string | null;
 }
 
+interface StationIdRow {
+  id: string;
+}
+
 function isoTimestamp(value: string): string {
   return new Date(value).toISOString();
 }
@@ -95,9 +99,26 @@ export class PostgresPerformanceStore implements PerformanceStore {
     `;
   }
 
-  async upsertStations(stations: readonly ObservationStation[]): Promise<void> {
+  async syncStations(
+    stations: readonly ObservationStation[],
+    catalogDate: string,
+  ): Promise<void> {
     if (stations.length === 0) return;
     await this.#sql.begin(async (sql) => {
+      const currentRows = await sql<StationIdRow[]>`
+        select id
+        from performance_stations
+        where network = 'ASOS' and active_to is null
+      `;
+      const activeIds = new Set(stations.map((station) => station.id));
+      for (const row of currentRows) {
+        if (activeIds.has(row.id)) continue;
+        await sql`
+          update performance_stations
+          set active_to = ${catalogDate}::date - 1
+          where id = ${row.id} and active_to is null
+        `;
+      }
       for (const station of stations) {
         await sql`
           insert into performance_stations (
@@ -112,7 +133,7 @@ export class PostgresPerformanceStore implements PerformanceStore {
             latitude = excluded.latitude,
             longitude = excluded.longitude,
             elevation_m = excluded.elevation_m,
-            active_to = excluded.active_to
+            active_to = null
         `;
       }
     });
