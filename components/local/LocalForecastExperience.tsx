@@ -60,13 +60,12 @@ async function loadForecast(input: {
   longitude: number;
   elevationM: number | null;
 }): Promise<LocalForecastResponse> {
-  const params = new URLSearchParams({
-    name: input.name,
-    lat: String(input.latitude),
-    lon: String(input.longitude),
+  const response = await fetch("/api/local-forecast", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+    cache: "no-store",
   });
-  if (input.elevationM !== null) params.set("elevation", String(input.elevationM));
-  const response = await fetch(`/api/local-forecast?${params}`, { cache: "no-store" });
   if (!response.ok) throw new Error("forecast request failed");
   return response.json() as Promise<LocalForecastResponse>;
 }

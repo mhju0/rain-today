@@ -1,7 +1,7 @@
 import { createKoreanLocation, type KoreanLocation } from "../location.ts";
 import { providers as weatherProviders } from "../providers/registry.ts";
 import type { ProviderSnapshot } from "../types.ts";
-import { buildLocalPerformanceProfile } from "./performance.ts";
+import { buildLocalPerformanceProfile, DEFAULT_PERFORMANCE_POLICY } from "./performance.ts";
 import type { PerformanceStore } from "./store.ts";
 import type {
   CaptureCohort,
@@ -63,7 +63,13 @@ function normalizedInfluence(
   profileWeights: Readonly<Record<string, number>>,
 ): Record<string, number> {
   const raw = Object.fromEntries(
-    forecasts.map((forecast) => [forecast.provider, Math.max(0, profileWeights[forecast.provider] ?? 0)]),
+    forecasts.map((forecast) => [
+      forecast.provider,
+      Math.max(
+        0,
+        profileWeights[forecast.provider] ?? DEFAULT_PERFORMANCE_POLICY.weightFloor,
+      ),
+    ]),
   );
   const total = Object.values(raw).reduce((sum, value) => sum + value, 0);
   if (total <= 0) {
@@ -115,7 +121,12 @@ export async function captureStationForecast(
     observations,
     asOf: input.now,
   });
-  const influence = normalizedInfluence(forecasts, profile.effectiveWeights);
+  const influence = normalizedInfluence(
+    forecasts,
+    profile.mode === "learned" || profile.mode === "ramping"
+      ? profile.effectiveWeights
+      : {},
+  );
   const equalProbability =
     forecasts.reduce((sum, forecast) => sum + forecast.probability!, 0) / forecasts.length;
   const adaptiveProbability = forecasts.reduce(
