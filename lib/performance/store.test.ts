@@ -96,3 +96,22 @@ test("station catalog sync closes stations missing from the next active catalog"
     { ...retired, activeTo: "2026-08-13" },
   ]);
 });
+
+test("station catalog sync rejects a severe active-catalog drop", async () => {
+  const store = new InMemoryPerformanceStore();
+  const nationwide = Array.from({ length: 25 }, (_, index): ObservationStation => ({
+    ...station,
+    id: String(100 + index),
+    name: `관측소 ${index + 1}`,
+  }));
+  await store.syncStations(nationwide, "2026-08-13");
+
+  await assert.rejects(
+    () => store.syncStations(nationwide.slice(0, 5), "2026-08-14"),
+    /catalog drop/,
+  );
+  assert.equal(
+    (await store.listStations()).filter((candidate) => candidate.activeTo === null).length,
+    25,
+  );
+});
