@@ -1,19 +1,11 @@
 import type { Metadata } from "next";
-import SkyView from "@/components/atmosphere/SkyView";
+import LocalForecastExperience from "@/components/local/LocalForecastExperience";
 
 export const metadata: Metadata = {
-  title: "서울의 하늘 — 지금 서울의 날씨",
-  description: "서울의 현재 날씨, 시간별 예보, 레이더와 예보 신뢰도를 확인하세요.",
+  title: "SeoulSky — 최근 지역 성능을 반영한 전국 강수 예보",
+  description: "내 위치의 내일 강수 예보와 각 날씨 서비스의 최근 지역별 관측 성능을 비교하세요.",
 };
 
-/**
- * /sky — ONE continuous vertical-scroll page. The HUD ({@link SkyView}) floats in
- * normal document scroll over the single persistent {@link SceneStage}
- * (edge-to-edge still color-field plate + FX + procedural fallback) owned by
- * {@link WeatherExperienceShell}. There is exactly one `useLiveSeoulWeather()`
- * fetch (in the shell) and one GL context (in the layout); neither remounts on
- * scroll, because nothing here navigates.
- */
 export default function SkyPage() {
-  return <SkyView />;
+  return <LocalForecastExperience />;
 }

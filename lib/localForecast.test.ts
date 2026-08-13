@@ -86,6 +86,14 @@ test("local forecast targets the user's coordinate and applies only recent local
   assert.equal(response.targetDate, "2026-08-14");
   assert.equal(response.recommendation.precipitationProbability, 68);
   assert.equal(response.recommendation.precipitationAmountMm, 5);
+  assert.deepEqual(response.outlook, [{
+    date: "2026-08-14",
+    precipitationProbability: 68,
+    precipitationAmountMm: 5,
+    temperatureMax: 31,
+    temperatureMin: 24,
+    condition: "rain",
+  }]);
   assert.equal(response.performance.status, "active");
   assert.equal(response.performance.station?.distanceKm, 6.2);
   assert.deepEqual(response.providerInfluence, { "open-meteo": 0.6, kma: 0.4 });

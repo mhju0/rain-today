@@ -13,8 +13,8 @@ const notoSansKr = Noto_Sans_KR({
 });
 
 export const metadata: Metadata = {
-  title: "서울의 하늘 — 오늘의 서울 날씨",
-  description: "서울의 현재 날씨, 시간별 예보, 레이더와 예보 신뢰도를 확인하세요.",
+  title: "SeoulSky — 최근 지역 성능을 반영한 전국 강수 예보",
+  description: "내 위치의 내일 강수 예보와 날씨 서비스별 최근 지역 관측 성능을 비교하세요.",
 };
 
 export const viewport: Viewport = {

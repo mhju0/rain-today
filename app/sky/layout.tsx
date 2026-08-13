@@ -1,21 +1,9 @@
 import type { ReactNode } from "react";
-import WeatherExperienceShell from "@/components/atmosphere/WeatherExperienceShell";
 
-/**
- * /sky — the single entry route for the whole experience. The shell owns the one
- * persistent atmospheric field (WebGL) and the single live-weather fetch, created
- * once here, so nothing remounts as the page scrolls.
- *
- * The live scene + HUD are inherently client-driven (capability detection, the
- * weather fetch, scroll motion). For no-JS visitors and crawlers the shell can
- * only render its loader, so this layout — a server component, always present in
- * the SSR HTML — carries a <noscript> fallback with the meaningful, static
- * content: what SeoulSky is, the four readings it shows, and the data sources.
- */
 export default function SkyLayout({ children }: { children: ReactNode }) {
   return (
     <>
-      <WeatherExperienceShell>{children}</WeatherExperienceShell>
+      {children}
 
       <noscript>
         <div
@@ -36,20 +24,20 @@ export default function SkyLayout({ children }: { children: ReactNode }) {
           }}
         >
           <p style={{ fontSize: "0.7rem", letterSpacing: "0.24em", color: "#94a3b8" }}>
-            지금, 서울
+            SEOULSKY · KOREA
           </p>
           <h1 style={{ fontSize: "clamp(1.8rem, 6vw, 3rem)", fontWeight: 300, margin: 0 }}>
-            서울의 하늘
+            내일 비, 여기서는 어떨까요?
           </h1>
           <p style={{ maxWidth: "40ch", lineHeight: 1.7, color: "#cbd5e1", margin: 0 }}>
-            서울의 현재 날씨, 시간별 예보, 레이더와 예보 신뢰도를 확인하세요.
+            내 위치의 강수 예보와 날씨 서비스별 최근 지역 관측 성능을 비교합니다.
           </p>
           <p style={{ fontSize: "0.85rem", letterSpacing: "0.18em", color: "#94a3b8", margin: 0 }}>
-            시간별·7일 날씨 · 현재 날씨 · 레이더 · 예보 신뢰도
+            대한민국 전역 · 익일 강수 · 최근 관측 성능
           </p>
           <p style={{ maxWidth: "44ch", fontSize: "0.8rem", lineHeight: 1.7, color: "#7c8aa0", margin: 0 }}>
-            라이브 경험을 보려면 JavaScript를 켜 주세요. 데이터: Open-Meteo · MET Norway
-            {" / "}선택: 기상청(KMA) · 대기질: AirKorea · 레이더: 기상청(KMA).
+            위치 선택과 라이브 예보를 보려면 JavaScript를 켜 주세요. 예보: Open-Meteo ·
+            MET Norway · 기상청 외. 관측 검증: 기상청 ASOS.
           </p>
         </div>
       </noscript>
