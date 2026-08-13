@@ -1,8 +1,8 @@
 import type {
   CapturedProviderForecast,
   ForecastCapture,
-  LocalPerformanceProfile,
-  PerformanceBenchmark,
+  ProspectiveBenchmark,
+  RecentPerformanceProfile,
   PerformancePolicy,
   PrecipObservation,
   PrecipProviderId,
@@ -228,10 +228,10 @@ function providerMetrics(
   };
 }
 
-function benchmark(
+function prospectiveBenchmark(
   completed: readonly CompletedCapture[],
   policy: PerformancePolicy,
-): PerformanceBenchmark {
+): ProspectiveBenchmark {
   const window = completed.filter((entry) => entry.ageDays <= policy.windowDays);
   const comparable = window.filter(
     (entry) =>
@@ -258,7 +258,7 @@ function benchmark(
       entry.capture.providers.find((candidate) => candidate.provider === provider)?.probability ?? null;
   const adaptive = score((entry) => entry.capture.frozenBlend.adaptiveProbability);
   const equal = score((entry) => entry.capture.frozenBlend.equalProbability);
-  let status: PerformanceBenchmark["status"] = "insufficient";
+  let status: ProspectiveBenchmark["status"] = "insufficient";
   if (comparable.length >= policy.minimumSamples && adaptive !== null && equal !== null) {
     status = adaptive <= equal + 1e-12 ? "passing" : "regression";
   }
@@ -277,7 +277,7 @@ function benchmark(
  * Build one auditable recent-performance profile for a station and capture cohort.
  * Callers need not know scoring, recency, evidence, bounding, or benchmark rules.
  */
-export function buildLocalPerformanceProfile(input: ProfileInput): LocalPerformanceProfile {
+export function buildRecentPerformanceProfile(input: ProfileInput): RecentPerformanceProfile {
   const policy = input.policy ?? DEFAULT_PERFORMANCE_POLICY;
   const completed = completedCaptures(input, policy);
   const providerIds = Array.from(
@@ -292,7 +292,7 @@ export function buildLocalPerformanceProfile(input: ProfileInput): LocalPerforma
   const equal = equalWeights(providers.map((provider) => provider.provider));
   const eligible = providers.filter((provider) => provider.eligible);
   const evidenceReady = eligible.length >= 2;
-  const currentBenchmark = benchmark(completed, policy);
+  const currentBenchmark = prospectiveBenchmark(completed, policy);
   const minimumEvidence = evidenceReady
     ? Math.min(...eligible.map((provider) => provider.sampleCount))
     : 0;
@@ -319,8 +319,8 @@ export function buildLocalPerformanceProfile(input: ProfileInput): LocalPerforma
     policy.weightCap,
   );
 
-  let mode: LocalPerformanceProfile["mode"] = "equal-fallback";
-  let reason: LocalPerformanceProfile["reason"] = "insufficient-evidence";
+  let mode: RecentPerformanceProfile["mode"] = "equal-fallback";
+  let reason: RecentPerformanceProfile["reason"] = "insufficient-evidence";
   let effectiveWeights = equal;
   if (evidenceReady && currentBenchmark.status === "insufficient") {
     mode = "suspended";
@@ -354,7 +354,7 @@ export function buildLocalPerformanceProfile(input: ProfileInput): LocalPerforma
     confidence,
     providers,
     effectiveWeights,
-    benchmark: currentBenchmark,
+    prospectiveBenchmark: currentBenchmark,
   };
 }
 

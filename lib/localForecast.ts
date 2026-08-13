@@ -1,16 +1,16 @@
 import type { KoreanLocation } from "./location.ts";
 import {
   blendPrecipProbability,
-  buildLocalPerformanceProfile,
+  buildRecentPerformanceProfile,
   DEFAULT_PERFORMANCE_POLICY,
 } from "./performance/performance.ts";
 import { PostgresPerformanceStore } from "./performance/postgres.ts";
-import { selectObservationStation } from "./performance/stations.ts";
+import { findStationMatch } from "./performance/stations.ts";
 import type { PerformanceStore } from "./performance/store.ts";
 import type {
   CaptureCohort,
   CapturedProviderForecast,
-  LocalPerformanceProfile,
+  RecentPerformanceProfile,
   PrecipProviderId,
 } from "./performance/types.ts";
 import { providers as weatherProviders } from "./providers/registry.ts";
@@ -37,7 +37,7 @@ export interface LocalForecastEvidence {
     | "database-not-configured"
     | "database-unavailable";
   station: { id: string; name: string; distanceKm: number } | null;
-  profile: LocalPerformanceProfile | null;
+  profile: RecentPerformanceProfile | null;
 }
 
 export interface LocalForecastResponse {
@@ -218,21 +218,21 @@ export async function readPerformanceEvidenceFromStore(
   now: Date,
 ): Promise<LocalForecastEvidence> {
   try {
-    const selection = selectObservationStation({
+    const stationMatch = findStationMatch({
       location: { ...location, elevationM },
       stations: await store.listStations(),
       at: now,
       policy: STATION_POLICY,
     });
-    if (!selection.station || selection.distanceKm === null) {
+    if (!stationMatch.station || stationMatch.distanceKm === null) {
       return { status: "unavailable", reason: "no-eligible-station", station: null, profile: null };
     }
     const [captures, observations] = await Promise.all([
-      store.loadCaptures(selection.station.id, cohort),
-      store.loadObservations(selection.station.id),
+      store.loadCaptures(stationMatch.station.id, cohort),
+      store.loadObservations(stationMatch.station.id),
     ]);
-    const profile = buildLocalPerformanceProfile({
-      stationId: selection.station.id,
+    const profile = buildRecentPerformanceProfile({
+      stationId: stationMatch.station.id,
       cohort,
       captures,
       observations,
@@ -247,9 +247,9 @@ export async function readPerformanceEvidenceFromStore(
       status: active ? "active" : "collecting",
       reason: active ? "eligible-station" : inactiveReason,
       station: {
-        id: selection.station.id,
-        name: selection.station.name,
-        distanceKm: Math.round(selection.distanceKm * 10) / 10,
+        id: stationMatch.station.id,
+        name: stationMatch.station.name,
+        distanceKm: Math.round(stationMatch.distanceKm * 10) / 10,
       },
       profile,
     };

@@ -3,7 +3,7 @@ import test from "node:test";
 import { createKoreanLocation } from "./location.ts";
 import { readLocalForecast, readPerformanceEvidenceFromStore } from "./localForecast.ts";
 import { InMemoryPerformanceStore } from "./performance/store.ts";
-import type { LocalPerformanceProfile } from "./performance/types.ts";
+import type { RecentPerformanceProfile } from "./performance/types.ts";
 import type { ProviderSnapshot } from "./types.ts";
 
 function snapshot(
@@ -37,7 +37,7 @@ function snapshot(
   };
 }
 
-const profile: LocalPerformanceProfile = {
+const profile: RecentPerformanceProfile = {
   stationId: "108",
   cohort: "18",
   generatedAt: "2026-08-13T09:10:00.000Z",
@@ -48,7 +48,7 @@ const profile: LocalPerformanceProfile = {
   confidence: 1,
   providers: [],
   effectiveWeights: { "open-meteo": 0.6, kma: 0.4 },
-  benchmark: {
+  prospectiveBenchmark: {
     sampleCount: 30,
     adaptiveBrier: 0.14,
     equalBrier: 0.18,

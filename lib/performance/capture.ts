@@ -1,7 +1,7 @@
 import { createKoreanLocation, type KoreanLocation } from "../location.ts";
 import { providers as weatherProviders } from "../providers/registry.ts";
 import type { ProviderSnapshot } from "../types.ts";
-import { buildLocalPerformanceProfile, DEFAULT_PERFORMANCE_POLICY } from "./performance.ts";
+import { buildRecentPerformanceProfile, DEFAULT_PERFORMANCE_POLICY } from "./performance.ts";
 import type { PerformanceStore } from "./store.ts";
 import type {
   CaptureCohort,
@@ -114,7 +114,7 @@ export async function captureStationForecast(
     input.store.loadCaptures(input.station.id, input.cohort),
     input.store.loadObservations(input.station.id),
   ]);
-  const profile = buildLocalPerformanceProfile({
+  const profile = buildRecentPerformanceProfile({
     stationId: input.station.id,
     cohort: input.cohort,
     captures,

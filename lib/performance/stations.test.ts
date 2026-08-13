@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectObservationStation } from "./stations.ts";
+import { findStationMatch } from "./stations.ts";
 import type { ObservationStation } from "./types.ts";
 
 const stations: ObservationStation[] = [
@@ -36,29 +36,29 @@ const stations: ObservationStation[] = [
   },
 ];
 
-test("station selection applies activity, distance, and elevation gates", () => {
-  const selection = selectObservationStation({
+test("Station Match applies activity, distance, and elevation gates", () => {
+  const stationMatch = findStationMatch({
     location: { latitude: 37.5665, longitude: 126.978, elevationM: 30 },
     stations,
     at: new Date("2026-08-01T00:00:00+09:00"),
     policy: { maxDistanceKm: 40, maxElevationDifferenceM: 300 },
   });
 
-  assert.equal(selection.status, "matched");
-  assert.equal(selection.station?.id, "representative");
-  assert.ok(selection.distanceKm! > 0);
-  assert.equal(selection.elevationDifferenceM, 50);
+  assert.equal(stationMatch.status, "matched");
+  assert.equal(stationMatch.station?.id, "representative");
+  assert.ok(stationMatch.distanceKm! > 0);
+  assert.equal(stationMatch.elevationDifferenceM, 50);
 });
 
-test("station selection returns an honest unavailable result outside the distance gate", () => {
-  const selection = selectObservationStation({
+test("Station Match returns an honest unavailable result outside the distance gate", () => {
+  const stationMatch = findStationMatch({
     location: { latitude: 33.5, longitude: 126.5, elevationM: 20 },
     stations,
     at: new Date("2026-08-01T00:00:00+09:00"),
     policy: { maxDistanceKm: 20, maxElevationDifferenceM: 300 },
   });
 
-  assert.deepEqual(selection, {
+  assert.deepEqual(stationMatch, {
     status: "unavailable",
     reason: "no-eligible-station",
     station: null,

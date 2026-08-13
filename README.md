@@ -5,7 +5,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Local performance](https://github.com/mhju0/seoulsky/actions/workflows/local-performance.yml/badge.svg)](https://github.com/mhju0/seoulsky/actions/workflows/local-performance.yml)
 
-SeoulSky is a South Korea local rain forecast. It compares next-day precipitation forecasts at the user's chosen coordinates and, when sufficient prospective evidence exists, adjusts each provider's influence using its recently observed performance at the nearest eligible KMA station.
+SeoulSky is a South Korea local rain forecast. It compares next-day precipitation forecasts at the user's chosen coordinates and, when sufficient prospective evidence exists, adjusts each provider's influence using the Recent Performance Profile from its KMA Station Match.
 
 **Live demo:** [seoulsky.vercel.app/sky](https://seoulsky.vercel.app/sky)
 
@@ -14,7 +14,7 @@ SeoulSky is a South Korea local rain forecast. It compares next-day precipitatio
 - The forecast target is the user's exact submitted coordinate inside South Korea.
 - The user explicitly taps for browser geolocation or searches for a Korean place. The app does not prompt automatically or infer location from an IP address.
 - User coordinates are used for the request and are not written to the performance database.
-- Local performance is evidence from a nearby KMA station, not a claim that the station is the user's location.
+- Local performance is evidence from the KMA Station Match, not a claim that the station is the user's location.
 - Rain probability is the initial accuracy target. Rain-amount error is reported separately and never substituted for probability accuracy.
 - Until evidence passes every gate, the forecast uses equal influence among providers that supplied a valid value.
 
@@ -29,7 +29,7 @@ The [`local-performance`](.github/workflows/local-performance.yml) workflow runs
 
 The serving profile keeps the two capture cohorts separate. Provider probability performance uses all completed days—including dry days—with a 30-day operating window and a 14-day half-life. It reports Brier score, misses, false alarms, and rainy-day amount MAE. Public evidence also includes the latest seven-day Brier slice.
 
-Learned influence requires at least 30 comparable captures per provider plus both wet and dry evidence. It ramps from equal to learned influence, applies provider floors and caps, and renormalizes over the providers that actually answered the current request. A prospectively frozen adaptive-versus-equal benchmark suspends learning if the adaptive output regresses or lacks a fair comparison set.
+Learned influence requires at least 30 comparable captures per provider plus both wet and dry evidence. It ramps from equal to learned influence, applies provider floors and caps, and renormalizes over the providers that actually answered the current request. The Prospective Benchmark freezes adaptive and equal outputs before outcomes and suspends learning if the adaptive output regresses or lacks a fair comparison set.
 
 This supports the claim “weighted by recently observed local performance.” It does not yet support a claim that SeoulSky is more accurate overall; that requires accumulated prospective results.
 
@@ -40,7 +40,7 @@ The primary route is `/sky`:
 1. choose precise browser location or search for a Korean place;
 2. see tomorrow's recommended rain probability and practical umbrella guidance;
 3. inspect each provider's current probability and influence;
-4. inspect the matched station, distance, evidence depth, recent Brier scores, misses, and false alarms;
+4. inspect the Station Match, distance, evidence depth, recent Brier scores, misses, and false alarms;
 5. review the longer precipitation outlook.
 
 The restrained atmospheric background preserves the original cinematic character without presenting Seoul imagery as nationwide location evidence.
@@ -53,8 +53,8 @@ flowchart TB
   Browser --> Local["/api/local-forecast"]
   Search --> Geocoding["Open-Meteo geocoding · KR only"]
   Local --> Providers["Forecast provider snapshots at user coordinates"]
-  Local --> Selection["Nearest eligible ASOS station"]
-  Selection --> Database["PostgreSQL performance evidence"]
+  Local --> Match["ASOS Station Match"]
+  Match --> Database["PostgreSQL performance evidence"]
   Providers --> Blend["Equal or recent-performance influence"]
   Database --> Profile["Cohort-specific Brier profile and guardrail"]
   Profile --> Blend
@@ -72,7 +72,7 @@ Important boundaries:
 
 - `lib/location.ts` validates Korean coordinates and converts them to KMA grid coordinates.
 - `lib/providers/*` reads normalized provider snapshots at a requested location.
-- `lib/performance/performance.ts` owns scoring, evidence gates, bounded weights, and the prospective benchmark.
+- `lib/performance/performance.ts` owns scoring, evidence gates, bounded weights, and the Prospective Benchmark.
 - `lib/performance/store.ts` defines persistence; `lib/performance/postgres.ts` is the production adapter.
 - `lib/performance/capture.ts` freezes one station/cohort prediction; `lib/performance/batch.ts` orchestrates the nationwide bounded run.
 - `lib/localForecast.ts` combines exact-coordinate forecasts with nearby-station evidence without persisting user coordinates.
