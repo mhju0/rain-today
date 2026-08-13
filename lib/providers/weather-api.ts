@@ -1,4 +1,5 @@
-import { CACHE_TTL_MS, SEOUL } from "../seoul.ts";
+import type { KoreanLocation } from "../location.ts";
+import { CACHE_TTL_MS } from "../seoul.ts";
 import type {
   CurrentWeather,
   DailyForecast,
@@ -165,12 +166,12 @@ interface Snapshot {
   daily: DailyForecast[];
 }
 
-async function fetchSnapshot(): Promise<Snapshot> {
+async function fetchSnapshot(location: KoreanLocation): Promise<Snapshot> {
   const key = apiKey();
   if (!key) throw new Error("WeatherAPI: WEATHERAPI_KEY not configured");
   const url =
     `https://api.weatherapi.com/v1/forecast.json` +
-    `?key=${key}&q=${SEOUL.latitude},${SEOUL.longitude}&days=2&aqi=no&alerts=no`;
+    `?key=${key}&q=${location.latitude},${location.longitude}&days=2&aqi=no&alerts=no`;
   const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
   if (res.status === 401 || res.status === 403)
     throw new Error(`WeatherAPI ${res.status} — invalid or expired API key`);

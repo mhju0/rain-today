@@ -5,6 +5,7 @@ import type {
   ProviderSnapshot,
   WeatherProviderStatus,
 } from "../types.ts";
+import type { KoreanLocation } from "../location.ts";
 
 /** One upstream response normalized into every forecast view consumers need. */
 export interface NormalizedForecast {
@@ -24,5 +25,5 @@ export interface WeatherProvider {
   readonly id: WeatherProviderStatus["id"];
   /** Korean display name */
   readonly name: string;
-  read(): Promise<ProviderSnapshot>;
+  read(location?: KoreanLocation): Promise<ProviderSnapshot>;
 }

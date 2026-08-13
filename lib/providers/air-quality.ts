@@ -1,5 +1,10 @@
 import { cachedFetch } from "../cache";
 import { koreanAqiBand } from "../airQuality";
+import {
+  DEFAULT_KOREAN_LOCATION,
+  koreanLocationCacheKey,
+  type KoreanLocation,
+} from "../location";
 import { SEOUL } from "../seoul";
 import type { NormalizedAirQuality, WeatherProviderStatus } from "../types";
 
@@ -25,14 +30,16 @@ function kstIso(t: string): string {
 
 // ─── Open-Meteo Air Quality (zero-key) ──────────────────────────────────────
 
-const OM_AQ_URL =
-  `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${SEOUL.latitude}` +
-  `&longitude=${SEOUL.longitude}` +
-  `&current=pm2_5,pm10,ozone,nitrogen_dioxide,aerosol_optical_depth,dust,uv_index` +
-  `&timezone=${encodeURIComponent(SEOUL.timezone)}`;
-
-async function fetchOpenMeteoAq(): Promise<NormalizedAirQuality> {
-  const res = await fetch(OM_AQ_URL, { signal: AbortSignal.timeout(10_000) });
+async function fetchOpenMeteoAq(location: KoreanLocation): Promise<NormalizedAirQuality> {
+  const params = new URLSearchParams({
+    latitude: String(location.latitude),
+    longitude: String(location.longitude),
+    current: "pm2_5,pm10,ozone,nitrogen_dioxide,aerosol_optical_depth,dust,uv_index",
+    timezone: location.timezone,
+  });
+  const res = await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?${params}`, {
+    signal: AbortSignal.timeout(10_000),
+  });
   if (!res.ok) throw new Error(`Open-Meteo AQ HTTP ${res.status}`);
   const data = (await res.json()) as { current?: Record<string, unknown> };
   const c = data.current ?? {};
@@ -54,7 +61,12 @@ async function fetchOpenMeteoAq(): Promise<NormalizedAirQuality> {
   };
 }
 
-const openMeteoAqCached = () => cachedFetch("open-meteo-aq", AQ_TTL_MS, fetchOpenMeteoAq);
+const openMeteoAqCached = (location: KoreanLocation) =>
+  cachedFetch(
+    `open-meteo-aq:${koreanLocationCacheKey(location)}`,
+    AQ_TTL_MS,
+    () => fetchOpenMeteoAq(location),
+  );
 
 // ─── AirKorea (official, optional) ──────────────────────────────────────────
 
@@ -127,8 +139,11 @@ const airKoreaCached = () => cachedFetch("airkorea", AQ_TTL_MS, fetchAirKorea);
 // ─── Fusion ─────────────────────────────────────────────────────────────────
 
 /** Fused current air quality: AirKorea (if configured) → Open-Meteo AQ → null. */
-export async function getFusedAirQuality(): Promise<NormalizedAirQuality | null> {
-  if (airKoreaKey()) {
+export async function getFusedAirQuality(
+  location: KoreanLocation = DEFAULT_KOREAN_LOCATION,
+): Promise<NormalizedAirQuality | null> {
+  const centralSeoul = koreanLocationCacheKey(location) === koreanLocationCacheKey(DEFAULT_KOREAN_LOCATION);
+  if (centralSeoul && airKoreaKey()) {
     try {
       const r = await airKoreaCached();
       return { ...r.value, stale: r.stale };
@@ -137,7 +152,7 @@ export async function getFusedAirQuality(): Promise<NormalizedAirQuality | null>
     }
   }
   try {
-    const r = await openMeteoAqCached();
+    const r = await openMeteoAqCached(location);
     return { ...r.value, stale: r.stale };
   } catch {
     return null; // no air-quality influence
@@ -145,11 +160,24 @@ export async function getFusedAirQuality(): Promise<NormalizedAirQuality | null>
 }
 
 /** Per-source status for /diagnostics (does not gate the public scene). */
-export async function airQualityStatuses(): Promise<WeatherProviderStatus[]> {
+export async function airQualityStatuses(
+  location: KoreanLocation = DEFAULT_KOREAN_LOCATION,
+): Promise<WeatherProviderStatus[]> {
   const out: WeatherProviderStatus[] = [];
+  const centralSeoul = koreanLocationCacheKey(location) === koreanLocationCacheKey(DEFAULT_KOREAN_LOCATION);
 
   // AirKorea (optional)
-  if (!airKoreaKey()) {
+  if (!centralSeoul) {
+    out.push({
+      id: "airkorea",
+      name: "AirKorea (한국환경공단)",
+      availability: "unavailable",
+      message: "이 위치의 공식 측정소 매칭은 아직 제공되지 않습니다",
+      missingEnvVars: [],
+      lastUpdated: null,
+      fromCache: false,
+    });
+  } else if (!airKoreaKey()) {
     out.push({
       id: "airkorea",
       name: "AirKorea (한국환경공단)",
@@ -187,7 +215,7 @@ export async function airQualityStatuses(): Promise<WeatherProviderStatus[]> {
 
   // Open-Meteo Air Quality (keyless baseline)
   try {
-    const r = await openMeteoAqCached();
+    const r = await openMeteoAqCached(location);
     out.push({
       id: "open-meteo-air-quality",
       name: "Open-Meteo 대기질",

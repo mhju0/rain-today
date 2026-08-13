@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { clearCache } from "../cache.ts";
+import { createKoreanLocation } from "../location.ts";
 import type { CurrentWeather, DailyForecast, HourlyForecast, ProviderSnapshot } from "../types.ts";
 import { createWeatherProvider } from "./read.ts";
 import { readAvailableProviderDaily } from "./read.ts";
@@ -58,6 +59,38 @@ test("createWeatherProvider reads one cached generation with coherent data and s
   assert.equal(second.status.fromCache, true);
   assert.equal(second.status.stale, false);
   assert.deepEqual(second.daily, daily);
+});
+
+test("createWeatherProvider isolates cached generations by forecast location", async () => {
+  clearCache();
+  let calls = 0;
+  const provider = createWeatherProvider({
+    id: "open-meteo",
+    name: "Open-Meteo",
+    messages,
+    missingConfiguration: () => [],
+    ttlMs: 60_000,
+    load: async (location) => {
+      calls += 1;
+      return {
+        current: { ...current, temperature: location.latitude },
+        hourly,
+        daily,
+      };
+    },
+  });
+  const seoul = createKoreanLocation({ name: "서울", latitude: 37.5665, longitude: 126.978 });
+  const busan = createKoreanLocation({ name: "부산", latitude: 35.1796, longitude: 129.0756 });
+
+  const firstSeoul = await provider.read(seoul);
+  const firstBusan = await provider.read(busan);
+  const secondSeoul = await provider.read(seoul);
+
+  assert.equal(calls, 2);
+  assert.equal(firstSeoul.current?.temperature, seoul.latitude);
+  assert.equal(firstBusan.current?.temperature, busan.latitude);
+  assert.equal(secondSeoul.current?.temperature, seoul.latitude);
+  assert.equal(secondSeoul.status.fromCache, true);
 });
 
 test("createWeatherProvider keeps generation markers coherent across every view in one read", async () => {

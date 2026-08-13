@@ -1,4 +1,9 @@
 import { cachedFetch } from "../cache.ts";
+import {
+  DEFAULT_KOREAN_LOCATION,
+  koreanLocationCacheKey,
+  type KoreanLocation,
+} from "../location.ts";
 import { readAvailableProviderDaily } from "../providers/read.ts";
 import { providers } from "../providers/registry.ts";
 import type { WeatherProvider } from "../providers/base";
@@ -67,11 +72,12 @@ function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
 async function fetchSourceDaily(
   provider: WeatherProvider,
   timeoutMs: number,
+  location: KoreanLocation,
 ): Promise<SourceDailyForecast | null> {
   try {
     return await withTimeout(
       (async () => {
-        return await readAvailableProviderDaily(provider);
+        return await readAvailableProviderDaily(provider, location);
       })(),
       timeoutMs,
     );
@@ -83,8 +89,11 @@ async function fetchSourceDaily(
 async function collectUncached(
   providerList: readonly WeatherProvider[],
   timeoutMs: number,
+  location: KoreanLocation,
 ): Promise<SourceDailyForecast[]> {
-  const results = await Promise.all(providerList.map((p) => fetchSourceDaily(p, timeoutMs)));
+  const results = await Promise.all(
+    providerList.map((p) => fetchSourceDaily(p, timeoutMs, location)),
+  );
   return results.filter((r): r is SourceDailyForecast => r !== null);
 }
 
@@ -96,11 +105,13 @@ async function collectUncached(
  */
 export async function collectForecastSources(
   providerList: readonly WeatherProvider[] = providers,
-  opts: { timeoutMs?: number } = {},
+  opts: { timeoutMs?: number; location?: KoreanLocation } = {},
 ): Promise<SourceDailyForecast[]> {
   const timeoutMs = boundedSourceTimeout(opts.timeoutMs, PER_SOURCE_TIMEOUT_MS);
-  const { value } = await cachedFetch(FORECAST_SOURCES_KEY, FORECAST_CACHE_TTL_MS, () =>
-    collectUncached(providerList, timeoutMs),
+  const location = opts.location ?? DEFAULT_KOREAN_LOCATION;
+  const cacheKey = `${FORECAST_SOURCES_KEY}:${koreanLocationCacheKey(location)}`;
+  const { value } = await cachedFetch(cacheKey, FORECAST_CACHE_TTL_MS, () =>
+    collectUncached(providerList, timeoutMs, location),
   );
   return value;
 }
