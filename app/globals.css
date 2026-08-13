@@ -1203,7 +1203,7 @@ html {
 .local-score-row {
   min-height: 4rem;
   display: grid;
-  grid-template-columns: 1.2fr 0.8fr 0.8fr 1fr;
+  grid-template-columns: 1.2fr 0.8fr 0.8fr 1fr 1.1fr;
   gap: 1rem;
   align-items: center;
   border-bottom: 1px solid var(--local-line);
@@ -1429,11 +1429,11 @@ html {
   }
 
   .local-score-row {
-    grid-template-columns: 1.2fr 0.8fr 0.8fr;
+    min-width: 44rem;
   }
 
-  .local-score-row > :last-child {
-    display: none;
+  .local-score-table {
+    overflow-x: auto;
   }
 
   .local-footer {
