@@ -25,6 +25,8 @@ export interface LocalForecastEvidence {
   reason:
     | "eligible-station"
     | "insufficient-evidence"
+    | "benchmark-insufficient"
+    | "benchmark-regression"
     | "no-eligible-station"
     | "database-not-configured"
     | "database-unavailable";
@@ -44,6 +46,14 @@ export interface LocalForecastResponse {
     temperatureMin: number | null;
     condition: WeatherCondition;
   };
+  outlook: Array<{
+    date: string;
+    precipitationProbability: number | null;
+    precipitationAmountMm: number | null;
+    temperatureMax: number | null;
+    temperatureMin: number | null;
+    condition: WeatherCondition;
+  }>;
   providers: Array<{
     id: PrecipProviderId;
     name: string;
@@ -125,6 +135,53 @@ function normalizeInfluence(
   );
 }
 
+function buildForecastDay(
+  date: string,
+  snapshots: readonly ProviderSnapshot[],
+  weights: Readonly<Record<string, number>>,
+): LocalForecastResponse["outlook"][number] | null {
+  const rows = snapshots.flatMap((snapshot) => {
+    if (!PRECIP_PROVIDERS.has(snapshot.id as PrecipProviderId)) return [];
+    const daily = snapshot.daily.find((day) => day.date === date);
+    if (!daily || !validProbability(daily.precipitationProbability)) return [];
+    return [{
+      provider: snapshot.id as PrecipProviderId,
+      probability: daily.precipitationProbability,
+      amountMm: validAmount(daily.precipitationAmount),
+      temperatureMax: daily.temperatureMax,
+      temperatureMin: daily.temperatureMin,
+      condition: daily.condition,
+    }];
+  });
+  if (rows.length === 0) return null;
+  const forecasts: CapturedProviderForecast[] = rows.map((row) => ({
+    provider: row.provider,
+    probability: row.probability,
+    amountMm: row.amountMm,
+  }));
+  const influence = normalizeInfluence(forecasts, weights);
+  const amounts = forecasts.filter((forecast) => forecast.amountMm !== null);
+  const amountWeight = amounts.reduce(
+    (sum, forecast) => sum + (influence[forecast.provider] ?? 0),
+    0,
+  );
+  return {
+    date,
+    precipitationProbability: blendPrecipProbability(forecasts, influence),
+    precipitationAmountMm:
+      amountWeight > 0
+        ? amounts.reduce(
+            (sum, forecast) =>
+              sum + forecast.amountMm! * (influence[forecast.provider] ?? 0) / amountWeight,
+            0,
+          )
+        : null,
+    temperatureMax: rows[0].temperatureMax,
+    temperatureMin: rows[0].temperatureMin,
+    condition: rows[0].condition,
+  };
+}
+
 async function readAllForecasts(location: KoreanLocation): Promise<ProviderSnapshot[]> {
   return Promise.all(weatherProviders.map((provider) => provider.read(location)));
 }
@@ -163,9 +220,13 @@ export async function readDatabaseEvidence(
       asOf: now,
     });
     const active = profile.mode === "learned" || profile.mode === "ramping";
+    const inactiveReason =
+      profile.reason === "benchmark-insufficient" || profile.reason === "benchmark-regression"
+        ? profile.reason
+        : "insufficient-evidence";
     return {
       status: active ? "active" : "collecting",
-      reason: active ? "eligible-station" : "insufficient-evidence",
+      reason: active ? "eligible-station" : inactiveReason,
       station: {
         id: selection.station.id,
         name: selection.station.name,
@@ -220,31 +281,43 @@ export async function readLocalForecast(
       ? performance.profile.effectiveWeights
       : equalInfluence(forecasts),
   );
-  const primary = providerRows.find((provider) => provider.available) ?? providerRows[0];
-  const amounts = forecasts.filter((forecast) => forecast.amountMm !== null);
-  const amountWeight = amounts.reduce(
-    (sum, forecast) => sum + (providerInfluence[forecast.provider] ?? 0),
-    0,
-  );
+  const operatingWeights =
+    performance.status === "active" && performance.profile
+      ? performance.profile.effectiveWeights
+      : equalInfluence(forecasts);
+  const outlook = Array.from(
+    new Set(
+      snapshots.flatMap((snapshot) => snapshot.daily.map((day) => day.date))
+        .filter((date) => date >= targetDate),
+    ),
+  )
+    .sort()
+    .slice(0, 7)
+    .flatMap((date) => {
+      const day = buildForecastDay(date, snapshots, operatingWeights);
+      return day ? [day] : [];
+    });
+  const recommendation = buildForecastDay(targetDate, snapshots, operatingWeights) ?? {
+    date: targetDate,
+    precipitationProbability: null,
+    precipitationAmountMm: null,
+    temperatureMax: null,
+    temperatureMin: null,
+    condition: "unknown" as const,
+  };
   return {
     generatedAt: now.toISOString(),
     location: input.location,
     targetDate,
     captureCohort: cohort,
     recommendation: {
-      precipitationProbability: blendPrecipProbability(forecasts, providerInfluence),
-      precipitationAmountMm:
-        amountWeight > 0
-          ? amounts.reduce(
-              (sum, forecast) =>
-                sum + forecast.amountMm! * (providerInfluence[forecast.provider] ?? 0) / amountWeight,
-              0,
-            )
-          : null,
-      temperatureMax: primary?.temperatureMax ?? null,
-      temperatureMin: primary?.temperatureMin ?? null,
-      condition: primary?.condition ?? "unknown",
+      precipitationProbability: recommendation.precipitationProbability,
+      precipitationAmountMm: recommendation.precipitationAmountMm,
+      temperatureMax: recommendation.temperatureMax,
+      temperatureMin: recommendation.temperatureMin,
+      condition: recommendation.condition,
     },
+    outlook,
     providers: providerRows.map((provider) => ({
       id: provider.id,
       name: provider.name,
