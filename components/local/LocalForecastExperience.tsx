@@ -219,9 +219,8 @@ function PerformanceEvidence({ performance }: Pick<LocalForecastResponse, "perfo
   const { status, reason, station, profile } = performance;
   const active = status === "active";
   const providerRows = profile?.providers ?? [];
-  const eligibleRows = providerRows.filter((provider) => provider.eligible);
-  const sampleCount = eligibleRows.length > 0
-    ? Math.min(...eligibleRows.map((provider) => provider.windowSampleCount))
+  const sampleCount = providerRows.length > 0
+    ? Math.min(...providerRows.map((provider) => provider.windowSampleCount))
     : 0;
 
   return (
@@ -258,6 +257,7 @@ function PerformanceEvidence({ performance }: Pick<LocalForecastResponse, "perfo
             <span role="columnheader">최근 7일 Brier</span>
             <span role="columnheader">30일 Brier</span>
             <span role="columnheader">빗나감</span>
+            <span role="columnheader">비 온 날 강수량 MAE</span>
           </div>
           {providerRows.map((provider) => (
             <div className="local-score-row" role="row" key={provider.provider}>
@@ -265,6 +265,10 @@ function PerformanceEvidence({ performance }: Pick<LocalForecastResponse, "perfo
               <span role="cell">{provider.last7Days.brierScore?.toFixed(3) ?? "—"}</span>
               <span role="cell">{provider.brierScore.toFixed(3)}</span>
               <span role="cell">누락 {provider.misses} · 오보 {provider.falseAlarms}</span>
+              <span role="cell">
+                {provider.rainyAmountMae === null ? "—" : `${provider.rainyAmountMae.toFixed(1)} mm`}
+                {provider.rainyAmountSampleCount > 0 && ` · ${provider.rainyAmountSampleCount}일`}
+              </span>
             </div>
           ))}
         </div>
@@ -338,31 +342,6 @@ function ForecastDashboard({ forecast, onReset }: {
         </div>
       </section>
 
-      {forecast.outlook.length > 1 && (
-        <section className="local-outlook-section" aria-labelledby="outlook-heading">
-          <div className="local-section-heading local-outlook-heading">
-            <div>
-              <p className="local-eyebrow">7 DAY OUTLOOK</p>
-              <h2 id="outlook-heading">그다음 날씨</h2>
-            </div>
-            <p>같은 가중 원칙으로 앞으로의 강수 확률을 나란히 봅니다.</p>
-          </div>
-          <div className="local-outlook-grid">
-            {forecast.outlook.map((day) => (
-              <div className="local-outlook-day" key={day.date}>
-                <span>{formatOutlookDate(day.date)}</span>
-                <strong>{probabilityLabel(day.precipitationProbability)}</strong>
-                <small>
-                  {day.temperatureMax === null ? "—" : `${Math.round(day.temperatureMax)}°`}
-                  {" / "}
-                  {day.temperatureMin === null ? "—" : `${Math.round(day.temperatureMin)}°`}
-                </small>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
       <section className="local-influence-section" aria-labelledby="influence-heading">
         <div className="local-section-heading">
           <div>
@@ -399,6 +378,31 @@ function ForecastDashboard({ forecast, onReset }: {
       </section>
 
       <PerformanceEvidence performance={forecast.performance} />
+
+      {forecast.outlook.length > 1 && (
+        <section className="local-outlook-section" aria-labelledby="outlook-heading">
+          <div className="local-section-heading local-outlook-heading">
+            <div>
+              <p className="local-eyebrow">7 DAY OUTLOOK</p>
+              <h2 id="outlook-heading">그다음 날씨</h2>
+            </div>
+            <p>같은 가중 원칙으로 앞으로의 강수 확률을 나란히 봅니다.</p>
+          </div>
+          <div className="local-outlook-grid">
+            {forecast.outlook.map((day) => (
+              <div className="local-outlook-day" key={day.date}>
+                <span>{formatOutlookDate(day.date)}</span>
+                <strong>{probabilityLabel(day.precipitationProbability)}</strong>
+                <small>
+                  {day.temperatureMax === null ? "—" : `${Math.round(day.temperatureMax)}°`}
+                  {" / "}
+                  {day.temperatureMin === null ? "—" : `${Math.round(day.temperatureMin)}°`}
+                </small>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <footer className="local-footer">
         <p>예보: Open-Meteo · MET Norway · 기상청 · Pirate Weather · WeatherAPI</p>

@@ -40,6 +40,7 @@ Each forecast provider exposes one Provider Snapshot read. Its availability, cac
 - Its evidence profile comes from the nearest active ASOS station that passes the configured distance and elevation gates. The API returns the station name and distance rather than presenting station evidence as exact-coordinate truth.
 - Probability performance uses all completed wet and dry days in a 30-day lookback with a 14-day half-life. Rainy-day amount MAE is separate.
 - Learned influence requires comparable sample, wet-day, and dry-day evidence; then it ramps and remains bounded by provider floors and caps.
+- Shadow-validation defaults are a 100 km station-distance gate, 400 m elevation-difference gate, 0.1 mm rain threshold, 50% decision threshold, 30-to-60-capture influence ramp, 5–60% provider bounds, and an `exp(-4 × Brier)` score transform. The initial wet-evidence minimum is one rainy day. These are operating defaults to validate, not coverage or accuracy guarantees.
 - The adaptive and equal outputs are frozen at capture time and later scored on identical completed rows. Regression or insufficient benchmark evidence suspends learned influence.
 - Missing current providers are omitted and the remaining current weights renormalize. Missing performance evidence selects equal influence; it never becomes a numeric zero score.
 

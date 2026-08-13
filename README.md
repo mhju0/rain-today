@@ -140,7 +140,7 @@ Manual product checks should cover:
 
 - Initial launch covers South Korea and precipitation only.
 - ASOS is the first observation network. AWS eligibility remains a later audited expansion.
-- Exact station distance/elevation thresholds are policy defaults that should be validated against shadow data before marketing local coverage guarantees.
+- Initial shadow-validation policy defaults are: station distance at most 100 km; elevation difference at most 400 m; rain at 0.1 mm; miss/false-alarm decisions at 50%; at least 30 comparable captures with both wet and dry evidence; influence ramping through 60 captures; provider influence bounded to 5–60%; and an `exp(-4 × Brier)` score transform. These values, including the one-wet-day minimum, require validation against shadow data before marketing local coverage or performance guarantees.
 - A location may have no eligible observation station even when forecasts are available.
 - Provider availability and forecast horizon vary; missing values are omitted, never treated as zero.
 - Prospective evidence needs time to accumulate, so new stations begin with equal influence.
