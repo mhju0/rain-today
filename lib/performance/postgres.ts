@@ -8,6 +8,7 @@ import type {
 } from "./types.ts";
 import {
   assertSafeStationCatalogSync,
+  PERFORMANCE_PROVIDERS,
   type CaptureWriteResult,
   type PerformanceStore,
 } from "./store.ts";
@@ -38,6 +39,77 @@ interface StationRow {
 
 interface StationIdRow {
   id: string;
+}
+
+export interface CompletedComparisonsQuery {
+  text: string;
+  parameters: Array<string | number>;
+}
+
+/** Build the parameterized bounded Completed Comparison query used in production. */
+export function buildCompletedComparisonsQuery(
+  stationId: string,
+  cohort: CaptureCohort,
+  limit: number,
+): CompletedComparisonsQuery {
+  const providerRows = PERFORMANCE_PROVIDERS
+    .map((_, index) => `($${index + 4}::text)`)
+    .join(",\n          ");
+  return {
+    text: `
+      with provider_ids (provider) as (
+        values
+          ${providerRows}
+      ),
+      recent_dates as (
+        select distinct recent.target_date
+        from provider_ids
+        cross join lateral (
+          select capture.target_date
+          from performance_captures as capture
+          join performance_observations as observation
+            on observation.station_id = capture.station_id
+            and observation.date = capture.target_date
+          where capture.station_id = $1
+            and capture.cohort = $2
+            and capture.providers @> jsonb_build_array(
+              jsonb_build_object('provider', provider_ids.provider)
+            )
+            and exists (
+              select 1
+              from jsonb_array_elements(capture.providers) as forecast(value)
+              where forecast.value ->> 'provider' = provider_ids.provider
+                and case
+                  when jsonb_typeof(forecast.value -> 'probability') = 'number'
+                  then (forecast.value ->> 'probability')::double precision between 0 and 100
+                  else false
+                end
+            )
+          order by capture.target_date desc
+          limit $3
+        ) as recent
+      )
+      select
+        capture.station_id,
+        capture.target_date::text,
+        capture.cohort,
+        capture.captured_at::text,
+        capture.providers,
+        capture.frozen_blend,
+        observation.date::text as observation_date,
+        observation.observed_mm,
+        observation.observed_at::text,
+        observation.source
+      from performance_captures as capture
+      join performance_observations as observation
+        on observation.station_id = capture.station_id
+        and observation.date = capture.target_date
+      join recent_dates on recent_dates.target_date = capture.target_date
+      where capture.station_id = $1 and capture.cohort = $2
+      order by capture.target_date
+    `,
+    parameters: [stationId, cohort, limit, ...PERFORMANCE_PROVIDERS],
+  };
 }
 
 function isoTimestamp(value: string): string {
@@ -199,62 +271,11 @@ export class PostgresPerformanceStore implements PerformanceStore {
     limit: number,
   ): Promise<CompletedComparison[]> {
     if (!Number.isSafeInteger(limit) || limit <= 0) throw new RangeError("invalid comparison limit");
-    const rows = await this.#sql<CompletedComparisonRow[]>`
-      with provider_ids (provider) as (
-        values
-          (${"open-meteo"}::text),
-          (${"met-norway"}::text),
-          (${"kma"}::text),
-          (${"pirate-weather"}::text),
-          (${"weather-api"}::text)
-      ),
-      recent_dates as (
-        select distinct recent.target_date
-        from provider_ids
-        cross join lateral (
-          select capture.target_date
-          from performance_captures as capture
-          join performance_observations as observation
-            on observation.station_id = capture.station_id
-            and observation.date = capture.target_date
-          where capture.station_id = ${stationId}
-            and capture.cohort = ${cohort}
-            and capture.providers @> jsonb_build_array(
-              jsonb_build_object('provider', provider_ids.provider)
-            )
-            and exists (
-              select 1
-              from jsonb_array_elements(capture.providers) as forecast(value)
-              where forecast.value ->> 'provider' = provider_ids.provider
-                and case
-                  when jsonb_typeof(forecast.value -> 'probability') = 'number'
-                  then (forecast.value ->> 'probability')::double precision between 0 and 100
-                  else false
-                end
-            )
-          order by capture.target_date desc
-          limit ${limit}
-        ) as recent
-      )
-      select
-        capture.station_id,
-        capture.target_date::text,
-        capture.cohort,
-        capture.captured_at::text,
-        capture.providers,
-        capture.frozen_blend,
-        observation.date::text as observation_date,
-        observation.observed_mm,
-        observation.observed_at::text,
-        observation.source
-      from performance_captures as capture
-      join performance_observations as observation
-        on observation.station_id = capture.station_id
-        and observation.date = capture.target_date
-      join recent_dates on recent_dates.target_date = capture.target_date
-      where capture.station_id = ${stationId} and capture.cohort = ${cohort}
-      order by capture.target_date
-    `;
+    const query = buildCompletedComparisonsQuery(stationId, cohort, limit);
+    const rows = await this.#sql.unsafe<CompletedComparisonRow[]>(
+      query.text,
+      query.parameters,
+    );
     return rows.map((row) => ({
       capture: {
         stationId: row.station_id,
