@@ -101,6 +101,43 @@ test("completed comparison reads return only the latest requested evidence", asy
   );
 });
 
+test("bounded comparison reads preserve maturity for an intermittent provider", async () => {
+  const store = new InMemoryPerformanceStore();
+  const start = Date.UTC(2026, 3, 1);
+  for (let index = 0; index < 120; index += 1) {
+    const targetDate = new Date(start + index * 86_400_000).toISOString().slice(0, 10);
+    await store.saveCapture({
+      ...capture,
+      targetDate,
+      providers: [
+        capture.providers[0],
+        ...(index % 2 === 0 ? [capture.providers[1]] : []),
+      ],
+    });
+    await store.saveObservation({
+      ...observation,
+      date: targetDate,
+      observedMm: index % 4 === 0 ? 2.5 : 0,
+    });
+  }
+
+  const comparisons = await store.loadCompletedComparisons("108", "06", 60);
+  const profile = buildRecentPerformanceProfile({
+    stationId: "108",
+    cohort: "06",
+    captures: comparisons.map((comparison) => comparison.capture),
+    observations: comparisons.map((comparison) => comparison.observation),
+    asOf: new Date(start + 120 * 86_400_000),
+  });
+
+  assert.equal(
+    profile.providers.find((provider) => provider.provider === "kma")?.sampleCount,
+    60,
+  );
+  assert.ok(profile.providers.every((provider) => provider.sampleCount <= 60));
+  assert.equal(profile.mode, "learned");
+});
+
 test("station catalog sync closes stations missing from the next active catalog", async () => {
   const store = new InMemoryPerformanceStore();
   const retired: ObservationStation = {
