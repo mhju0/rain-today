@@ -1,6 +1,6 @@
 # Weather and environment sources
 
-SeoulSky accepts validated coordinates inside the South Korea service area and uses `Asia/Seoul`. Forecast providers receive the user's submitted coordinate for the current request. The local-performance collector separately requests forecasts at official KMA ASOS coordinates. All upstream calls run on the server. Provider keys, database credentials, and the MET Norway contact-bearing user agent must never be returned to the browser or written to logs.
+SeoulSky accepts validated coordinates inside the configured South Korea launch bounds and uses `Asia/Seoul`. Exact-coordinate validation currently uses a bounding box rather than an administrative-border polygon; Korea-filtered manual search is stricter than browser-coordinate admission. Forecast providers receive the user's submitted coordinate for the current request. The local-performance collector separately requests forecasts at official KMA ASOS coordinates. All upstream calls run on the server. Provider keys, database credentials, and the MET Norway contact-bearing user agent must never be returned to the browser or written to logs.
 
 The application is usable without keys: Open-Meteo supplies weather and air quality, and RainViewer supplies the conservative rain-approach signal. Optional sources enrich the response and fail independently.
 
