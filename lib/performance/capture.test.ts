@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { KoreanLocation } from "../location.ts";
+import type { ForecastLocation } from "../location.ts";
 import type { ProviderSnapshot } from "../types.ts";
 import { captureStationForecast } from "./capture.ts";
 import { InMemoryPerformanceStore } from "./store.ts";
@@ -51,8 +51,8 @@ function snapshot(
 test("fixed-cohort capture freezes the serving blend and is idempotent", async () => {
   const store = new InMemoryPerformanceStore();
   await store.syncStations([station], "2026-08-13");
-  const seenLocations: KoreanLocation[] = [];
-  const readForecasts = async (location: KoreanLocation): Promise<ProviderSnapshot[]> => {
+  const seenLocations: ForecastLocation[] = [];
+  const readForecasts = async (location: ForecastLocation): Promise<ProviderSnapshot[]> => {
     seenLocations.push(location);
     return [
       snapshot("open-meteo", 80, 7),

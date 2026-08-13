@@ -1,8 +1,8 @@
 import { cachedFetch } from "../cache.ts";
 import {
-  DEFAULT_KOREAN_LOCATION,
-  koreanLocationCacheKey,
-  type KoreanLocation,
+  DEFAULT_FORECAST_LOCATION,
+  forecastLocationCacheKey,
+  type ForecastLocation,
 } from "../location.ts";
 import { readAvailableProviderDaily } from "../providers/read.ts";
 import { providers } from "../providers/registry.ts";
@@ -72,7 +72,7 @@ function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
 async function fetchSourceDaily(
   provider: WeatherProvider,
   timeoutMs: number,
-  location: KoreanLocation,
+  location: ForecastLocation,
 ): Promise<SourceDailyForecast | null> {
   try {
     return await withTimeout(
@@ -89,7 +89,7 @@ async function fetchSourceDaily(
 async function collectUncached(
   providerList: readonly WeatherProvider[],
   timeoutMs: number,
-  location: KoreanLocation,
+  location: ForecastLocation,
 ): Promise<SourceDailyForecast[]> {
   const results = await Promise.all(
     providerList.map((p) => fetchSourceDaily(p, timeoutMs, location)),
@@ -105,11 +105,11 @@ async function collectUncached(
  */
 export async function collectForecastSources(
   providerList: readonly WeatherProvider[] = providers,
-  opts: { timeoutMs?: number; location?: KoreanLocation } = {},
+  opts: { timeoutMs?: number; location?: ForecastLocation } = {},
 ): Promise<SourceDailyForecast[]> {
   const timeoutMs = boundedSourceTimeout(opts.timeoutMs, PER_SOURCE_TIMEOUT_MS);
-  const location = opts.location ?? DEFAULT_KOREAN_LOCATION;
-  const cacheKey = `${FORECAST_SOURCES_KEY}:${koreanLocationCacheKey(location)}`;
+  const location = opts.location ?? DEFAULT_FORECAST_LOCATION;
+  const cacheKey = `${FORECAST_SOURCES_KEY}:${forecastLocationCacheKey(location)}`;
   const { value } = await cachedFetch(cacheKey, FORECAST_CACHE_TTL_MS, () =>
     collectUncached(providerList, timeoutMs, location),
   );

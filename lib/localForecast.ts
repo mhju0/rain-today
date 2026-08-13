@@ -1,4 +1,4 @@
-import type { KoreanLocation } from "./location.ts";
+import type { ForecastLocation } from "./location.ts";
 import {
   blendPrecipProbability,
   buildRecentPerformanceProfile,
@@ -42,7 +42,7 @@ export interface LocalForecastEvidence {
 
 export interface LocalForecastResponse {
   generatedAt: string;
-  location: KoreanLocation;
+  location: ForecastLocation;
   targetDate: string | null;
   captureCohort: CaptureCohort;
   recommendation: {
@@ -67,15 +67,15 @@ export interface LocalForecastResponse {
     amountMm: number | null;
     available: boolean;
   }>;
-  providerInfluence: Record<string, number>;
+  effectiveInfluence: Record<string, number>;
   performance: LocalForecastEvidence;
 }
 
 interface LocalForecastDependencies {
   now?: Date;
-  readForecasts?: (location: KoreanLocation) => Promise<ProviderSnapshot[]>;
+  readForecasts?: (location: ForecastLocation) => Promise<ProviderSnapshot[]>;
   readEvidence?: (
-    location: KoreanLocation,
+    location: ForecastLocation,
     elevationM: number | null,
     cohort: CaptureCohort,
     now: Date,
@@ -191,12 +191,12 @@ function buildForecastDay(
   };
 }
 
-async function readAllForecasts(location: KoreanLocation): Promise<ProviderSnapshot[]> {
+async function readAllForecasts(location: ForecastLocation): Promise<ProviderSnapshot[]> {
   return Promise.all(weatherProviders.map((provider) => provider.read(location)));
 }
 
 export async function readDatabaseEvidence(
-  location: KoreanLocation,
+  location: ForecastLocation,
   elevationM: number | null,
   cohort: CaptureCohort,
   now: Date,
@@ -212,7 +212,7 @@ export async function readDatabaseEvidence(
 
 export async function readPerformanceEvidenceFromStore(
   store: PerformanceStore,
-  location: KoreanLocation,
+  location: ForecastLocation,
   elevationM: number | null,
   cohort: CaptureCohort,
   now: Date,
@@ -260,7 +260,7 @@ export async function readPerformanceEvidenceFromStore(
 
 /** Build the user-facing exact-location forecast with nearby-station evidence. */
 export async function readLocalForecast(
-  input: { location: KoreanLocation; elevationM: number | null },
+  input: { location: ForecastLocation; elevationM: number | null },
   dependencies: LocalForecastDependencies = {},
 ): Promise<LocalForecastResponse> {
   const now = dependencies.now ?? new Date();
@@ -294,7 +294,7 @@ export async function readLocalForecast(
       : [],
   );
   const performance = await performancePromise;
-  const providerInfluence = normalizeInfluence(
+  const effectiveInfluence = normalizeInfluence(
     forecasts,
     performance.status === "active" && performance.profile
       ? performance.profile.effectiveWeights
@@ -348,7 +348,7 @@ export async function readLocalForecast(
       amountMm: provider.amountMm,
       available: provider.available,
     })),
-    providerInfluence,
+    effectiveInfluence,
     performance,
   };
 }

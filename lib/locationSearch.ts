@@ -1,5 +1,5 @@
 import { readResponseBytes } from "./httpResponse.ts";
-import { createKoreanLocation } from "./location.ts";
+import { createForecastLocation } from "./location.ts";
 
 const GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search";
 const KOREAN_CITY_ALIASES: Readonly<Record<string, string>> = {
@@ -21,7 +21,7 @@ const KOREAN_CITY_ALIASES: Readonly<Record<string, string>> = {
   제주: "Jeju",
 } as const;
 
-export interface KoreanLocationSearchResult {
+export interface ForecastLocationSearchResult {
   id: string;
   name: string;
   label: string;
@@ -52,7 +52,7 @@ function upstreamRows(raw: unknown): GeocodingResult[] {
 export async function searchKoreanLocations(
   query: string,
   fetchImpl: typeof fetch = fetch,
-): Promise<KoreanLocationSearchResult[]> {
+): Promise<ForecastLocationSearchResult[]> {
   const normalized = query.normalize("NFKC").trim();
   if (normalized.length < 2) return [];
   if (normalized.length > 80) throw new RangeError("location query is too long");
@@ -85,7 +85,7 @@ export async function searchKoreanLocations(
       return [];
     }
     try {
-      const location = createKoreanLocation({
+      const location = createForecastLocation({
         name: row.name,
         latitude: row.latitude,
         longitude: row.longitude,

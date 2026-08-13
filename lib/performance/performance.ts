@@ -296,7 +296,7 @@ export function buildRecentPerformanceProfile(input: ProfileInput): RecentPerfor
   const minimumEvidence = evidenceReady
     ? Math.min(...eligible.map((provider) => provider.sampleCount))
     : 0;
-  const confidence = evidenceReady
+  const rampProgress = evidenceReady
     ? Math.min(
         1,
         Math.max(
@@ -329,14 +329,14 @@ export function buildRecentPerformanceProfile(input: ProfileInput): RecentPerfor
     mode = "suspended";
     reason = "benchmark-regression";
   } else if (evidenceReady) {
-    mode = confidence < 1 ? "ramping" : "learned";
-    reason = confidence < 1 ? "ramping" : "learned";
+    mode = rampProgress < 1 ? "ramping" : "learned";
+    reason = rampProgress < 1 ? "ramping" : "learned";
     effectiveWeights = renormalize(
       Object.fromEntries(
         providers.map((provider) => [
           provider.provider,
           equal[provider.provider] +
-            confidence * (learned[provider.provider] - equal[provider.provider]),
+            rampProgress * (learned[provider.provider] - equal[provider.provider]),
         ]),
       ),
     );
@@ -351,7 +351,7 @@ export function buildRecentPerformanceProfile(input: ProfileInput): RecentPerfor
     windowEnd: asOfDate,
     mode,
     reason,
-    confidence,
+    rampProgress,
     providers,
     effectiveWeights,
     prospectiveBenchmark: currentBenchmark,

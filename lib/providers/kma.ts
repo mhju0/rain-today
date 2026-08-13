@@ -1,5 +1,5 @@
 import { cachedFetch } from "../cache.ts";
-import type { KoreanLocation } from "../location.ts";
+import type { ForecastLocation } from "../location.ts";
 import { CACHE_TTL_MS, SEOUL } from "../seoul.ts";
 import type {
   CurrentWeather,
@@ -198,7 +198,7 @@ interface KmaItem {
 async function callShortTerm(
   endpoint: string,
   base: { baseDate: string; baseTime: string },
-  location: KoreanLocation,
+  location: ForecastLocation,
 ): Promise<KmaItem[]> {
   const key = shortTermServiceKey();
   if (!key) throw new KmaError("forbidden", "KMA_SHORT_TERM_API_KEY not configured");
@@ -241,7 +241,7 @@ const num = (v: string | undefined): number | null => {
   return v !== undefined && Number.isFinite(n) ? n : null;
 };
 
-async function fetchSnapshot(location: KoreanLocation): Promise<Snapshot> {
+async function fetchSnapshot(location: ForecastLocation): Promise<Snapshot> {
   const [ncstItems, fcstItems] = await Promise.all([
     callShortTerm("getUltraSrtNcst", ncstBase(), location),
     callShortTerm("getVilageFcst", vilageBase(), location),

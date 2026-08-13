@@ -104,7 +104,7 @@ export interface RecentPerformanceProfile {
     | "benchmark-regression"
     | "ramping"
     | "learned";
-  confidence: number;
+  rampProgress: number;
   providers: ProviderRecentPerformance[];
   effectiveWeights: Record<string, number>;
   prospectiveBenchmark: ProspectiveBenchmark;

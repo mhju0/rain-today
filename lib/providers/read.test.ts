@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { clearCache } from "../cache.ts";
-import { createKoreanLocation } from "../location.ts";
+import { createForecastLocation } from "../location.ts";
 import type { CurrentWeather, DailyForecast, HourlyForecast, ProviderSnapshot } from "../types.ts";
 import { createWeatherProvider } from "./read.ts";
 import { readAvailableProviderDaily } from "./read.ts";
@@ -79,8 +79,8 @@ test("createWeatherProvider isolates cached generations by forecast location", a
       };
     },
   });
-  const seoul = createKoreanLocation({ name: "서울", latitude: 37.5665, longitude: 126.978 });
-  const busan = createKoreanLocation({ name: "부산", latitude: 35.1796, longitude: 129.0756 });
+  const seoul = createForecastLocation({ name: "서울", latitude: 37.5665, longitude: 126.978 });
+  const busan = createForecastLocation({ name: "부산", latitude: 35.1796, longitude: 129.0756 });
 
   const firstSeoul = await provider.read(seoul);
   const firstBusan = await provider.read(busan);

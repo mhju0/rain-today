@@ -1,4 +1,4 @@
-import type { KoreanLocation } from "../location.ts";
+import type { ForecastLocation } from "../location.ts";
 import { CACHE_TTL_MS } from "../seoul.ts";
 import type {
   CurrentWeather,
@@ -166,7 +166,7 @@ interface Snapshot {
   daily: DailyForecast[];
 }
 
-async function fetchSnapshot(location: KoreanLocation): Promise<Snapshot> {
+async function fetchSnapshot(location: ForecastLocation): Promise<Snapshot> {
   const key = apiKey();
   if (!key) throw new Error("WeatherAPI: WEATHERAPI_KEY not configured");
   const url =

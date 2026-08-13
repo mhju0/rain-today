@@ -1,5 +1,5 @@
 import { conditionFromWmoCode } from "../conditions.ts";
-import type { KoreanLocation } from "../location.ts";
+import type { ForecastLocation } from "../location.ts";
 import { CACHE_TTL_MS } from "../seoul.ts";
 import type {
   CurrentWeather,
@@ -61,7 +61,7 @@ function toKstIso(naive: string): string {
   return `${naive}:00+09:00`.replace(/:00:00\+/, ":00+");
 }
 
-async function fetchSnapshot(location: KoreanLocation): Promise<Snapshot> {
+async function fetchSnapshot(location: ForecastLocation): Promise<Snapshot> {
   const params = new URLSearchParams({
     latitude: String(location.latitude),
     longitude: String(location.longitude),

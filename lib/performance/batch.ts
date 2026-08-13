@@ -1,4 +1,4 @@
-import type { KoreanLocation } from "../location.ts";
+import type { ForecastLocation } from "../location.ts";
 import type { ProviderSnapshot } from "../types.ts";
 import { captureStationForecast } from "./capture.ts";
 import { fetchAsosObservation, fetchKmaAsosStations } from "./kma.ts";
@@ -34,7 +34,7 @@ interface PerformanceBatchInput {
     date: string,
     now: Date,
   ) => Promise<PrecipObservation | null>;
-  readForecasts?: (location: KoreanLocation) => Promise<ProviderSnapshot[]>;
+  readForecasts?: (location: ForecastLocation) => Promise<ProviderSnapshot[]>;
   concurrency?: number;
 }
 

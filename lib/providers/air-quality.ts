@@ -1,9 +1,9 @@
 import { cachedFetch } from "../cache";
 import { koreanAqiBand } from "../airQuality";
 import {
-  DEFAULT_KOREAN_LOCATION,
-  koreanLocationCacheKey,
-  type KoreanLocation,
+  DEFAULT_FORECAST_LOCATION,
+  forecastLocationCacheKey,
+  type ForecastLocation,
 } from "../location";
 import { SEOUL } from "../seoul";
 import type { NormalizedAirQuality, WeatherProviderStatus } from "../types";
@@ -30,7 +30,7 @@ function kstIso(t: string): string {
 
 // ─── Open-Meteo Air Quality (zero-key) ──────────────────────────────────────
 
-async function fetchOpenMeteoAq(location: KoreanLocation): Promise<NormalizedAirQuality> {
+async function fetchOpenMeteoAq(location: ForecastLocation): Promise<NormalizedAirQuality> {
   const params = new URLSearchParams({
     latitude: String(location.latitude),
     longitude: String(location.longitude),
@@ -61,9 +61,9 @@ async function fetchOpenMeteoAq(location: KoreanLocation): Promise<NormalizedAir
   };
 }
 
-const openMeteoAqCached = (location: KoreanLocation) =>
+const openMeteoAqCached = (location: ForecastLocation) =>
   cachedFetch(
-    `open-meteo-aq:${koreanLocationCacheKey(location)}`,
+    `open-meteo-aq:${forecastLocationCacheKey(location)}`,
     AQ_TTL_MS,
     () => fetchOpenMeteoAq(location),
   );
@@ -140,9 +140,10 @@ const airKoreaCached = () => cachedFetch("airkorea", AQ_TTL_MS, fetchAirKorea);
 
 /** Fused current air quality: AirKorea (if configured) → Open-Meteo AQ → null. */
 export async function getFusedAirQuality(
-  location: KoreanLocation = DEFAULT_KOREAN_LOCATION,
+  location: ForecastLocation = DEFAULT_FORECAST_LOCATION,
 ): Promise<NormalizedAirQuality | null> {
-  const centralSeoul = koreanLocationCacheKey(location) === koreanLocationCacheKey(DEFAULT_KOREAN_LOCATION);
+  const centralSeoul =
+    forecastLocationCacheKey(location) === forecastLocationCacheKey(DEFAULT_FORECAST_LOCATION);
   if (centralSeoul && airKoreaKey()) {
     try {
       const r = await airKoreaCached();
@@ -161,10 +162,11 @@ export async function getFusedAirQuality(
 
 /** Per-source status for /diagnostics (does not gate the public scene). */
 export async function airQualityStatuses(
-  location: KoreanLocation = DEFAULT_KOREAN_LOCATION,
+  location: ForecastLocation = DEFAULT_FORECAST_LOCATION,
 ): Promise<WeatherProviderStatus[]> {
   const out: WeatherProviderStatus[] = [];
-  const centralSeoul = koreanLocationCacheKey(location) === koreanLocationCacheKey(DEFAULT_KOREAN_LOCATION);
+  const centralSeoul =
+    forecastLocationCacheKey(location) === forecastLocationCacheKey(DEFAULT_FORECAST_LOCATION);
 
   // AirKorea (optional)
   if (!centralSeoul) {

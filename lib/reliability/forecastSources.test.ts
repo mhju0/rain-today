@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { clearCache } from "../cache.ts";
-import { createKoreanLocation } from "../location.ts";
+import { createForecastLocation } from "../location.ts";
 import type { WeatherProvider } from "../providers/base.ts";
 import type { DailyForecast, ProviderId, ProviderSnapshot, WeatherProviderStatus } from "../types.ts";
 import { boundedSourceTimeout, collectForecastSources } from "./forecastSources.ts";
@@ -105,8 +105,8 @@ test("collectForecastSources: cache identity includes the forecast location", as
   clearCache();
   const calls = { n: 0 };
   const providerList = [spy("open-meteo", { calls })];
-  const seoul = createKoreanLocation({ name: "서울", latitude: 37.5665, longitude: 126.978 });
-  const busan = createKoreanLocation({ name: "부산", latitude: 35.1796, longitude: 129.0756 });
+  const seoul = createForecastLocation({ name: "서울", latitude: 37.5665, longitude: 126.978 });
+  const busan = createForecastLocation({ name: "부산", latitude: 35.1796, longitude: 129.0756 });
 
   await collectForecastSources(providerList, { location: seoul });
   await collectForecastSources(providerList, { location: busan });
