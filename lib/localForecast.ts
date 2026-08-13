@@ -227,15 +227,16 @@ export async function readPerformanceEvidenceFromStore(
     if (!stationMatch.station || stationMatch.distanceKm === null) {
       return { status: "unavailable", reason: "no-eligible-station", station: null, profile: null };
     }
-    const [captures, observations] = await Promise.all([
-      store.loadCaptures(stationMatch.station.id, cohort),
-      store.loadObservations(stationMatch.station.id),
-    ]);
+    const comparisons = await store.loadCompletedComparisons(
+      stationMatch.station.id,
+      cohort,
+      DEFAULT_PERFORMANCE_POLICY.fullInfluenceSamples,
+    );
     const profile = buildRecentPerformanceProfile({
       stationId: stationMatch.station.id,
       cohort,
-      captures,
-      observations,
+      captures: comparisons.map((comparison) => comparison.capture),
+      observations: comparisons.map((comparison) => comparison.observation),
       asOf: now,
     });
     const active = profile.mode === "learned" || profile.mode === "ramping";

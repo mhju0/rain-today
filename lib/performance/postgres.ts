@@ -1,6 +1,7 @@
 import postgres from "postgres";
 import type {
   CaptureCohort,
+  CompletedComparison,
   ForecastCapture,
   ObservationStation,
   PrecipObservation,
@@ -11,18 +12,14 @@ import {
   type PerformanceStore,
 } from "./store.ts";
 
-interface CaptureRow {
+interface CompletedComparisonRow {
   station_id: string;
   target_date: string;
   cohort: CaptureCohort;
   captured_at: string;
   providers: ForecastCapture["providers"];
   frozen_blend: ForecastCapture["frozenBlend"];
-}
-
-interface ObservationRow {
-  station_id: string;
-  date: string;
+  observation_date: string;
   observed_mm: number;
   observed_at: string;
   source: PrecipObservation["source"];
@@ -192,36 +189,51 @@ export class PostgresPerformanceStore implements PerformanceStore {
     `;
   }
 
-  async loadCaptures(stationId: string, cohort: CaptureCohort): Promise<ForecastCapture[]> {
-    const rows = await this.#sql<CaptureRow[]>`
-      select station_id, target_date::text, cohort, captured_at::text, providers, frozen_blend
-      from performance_captures
-      where station_id = ${stationId} and cohort = ${cohort}
-      order by target_date
+  async loadCompletedComparisons(
+    stationId: string,
+    cohort: CaptureCohort,
+    limit: number,
+  ): Promise<CompletedComparison[]> {
+    if (!Number.isSafeInteger(limit) || limit <= 0) throw new RangeError("invalid comparison limit");
+    const rows = await this.#sql<CompletedComparisonRow[]>`
+      with recent as (
+        select
+          capture.station_id,
+          capture.target_date::text,
+          capture.cohort,
+          capture.captured_at::text,
+          capture.providers,
+          capture.frozen_blend,
+          observation.date::text as observation_date,
+          observation.observed_mm,
+          observation.observed_at::text,
+          observation.source
+        from performance_captures as capture
+        join performance_observations as observation
+          on observation.station_id = capture.station_id
+          and observation.date = capture.target_date
+        where capture.station_id = ${stationId} and capture.cohort = ${cohort}
+        order by capture.target_date desc
+        limit ${limit}
+      )
+      select * from recent order by target_date
     `;
     return rows.map((row) => ({
-      stationId: row.station_id,
-      targetDate: row.target_date,
-      cohort: row.cohort,
-      capturedAt: isoTimestamp(row.captured_at),
-      providers: row.providers,
-      frozenBlend: row.frozen_blend,
-    }));
-  }
-
-  async loadObservations(stationId: string): Promise<PrecipObservation[]> {
-    const rows = await this.#sql<ObservationRow[]>`
-      select station_id, date::text, observed_mm, observed_at::text, source
-      from performance_observations
-      where station_id = ${stationId}
-      order by date
-    `;
-    return rows.map((row) => ({
-      stationId: row.station_id,
-      date: row.date,
-      observedMm: row.observed_mm,
-      observedAt: isoTimestamp(row.observed_at),
-      source: row.source,
+      capture: {
+        stationId: row.station_id,
+        targetDate: row.target_date,
+        cohort: row.cohort,
+        capturedAt: isoTimestamp(row.captured_at),
+        providers: row.providers,
+        frozenBlend: row.frozen_blend,
+      },
+      observation: {
+        stationId: row.station_id,
+        date: row.observation_date,
+        observedMm: row.observed_mm,
+        observedAt: isoTimestamp(row.observed_at),
+        source: row.source,
+      },
     }));
   }
 

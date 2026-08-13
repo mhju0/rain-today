@@ -36,6 +36,12 @@ export interface PrecipObservation {
   source: "kma-asos";
 }
 
+/** One Forecast Capture paired with its later official observation. */
+export interface CompletedComparison {
+  capture: ForecastCapture;
+  observation: PrecipObservation;
+}
+
 export interface ObservationStation {
   id: string;
   name: string;
@@ -67,7 +73,7 @@ export interface PerformanceSlice {
 
 export interface ProviderRecentPerformance {
   provider: PrecipProviderId;
-  /** All comparable completed captures retained for the station/cohort. */
+  /** Comparable completed captures in the bounded maturity set. */
   sampleCount: number;
   /** Comparable captures inside the operating lookback. */
   windowSampleCount: number;
