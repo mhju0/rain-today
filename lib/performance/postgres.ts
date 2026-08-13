@@ -95,6 +95,10 @@ export class PostgresPerformanceStore implements PerformanceStore {
       on performance_captures (station_id, cohort, target_date)
     `;
     await this.#sql`
+      create index if not exists performance_captures_providers
+      on performance_captures using gin (providers jsonb_path_ops)
+    `;
+    await this.#sql`
       create index if not exists performance_observations_station_date
       on performance_observations (station_id, date)
     `;
@@ -196,27 +200,60 @@ export class PostgresPerformanceStore implements PerformanceStore {
   ): Promise<CompletedComparison[]> {
     if (!Number.isSafeInteger(limit) || limit <= 0) throw new RangeError("invalid comparison limit");
     const rows = await this.#sql<CompletedComparisonRow[]>`
-      with recent as (
-        select
-          capture.station_id,
-          capture.target_date::text,
-          capture.cohort,
-          capture.captured_at::text,
-          capture.providers,
-          capture.frozen_blend,
-          observation.date::text as observation_date,
-          observation.observed_mm,
-          observation.observed_at::text,
-          observation.source
-        from performance_captures as capture
-        join performance_observations as observation
-          on observation.station_id = capture.station_id
-          and observation.date = capture.target_date
-        where capture.station_id = ${stationId} and capture.cohort = ${cohort}
-        order by capture.target_date desc
-        limit ${limit}
+      with provider_ids (provider) as (
+        values
+          (${"open-meteo"}::text),
+          (${"met-norway"}::text),
+          (${"kma"}::text),
+          (${"pirate-weather"}::text),
+          (${"weather-api"}::text)
+      ),
+      recent_dates as (
+        select distinct recent.target_date
+        from provider_ids
+        cross join lateral (
+          select capture.target_date
+          from performance_captures as capture
+          join performance_observations as observation
+            on observation.station_id = capture.station_id
+            and observation.date = capture.target_date
+          where capture.station_id = ${stationId}
+            and capture.cohort = ${cohort}
+            and capture.providers @> jsonb_build_array(
+              jsonb_build_object('provider', provider_ids.provider)
+            )
+            and exists (
+              select 1
+              from jsonb_array_elements(capture.providers) as forecast(value)
+              where forecast.value ->> 'provider' = provider_ids.provider
+                and case
+                  when jsonb_typeof(forecast.value -> 'probability') = 'number'
+                  then (forecast.value ->> 'probability')::double precision between 0 and 100
+                  else false
+                end
+            )
+          order by capture.target_date desc
+          limit ${limit}
+        ) as recent
       )
-      select * from recent order by target_date
+      select
+        capture.station_id,
+        capture.target_date::text,
+        capture.cohort,
+        capture.captured_at::text,
+        capture.providers,
+        capture.frozen_blend,
+        observation.date::text as observation_date,
+        observation.observed_mm,
+        observation.observed_at::text,
+        observation.source
+      from performance_captures as capture
+      join performance_observations as observation
+        on observation.station_id = capture.station_id
+        and observation.date = capture.target_date
+      join recent_dates on recent_dates.target_date = capture.target_date
+      where capture.station_id = ${stationId} and capture.cohort = ${cohort}
+      order by capture.target_date
     `;
     return rows.map((row) => ({
       capture: {

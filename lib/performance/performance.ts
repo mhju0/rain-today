@@ -199,10 +199,11 @@ function providerMetrics(
   const last7Brier = weightedMean(
     last7Rows.map((row) => ({ value: brier(row.probability, row.wet), weight: 1 })),
   );
+  const sampleCount = Math.min(rows.length, policy.fullInfluenceSamples);
 
   return {
     provider,
-    sampleCount: rows.length,
+    sampleCount,
     windowSampleCount: windowRows.length,
     wetDays: wetRows.length,
     dryDays: dryRows.length,
@@ -224,7 +225,7 @@ function providerMetrics(
       brierScore: round(last7Brier),
     },
     eligible:
-      rows.length >= policy.minimumSamples && wetRows.length > 0 && dryRows.length > 0,
+      sampleCount >= policy.minimumSamples && wetRows.length > 0 && dryRows.length > 0,
   };
 }
 

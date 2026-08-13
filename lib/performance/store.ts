@@ -4,12 +4,31 @@ import type {
   ForecastCapture,
   ObservationStation,
   PrecipObservation,
+  PrecipProviderId,
 } from "./types.ts";
 
 export type CaptureWriteResult = "inserted" | "existing";
 
 const CATALOG_DROP_GUARD_MIN_ACTIVE_STATIONS = 20;
 const CATALOG_DROP_GUARD_MIN_RETAINED_RATIO = 0.8;
+const PERFORMANCE_PROVIDERS: readonly PrecipProviderId[] = [
+  "open-meteo",
+  "met-norway",
+  "kma",
+  "pirate-weather",
+  "weather-api",
+];
+
+function hasValidProviderProbability(
+  comparison: CompletedComparison,
+  provider: PrecipProviderId,
+): boolean {
+  const probability = comparison.capture.providers.find(
+    (forecast) => forecast.provider === provider,
+  )?.probability;
+  return probability !== null && probability !== undefined &&
+    Number.isFinite(probability) && probability >= 0 && probability <= 100;
+}
 
 export function assertSafeStationCatalogSync(
   currentActiveIds: ReadonlySet<string>,
@@ -122,14 +141,25 @@ export class InMemoryPerformanceStore implements PerformanceStore {
         .filter((observation) => observation.stationId === stationId)
         .map((observation) => [observation.date, observation]),
     );
-    return Array.from(this.#captures.values())
+    const completed = Array.from(this.#captures.values())
       .filter((capture) => capture.stationId === stationId && capture.cohort === cohort)
       .flatMap((capture) => {
         const observation = observations.get(capture.targetDate);
         return observation ? [{ capture, observation }] : [];
       })
+      .sort((a, b) => b.capture.targetDate.localeCompare(a.capture.targetDate));
+    const selected = new Map<string, CompletedComparison>();
+    for (const provider of PERFORMANCE_PROVIDERS) {
+      let providerSamples = 0;
+      for (const comparison of completed) {
+        if (!hasValidProviderProbability(comparison, provider)) continue;
+        selected.set(comparison.capture.targetDate, comparison);
+        providerSamples += 1;
+        if (providerSamples === limit) break;
+      }
+    }
+    return Array.from(selected.values())
       .sort((a, b) => a.capture.targetDate.localeCompare(b.capture.targetDate))
-      .slice(-limit)
       .map(clone);
   }
 
