@@ -7,6 +7,21 @@ import type {
 
 export type CaptureWriteResult = "inserted" | "existing";
 
+const CATALOG_DROP_GUARD_MIN_ACTIVE_STATIONS = 20;
+const CATALOG_DROP_GUARD_MIN_RETAINED_RATIO = 0.8;
+
+export function assertSafeStationCatalogSync(
+  currentActiveIds: ReadonlySet<string>,
+  stations: readonly ObservationStation[],
+): void {
+  if (currentActiveIds.size < CATALOG_DROP_GUARD_MIN_ACTIVE_STATIONS) return;
+  const nextActiveIds = new Set(stations.map((station) => station.id));
+  const retained = Array.from(currentActiveIds).filter((id) => nextActiveIds.has(id)).length;
+  if (retained / currentActiveIds.size < CATALOG_DROP_GUARD_MIN_RETAINED_RATIO) {
+    throw new Error("station catalog drop exceeds the retirement safety threshold");
+  }
+}
+
 /** Durable boundary for prospective forecast evidence. User coordinates never cross it. */
 export interface PerformanceStore {
   initialize(): Promise<void>;
@@ -35,6 +50,14 @@ export class InMemoryPerformanceStore implements PerformanceStore {
   ): Promise<void> {
     if (stations.length === 0) return;
     const activeIds = new Set(stations.map((station) => station.id));
+    assertSafeStationCatalogSync(
+      new Set(
+        Array.from(this.#stations.values())
+          .filter((station) => station.activeTo === null)
+          .map((station) => station.id),
+      ),
+      stations,
+    );
     const previousDate = new Date(Date.parse(`${catalogDate}T00:00:00.000Z`) - 86_400_000)
       .toISOString()
       .slice(0, 10);

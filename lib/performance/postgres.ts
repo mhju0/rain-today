@@ -5,7 +5,11 @@ import type {
   ObservationStation,
   PrecipObservation,
 } from "./types.ts";
-import type { CaptureWriteResult, PerformanceStore } from "./store.ts";
+import {
+  assertSafeStationCatalogSync,
+  type CaptureWriteResult,
+  type PerformanceStore,
+} from "./store.ts";
 
 interface CaptureRow {
   station_id: string;
@@ -110,6 +114,7 @@ export class PostgresPerformanceStore implements PerformanceStore {
         from performance_stations
         where network = 'ASOS' and active_to is null
       `;
+      assertSafeStationCatalogSync(new Set(currentRows.map((row) => row.id)), stations);
       const activeIds = new Set(stations.map((station) => station.id));
       for (const row of currentRows) {
         if (activeIds.has(row.id)) continue;
