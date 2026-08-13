@@ -33,13 +33,13 @@ export interface PrecipObservation {
   date: string;
   observedMm: number;
   observedAt: string;
-  source: "kma-asos" | "kma-aws";
+  source: "kma-asos";
 }
 
 export interface ObservationStation {
   id: string;
   name: string;
-  network: "ASOS" | "AWS";
+  network: "ASOS";
   latitude: number;
   longitude: number;
   elevationM: number | null;
@@ -82,7 +82,7 @@ export interface ProviderRecentPerformance {
   eligible: boolean;
 }
 
-export interface PerformanceBenchmark {
+export interface ProspectiveBenchmark {
   sampleCount: number;
   adaptiveBrier: number | null;
   equalBrier: number | null;
@@ -91,7 +91,7 @@ export interface PerformanceBenchmark {
   status: "passing" | "regression" | "insufficient";
 }
 
-export interface LocalPerformanceProfile {
+export interface RecentPerformanceProfile {
   stationId: string;
   cohort: CaptureCohort;
   generatedAt: string;
@@ -107,5 +107,5 @@ export interface LocalPerformanceProfile {
   confidence: number;
   providers: ProviderRecentPerformance[];
   effectiveWeights: Record<string, number>;
-  benchmark: PerformanceBenchmark;
+  prospectiveBenchmark: ProspectiveBenchmark;
 }

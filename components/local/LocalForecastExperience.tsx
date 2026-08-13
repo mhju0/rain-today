@@ -369,10 +369,10 @@ function ForecastDashboard({ forecast, onReset }: {
           })}
         </div>
 
-        {forecast.performance.profile?.benchmark && (
+        {forecast.performance.profile?.prospectiveBenchmark && (
           <p className="local-benchmark-line">
-            사전 고정 비교 · 적응형 Brier {forecast.performance.profile.benchmark.adaptiveBrier?.toFixed(3) ?? "—"}
-            <span /> 동일 가중 {forecast.performance.profile.benchmark.equalBrier?.toFixed(3) ?? "—"}
+            사전 고정 비교 · 적응형 Brier {forecast.performance.profile.prospectiveBenchmark.adaptiveBrier?.toFixed(3) ?? "—"}
+            <span /> 동일 가중 {forecast.performance.profile.prospectiveBenchmark.equalBrier?.toFixed(3) ?? "—"}
           </p>
         )}
       </section>

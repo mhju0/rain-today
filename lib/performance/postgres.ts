@@ -60,7 +60,7 @@ export class PostgresPerformanceStore implements PerformanceStore {
       create table if not exists performance_stations (
         id text primary key,
         name text not null,
-        network text not null check (network in ('ASOS', 'AWS')),
+        network text not null check (network = 'ASOS'),
         latitude double precision not null,
         longitude double precision not null,
         elevation_m double precision,
@@ -85,7 +85,7 @@ export class PostgresPerformanceStore implements PerformanceStore {
         date date not null,
         observed_mm double precision not null check (observed_mm >= 0),
         observed_at timestamptz not null,
-        source text not null check (source in ('kma-asos', 'kma-aws')),
+        source text not null check (source = 'kma-asos'),
         primary key (station_id, date)
       )
     `;

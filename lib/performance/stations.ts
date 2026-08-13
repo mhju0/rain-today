@@ -1,11 +1,11 @@
 import type { ObservationStation } from "./types.ts";
 
-export interface StationSelectionPolicy {
+export interface StationMatchPolicy {
   maxDistanceKm: number;
   maxElevationDifferenceM: number;
 }
 
-export interface StationSelection {
+export interface StationMatch {
   status: "matched" | "unavailable";
   reason: "eligible-station" | "no-eligible-station";
   station: ObservationStation | null;
@@ -13,11 +13,11 @@ export interface StationSelection {
   elevationDifferenceM: number | null;
 }
 
-interface StationSelectionInput {
+interface StationMatchInput {
   location: { latitude: number; longitude: number; elevationM?: number | null };
   stations: readonly ObservationStation[];
   at: Date;
-  policy: StationSelectionPolicy;
+  policy: StationMatchPolicy;
 }
 
 const radians = (degrees: number): number => (degrees * Math.PI) / 180;
@@ -46,8 +46,8 @@ function calendarDateInKorea(date: Date): string {
   }).format(date);
 }
 
-/** Choose the nearest observation station that passes every representation gate. */
-export function selectObservationStation(input: StationSelectionInput): StationSelection {
+/** Find the Station Match that passes every representation gate. */
+export function findStationMatch(input: StationMatchInput): StationMatch {
   const atDate = calendarDateInKorea(input.at);
   const eligible = input.stations.flatMap((station) => {
     if (station.activeFrom > atDate || (station.activeTo !== null && station.activeTo < atDate)) {

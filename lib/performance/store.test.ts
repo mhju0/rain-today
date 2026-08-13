@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildLocalPerformanceProfile } from "./performance.ts";
+import { buildRecentPerformanceProfile } from "./performance.ts";
 import { InMemoryPerformanceStore } from "./store.ts";
 import type { ForecastCapture, ObservationStation, PrecipObservation } from "./types.ts";
 
@@ -61,7 +61,7 @@ test("performance store keeps captures immutable and round-trips profile inputs"
   assert.deepEqual(observations, [observation]);
   assert.deepEqual(await store.listStations(), [station]);
 
-  const profile = buildLocalPerformanceProfile({
+  const profile = buildRecentPerformanceProfile({
     stationId: "108",
     cohort: "06",
     captures,

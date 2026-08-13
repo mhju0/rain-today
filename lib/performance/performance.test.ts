@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   blendPrecipProbability,
-  buildLocalPerformanceProfile,
+  buildRecentPerformanceProfile,
   DEFAULT_PERFORMANCE_POLICY,
 } from "./performance.ts";
 import type {
@@ -71,7 +71,7 @@ test("probability performance includes completed dry days", () => {
     probability: () => 100,
   });
 
-  const profile = buildLocalPerformanceProfile({
+  const profile = buildRecentPerformanceProfile({
     stationId: "108",
     cohort: "06",
     ...data,
@@ -97,7 +97,7 @@ test("operating performance uses a 30-day window with a 14-day recency half-life
     },
   });
 
-  const profile = buildLocalPerformanceProfile({
+  const profile = buildRecentPerformanceProfile({
     stationId: "108",
     cohort: "06",
     ...data,
@@ -118,7 +118,7 @@ test("fewer than 30 comparable captures cannot influence the forecast", () => {
     probability: (_provider, _daysAgo, wet) => (wet ? 80 : 20),
   });
 
-  const profile = buildLocalPerformanceProfile({
+  const profile = buildRecentPerformanceProfile({
     stationId: "108",
     cohort: "06",
     ...data,
@@ -138,7 +138,7 @@ test("eligible recent performance tilts softly and remains bounded", () => {
     frozen: (_daysAgo, wet) => ({ adaptive: wet ? 80 : 20, equal: 50 }),
   });
 
-  const profile = buildLocalPerformanceProfile({
+  const profile = buildRecentPerformanceProfile({
     stationId: "108",
     cohort: "06",
     ...data,
@@ -160,7 +160,7 @@ test("a prospectively worse adaptive blend suspends learned influence", () => {
     frozen: (_daysAgo, wet) => ({ adaptive: wet ? 10 : 90, equal: 50 }),
   });
 
-  const profile = buildLocalPerformanceProfile({
+  const profile = buildRecentPerformanceProfile({
     stationId: "108",
     cohort: "06",
     ...data,
@@ -169,7 +169,9 @@ test("a prospectively worse adaptive blend suspends learned influence", () => {
 
   assert.equal(profile.mode, "suspended");
   assert.equal(profile.reason, "benchmark-regression");
-  assert.ok(profile.benchmark.adaptiveBrier! > profile.benchmark.equalBrier!);
+  assert.ok(
+    profile.prospectiveBenchmark.adaptiveBrier! > profile.prospectiveBenchmark.equalBrier!,
+  );
   assert.deepEqual(profile.effectiveWeights, { "open-meteo": 0.5, kma: 0.5 });
 });
 
@@ -184,7 +186,7 @@ test("benchmark compares adaptive and equal blends on identical captures", () =>
     },
   });
 
-  const profile = buildLocalPerformanceProfile({
+  const profile = buildRecentPerformanceProfile({
     stationId: "108",
     cohort: "06",
     ...data,
@@ -192,10 +194,10 @@ test("benchmark compares adaptive and equal blends on identical captures", () =>
     policy: { ...DEFAULT_PERFORMANCE_POLICY, minimumSamples: 28 },
   });
 
-  assert.equal(profile.benchmark.sampleCount, 28);
-  assert.equal(profile.benchmark.adaptiveBrier, 0.25);
-  assert.equal(profile.benchmark.equalBrier, 0.25);
-  assert.equal(profile.benchmark.status, "passing");
+  assert.equal(profile.prospectiveBenchmark.sampleCount, 28);
+  assert.equal(profile.prospectiveBenchmark.adaptiveBrier, 0.25);
+  assert.equal(profile.prospectiveBenchmark.equalBrier, 0.25);
+  assert.equal(profile.prospectiveBenchmark.status, "passing");
 });
 
 test("provider metrics keep amount error separate and never invent missing amounts", () => {
@@ -206,7 +208,7 @@ test("provider metrics keep amount error separate and never invent missing amoun
       !wet || provider === "kma" ? null : 8,
   });
 
-  const profile = buildLocalPerformanceProfile({
+  const profile = buildRecentPerformanceProfile({
     stationId: "108",
     cohort: "06",
     ...data,
@@ -233,7 +235,7 @@ test("capture cohorts are evaluated independently", () => {
     probability: () => 50,
   });
 
-  const profile = buildLocalPerformanceProfile({
+  const profile = buildRecentPerformanceProfile({
     stationId: "108",
     cohort: "06",
     captures: [...morning.captures, ...evening.captures],
