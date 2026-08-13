@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createKoreanLocation } from "./location.ts";
-import { readLocalForecast } from "./localForecast.ts";
+import { readLocalForecast, readPerformanceEvidenceFromStore } from "./localForecast.ts";
+import { InMemoryPerformanceStore } from "./performance/store.ts";
 import type { LocalPerformanceProfile } from "./performance/types.ts";
 import type { ProviderSnapshot } from "./types.ts";
 
@@ -190,4 +191,82 @@ test("active weighting gives a newly available provider the policy floor instead
   assert.ok(response.providerInfluence["weather-api"] > 0);
   assert.ok(response.providerInfluence["weather-api"] < response.providerInfluence.kma);
   assert.ok((response.recommendation.precipitationProbability ?? 0) > 68);
+});
+
+test("local forecast starts provider and evidence reads concurrently", async () => {
+  const location = createKoreanLocation({
+    name: "서울",
+    latitude: 37.5665,
+    longitude: 126.978,
+  });
+  let releaseForecasts!: () => void;
+  const forecastsReady = new Promise<void>((resolve) => {
+    releaseForecasts = resolve;
+  });
+  let evidenceStarted = false;
+
+  const pending = readLocalForecast(
+    { location, elevationM: null },
+    {
+      now: new Date("2026-08-13T18:20:00+09:00"),
+      readForecasts: async () => {
+        await forecastsReady;
+        return [snapshot("open-meteo", 70, 2)];
+      },
+      readEvidence: async () => {
+        evidenceStarted = true;
+        return {
+          status: "unavailable",
+          reason: "database-not-configured",
+          station: null,
+          profile: null,
+        };
+      },
+    },
+  );
+
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  const startedBeforeProvidersFinished = evidenceStarted;
+  releaseForecasts();
+  await pending;
+  assert.equal(startedBeforeProvidersFinished, true);
+});
+
+test("runtime evidence reads do not run schema setup or close the shared store", async () => {
+  class TrackingStore extends InMemoryPerformanceStore {
+    initializeCalls = 0;
+    closeCalls = 0;
+
+    override async initialize(): Promise<void> {
+      this.initializeCalls += 1;
+    }
+
+    override async close(): Promise<void> {
+      this.closeCalls += 1;
+    }
+  }
+
+  const store = new TrackingStore();
+  await store.syncStations([{
+    id: "108",
+    name: "서울",
+    network: "ASOS",
+    latitude: 37.5714,
+    longitude: 126.9658,
+    elevationM: 85.7,
+    activeFrom: "2026-01-01",
+    activeTo: null,
+  }], "2026-08-13");
+
+  const evidence = await readPerformanceEvidenceFromStore(
+    store,
+    createKoreanLocation({ name: "서울", latitude: 37.5665, longitude: 126.978 }),
+    null,
+    "18",
+    new Date("2026-08-13T18:20:00+09:00"),
+  );
+
+  assert.equal(evidence.status, "collecting");
+  assert.equal(store.initializeCalls, 0);
+  assert.equal(store.closeCalls, 0);
 });
