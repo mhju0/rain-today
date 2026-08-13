@@ -1,3 +1,4 @@
+import { readResponseBytes } from "../httpResponse.ts";
 import type { ForecastLocation } from "../location.ts";
 import type {
   CurrentWeather,
@@ -27,6 +28,7 @@ function userAgent(): string | null {
 
 /** MET asks clients to cache responses; honor that with a longer-than-default TTL. */
 const MET_TTL_MS = 15 * 60 * 1000;
+const MET_MAX_BYTES = 2 * 1024 * 1024;
 
 /** symbol_code base (before _day/_night) → internal condition */
 function conditionFromSymbol(symbolCode: string | undefined): WeatherCondition {
@@ -94,7 +96,13 @@ async function fetchSnapshot(location: ForecastLocation): Promise<Snapshot> {
   if (res.status === 403) throw new Error("MET Norway 403 — User-Agent rejected");
   if (res.status === 429) throw new Error("MET Norway 429 — rate limited");
   if (!res.ok) throw new Error(`MET Norway HTTP ${res.status}`);
-  const data = (await res.json()) as { properties: { timeseries: MetTimeseries[] } };
+  const bytes = await readResponseBytes(res, {
+    maxBytes: MET_MAX_BYTES,
+    contentType: "application/json",
+  });
+  const data = JSON.parse(new TextDecoder().decode(bytes)) as {
+    properties: { timeseries: MetTimeseries[] };
+  };
   const series = data.properties.timeseries;
   if (series.length === 0) throw new Error("MET Norway: empty timeseries");
   const localDateFormat = new Intl.DateTimeFormat("en-CA", {

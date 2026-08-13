@@ -192,6 +192,18 @@ test("short-term works when the warning key is absent", async () => {
   assert.equal(status.availability, "ok");
 });
 
+test("short-term forecast rejects a response whose declared size exceeds the limit", async () => {
+  process.env.KMA_SHORT_TERM_API_KEY = SHORT_TERM_KEY;
+  globalThis.fetch = (async () => new Response(okJson([...NCST_ITEMS, ...FCST_ITEMS]), {
+    status: 200,
+    headers: { "Content-Length": String(2 * 1024 * 1024 + 1) },
+  })) as typeof fetch;
+
+  const { status } = await kmaProvider.read();
+
+  assert.equal(status.availability, "error");
+});
+
 test("warnings work when the short-term key is absent", async () => {
   process.env.KMA_WARNING_API_KEY = WARNING_KEY;
   // KMA_SHORT_TERM_API_KEY intentionally unset.

@@ -1,4 +1,5 @@
 import { conditionFromWmoCode } from "../conditions.ts";
+import { readResponseBytes } from "../httpResponse.ts";
 import type { ForecastLocation } from "../location.ts";
 import { CACHE_TTL_MS } from "../seoul.ts";
 import type {
@@ -56,6 +57,8 @@ interface Snapshot {
   daily: DailyForecast[];
 }
 
+const OPEN_METEO_MAX_BYTES = 2 * 1024 * 1024;
+
 /** Open-Meteo returns naive local timestamps ("2026-06-12T23:45") — pin them to KST. */
 function toKstIso(naive: string): string {
   return `${naive}:00+09:00`.replace(/:00:00\+/, ":00+");
@@ -79,7 +82,11 @@ async function fetchSnapshot(location: ForecastLocation): Promise<Snapshot> {
     signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) throw new Error(`Open-Meteo HTTP ${res.status}`);
-  const data = (await res.json()) as OpenMeteoResponse;
+  const bytes = await readResponseBytes(res, {
+    maxBytes: OPEN_METEO_MAX_BYTES,
+    contentType: "application/json",
+  });
+  const data = JSON.parse(new TextDecoder().decode(bytes)) as OpenMeteoResponse;
 
   // Index of the hour bucket covering "now" — also the start of the 24h slice.
   const nowMs = Date.parse(toKstIso(data.current.time));

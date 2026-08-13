@@ -1,3 +1,4 @@
+import { readResponseBytes } from "../httpResponse.ts";
 import type { ForecastLocation } from "../location.ts";
 import { CACHE_TTL_MS } from "../seoul.ts";
 import type {
@@ -166,6 +167,8 @@ interface Snapshot {
   daily: DailyForecast[];
 }
 
+const WEATHER_API_MAX_BYTES = 2 * 1024 * 1024;
+
 async function fetchSnapshot(location: ForecastLocation): Promise<Snapshot> {
   const key = apiKey();
   if (!key) throw new Error("WeatherAPI: WEATHERAPI_KEY not configured");
@@ -177,7 +180,11 @@ async function fetchSnapshot(location: ForecastLocation): Promise<Snapshot> {
     throw new Error(`WeatherAPI ${res.status} — invalid or expired API key`);
   if (res.status === 429) throw new Error("WeatherAPI 429 — rate limited");
   if (!res.ok) throw new Error(`WeatherAPI HTTP ${res.status}`);
-  const data = (await res.json()) as WaResponse;
+  const bytes = await readResponseBytes(res, {
+    maxBytes: WEATHER_API_MAX_BYTES,
+    contentType: "application/json",
+  });
+  const data = JSON.parse(new TextDecoder().decode(bytes)) as WaResponse;
 
   const c = data.current;
   const current: CurrentWeather = {
