@@ -1,15 +1,18 @@
 # Weather and environment sources
 
-SeoulSky fixes all requests to Seoul (`37.5665, 126.9780`) and `Asia/Seoul`. All upstream calls run on the server. Provider keys and the MET Norway contact-bearing user agent must never be returned to the browser or written to logs.
+SeoulSky accepts validated coordinates inside the South Korea service area and uses `Asia/Seoul`. Forecast providers receive the user's submitted coordinate for the current request. The local-performance collector separately requests forecasts at official KMA ASOS coordinates. All upstream calls run on the server. Provider keys, database credentials, and the MET Norway contact-bearing user agent must never be returned to the browser or written to logs.
 
 The application is usable without keys: Open-Meteo supplies weather and air quality, and RainViewer supplies the conservative rain-approach signal. Optional sources enrich the response and fail independently.
 
 | Source | Purpose | Configuration | Cache | Failure behavior |
 | --- | --- | --- | --- | --- |
-| Open-Meteo Forecast | Current, hourly, and seven-day baseline | None | 5 min | Expired cache, then route-level 503 |
+| Open-Meteo Forecast | Current, hourly, and seven-day baseline at the requested coordinate | None | 5 min per location | Expired cache, then route-level 503 |
+| Open-Meteo Geocoding | Korea-filtered manual place search | None | HTTP response cache 5 min | Search route returns 503; precise browser location remains available |
 | Open-Meteo Air Quality | Keyless PM, gases, aerosol, and UV baseline | None | 20 min | Air quality becomes `null` |
 | MET Norway | Provider comparison | `MET_NO_USER_AGENT` with contact | 15 min | Provider reports `needs-config` or `error` |
-| KMA short-term | Preferred temperature and active precipitation observation | `KMA_SHORT_TERM_API_KEY` | 5 min | Open-Meteo remains authoritative |
+| KMA short-term | Forecast comparison at the requested KMA grid | `KMA_SHORT_TERM_API_KEY` | 5 min per location | Source is omitted from the current blend |
+| KMA ASOS station catalog | Active station coordinates and elevations for performance collection | `KMA_APIHUB_KEY` with station-information access | Refreshed by each fixed cohort | Collector fails visibly rather than using a fabricated catalog |
+| KMA ASOS daily observation | Completed station-day precipitation ground truth | `KMA_OBSERVATION_API_KEY` | Durable PostgreSQL row | Missing station-day observation is not scored |
 | KMA warnings | Official active warnings | `KMA_WARNING_API_KEY` | 5 min | Warnings become `[]` |
 | KMA API Hub radar | Displayed HSR reflectivity frames | `KMA_APIHUB_KEY` | Recent PNGs in a process-local `RadarDelivery` cache; successful immutable frame responses are browser/CDN-cacheable for 1 day | Timeline becomes an explicit empty state when not ready; an invalid frame is rejected, a full render queue is temporarily busy, and an unavailable render fails without exposing the key |
 | AirKorea | Preferred measured air quality | `AIRKOREA_API_KEY` | 20 min | Open-Meteo air quality remains |
@@ -23,6 +26,8 @@ Learned reliability uses a separate durable path. The daily transaction publishe
 
 The web runtime fetches only the learned weights from raw GitHub and schema-validates them. Missing or invalid state falls back to equal weights. Vercel deployments are disabled for state-branch commits.
 
+Nationwide recent performance uses PostgreSQL rather than Git as its primary store. `performance_stations` contains official observation-station metadata; `performance_captures` contains one immutable next-day provider capture per station/date/cohort; and `performance_observations` contains one correctable official station-day result. These tables never store a user query, browser identifier, or user coordinate. The 06 and 18 KST scheduled cohorts are kept separate, and retries preserve the first capture for a station/date/cohort.
+
 Radar uses a separate `RadarDelivery` boundary rather than `lib/cache.ts`. It accepts only real five-minute KST keys in the current 90-minute observed window. Timeline discovery starts at the nominal newest key and scans backward in five-minute steps through at most seven candidates; it continues only after an explicitly classified not-yet-published result. The first deliverable key anchors all 13 oldest-to-newest observed frames. Busy admission, cancellation, timeout, malformed data, and terminal upstream failures stop discovery and return an empty timeline. Discovery does not render the remaining playback frames or guarantee later process-local cache hits. Per process, delivery admits at most two renders and queues at most eight more; same-key requests share one render, and queued or unneeded work can be cancelled. Ready PNG bytes are defensively copied into a process-local cache and pruned outside the allowed window. This cache is not shared or durable. A successfully produced immutable frame response is separately public-cacheable for one day by the browser/CDN. Frame responses distinguish invalid input (400), admission pressure (503 with delivery-owned `Retry-After`), cancellation (499), and unavailable rendering (502), all without caching the failure.
 
 The browser has one status-aware radar-frame loader. It prioritizes the active frame, then the next circular playback frame, keeps at most one fetch/decode lifecycle in flight, and aborts obsolete work after seeking, timeline replacement, or unmount. Successful PNG responses become decoded blob URLs before they can be displayed, so the visible image never creates an independent frame-route request. Temporary 429/503 pressure honors `Retry-After` with a three-attempt batch plus one cancellable re-entry batch (six automatic attempts maximum and a 60-second delay cap). Exhausted transient pressure pauses playback and remains retryable with Play; HTTP/decode/visible-image terminal failures are recorded and skipped honestly. Playback advances only onto decoded frames.
@@ -30,6 +35,13 @@ The browser has one status-aware radar-frame loader. It prioritizes the active f
 Each forecast provider exposes one Provider Snapshot read. Its availability, cache/freshness metadata, and normalized current, hourly, and daily weather come from the same cached generation. The shared provider instance and its ID-keyed cache are reused by the live Sky snapshot, deferred Weather Intelligence comparison, runtime precipitation collection, and scheduled forecast logging. A missing configuration or failed fetch yields an empty non-OK snapshot; stale last-good data stays an available snapshot with `stale: true`.
 
 ## Fusion rules
+
+- `/api/local-forecast` requests every forecast provider at the validated Forecast Location and targets the next KST calendar day.
+- Its evidence profile comes from the nearest active ASOS station that passes the configured distance and elevation gates. The API returns the station name and distance rather than presenting station evidence as exact-coordinate truth.
+- Probability performance uses all completed wet and dry days in a 30-day lookback with a 14-day half-life. Rainy-day amount MAE is separate.
+- Learned influence requires comparable sample, wet-day, and dry-day evidence; then it ramps and remains bounded by provider floors and caps.
+- The adaptive and equal outputs are frozen at capture time and later scored on identical completed rows. Regression or insufficient benchmark evidence suspends learned influence.
+- Missing current providers are omitted and the remaining current weights renormalize. Missing performance evidence selects equal influence; it never becomes a numeric zero score.
 
 - `/api/sky` uses Open-Meteo as the complete baseline.
 - `chooseCurrent()` prefers KMA temperature and active precipitation when a valid KMA observation is available. It only adopts KMA's condition when KMA reports active precipitation, because the observation feed does not provide complete dry-sky cloud semantics.
@@ -48,6 +60,12 @@ The UI must retain the applicable credits: Open-Meteo; MET Norway; 기상청 (KM
 
 ## Implementation map
 
+- Forecast-location validation and KMA grid conversion: `lib/location.ts`
+- Korea-only manual search: `lib/locationSearch.ts`, `app/api/locations/search/route.ts`
+- Exact-location forecast assembly: `lib/localForecast.ts`, `app/api/local-forecast/route.ts`
+- Recent performance scoring and station matching: `lib/performance/performance.ts`, `lib/performance/stations.ts`
+- Performance persistence, capture, and fixed-cohort batch: `lib/performance/store.ts`, `lib/performance/postgres.ts`, `lib/performance/capture.ts`, `lib/performance/batch.ts`, `scripts/local-performance.ts`
+
 - Provider contract, atomic snapshot factory, and registry: `lib/providers/base.ts`, `lib/providers/read.ts`, `lib/providers/registry.ts`
 - Provider implementations: `lib/providers/*`
 - Fusion: `lib/skyFusion.ts`, `lib/liveSkySnapshot.ts`, `lib/liveSkySnapshot.production.ts`
@@ -57,4 +75,4 @@ The UI must retain the applicable credits: Open-Meteo; MET Norway; 기상청 (KM
 - Radar browser loading: `lib/radar/clientLoader.ts` owns sequential fetch/decode state, backpressure retries, cancellation, and blob-URL lifecycle; `lib/radar/presentation.ts` owns pure ordering/playback helpers; `components/atmosphere/sections/RadarSection.tsx` renders only controller-ready frames.
 - Shared cache: `lib/cache.ts`
 
-The application does not authenticate users, store profiles, accept uploads, or persist an application database.
+The application does not authenticate users, store profiles, or accept uploads. It persists official station metadata, prospective forecast captures, and KMA observations in PostgreSQL; it does not persist user coordinates.

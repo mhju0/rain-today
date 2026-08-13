@@ -1,49 +1,49 @@
 # SeoulSky
 
-SeoulSky presents an honest, Seoul-specific view of current weather, observed rain, forecast confidence, and learned precipitation reliability. It keeps live presentation, provider comparison, radar delivery, and historical learning coherent without making optional data a prerequisite for the experience.
+SeoulSky presents a South Korea local rain forecast whose provider influence can adapt to recently observed performance at a nearby official station. The exact-coordinate forecast and station-based evidence are distinct concepts and must remain visibly distinct.
 
 ## Language
 
-**Sky Snapshot**:
-The lean, fused weather record that drives the live Seoul scene and primary forecast presentation.
-_Avoid_: Main weather payload, fast response
+**Forecast Location**:
+The user-selected coordinate where every provider forecast is requested.
+_Avoid_: User station, saved location
 
-**Weather Intelligence**:
-The deferred record that compares forecast providers, explains confidence, and exposes environmental diagnostics.
-_Avoid_: Diagnostics payload, detailed weather
+**Observation Station**:
+An official KMA station supplying completed precipitation ground truth.
+_Avoid_: User location, exact local weather
 
-**Forecast Provider**:
-An upstream forecast source normalized into SeoulSky's shared weather language.
-_Avoid_: Vendor, weather API
+**Station Match**:
+The nearest active observation station that passes distance and elevation representation gates for a Forecast Location.
+_Avoid_: Nearest station, local truth
 
-**Provider Snapshot**:
-One coherent forecast-provider reading whose availability, freshness, and normalized weather describe the same observation generation.
-_Avoid_: Provider status plus forecast, provider response
+**Capture Cohort**:
+One fixed 06 or 18 KST next-day forecast issue group. Cohorts are evaluated independently.
+_Avoid_: Morning data, forecast batch
 
-**Radar Timeline**:
-The ordered, observed-only window of KMA radar frames available for Seoul playback.
-_Avoid_: Radar forecast, nowcast
+**Forecast Capture**:
+One immutable set of next-day provider predictions and prospectively frozen blend outputs for an Observation Station and Capture Cohort.
+_Avoid_: Current forecast, historical API response
 
-**Radar Frame**:
-One immutable, timestamped KMA reflectivity image rendered for the Seoul radar view.
-_Avoid_: Tile, radar snapshot
+**Completed Comparison**:
+A Forecast Capture joined to the later station-day observation for its target date.
+_Avoid_: Accuracy sample when the observation is missing
 
-**Reliability Snapshot**:
-One versioned whole containing the accumulated forecast history, scored skill history, and current learned weights.
-_Avoid_: Data files, weights file
+**Recent Performance Profile**:
+The cohort-specific provider metrics, evidence state, effective weights, and prospective benchmark for one Observation Station.
+_Avoid_: Accuracy ranking, trained model
 
-**Reliability Publication**:
-The atomic promotion of a validated Reliability Snapshot to durable history.
-_Avoid_: Data commit, state push
-
-**Scoring Skip**:
-A successful daily reliability cycle that cannot score a completed day because honest forecast or observation evidence is unavailable.
-_Avoid_: Failed run, empty score
-
-**Learned Weights**:
-Bounded provider influence derived from informative completed precipitation forecasts.
-_Avoid_: Model training, provider ranking
+**Effective Influence**:
+The normalized provider weights actually used for the current request after evidence gates and present-provider renormalization.
+_Avoid_: Accuracy percentage, confidence
 
 **Equal Fallback**:
-The safe precipitation weighting used when Learned Weights are unavailable, stale, invalid, or insufficiently trained.
-_Avoid_: Default model, zero state
+Equal influence among providers with valid current values when local evidence is missing, insufficient, suspended, or unavailable.
+_Avoid_: Zero state, failed forecast
+
+**Prospective Benchmark**:
+The adaptive and equal-weight probabilities frozen before outcomes and later scored on the identical completed comparison set.
+_Avoid_: Backtest, simulated improvement
+
+**Benchmark Suspension**:
+The state that prevents learned influence when the prospective adaptive blend regresses against equal weighting or lacks enough fair comparisons.
+_Avoid_: Provider failure, no forecast
