@@ -50,7 +50,7 @@ function snapshot(
 
 test("fixed-cohort capture freezes the serving blend and is idempotent", async () => {
   const store = new InMemoryPerformanceStore();
-  await store.upsertStations([station]);
+  await store.syncStations([station], "2026-08-13");
   const seenLocations: KoreanLocation[] = [];
   const readForecasts = async (location: KoreanLocation): Promise<ProviderSnapshot[]> => {
     seenLocations.push(location);
@@ -105,7 +105,7 @@ test("capture skips a station when no provider has a valid next-day probability"
 
 test("insufficient historical evidence keeps all current providers equally weighted", async () => {
   const store = new InMemoryPerformanceStore();
-  await store.upsertStations([station]);
+  await store.syncStations([station], "2026-08-13");
   await store.saveCapture({
     stationId: station.id,
     targetDate: "2026-08-01",

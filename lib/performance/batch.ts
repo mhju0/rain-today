@@ -61,7 +61,7 @@ export async function runPerformanceBatch(
 ): Promise<PerformanceBatchResult> {
   await input.store.initialize();
   const stations = await (input.fetchStations ?? fetchKmaAsosStations)(input.now);
-  await input.store.upsertStations(stations);
+  await input.store.syncStations(stations, koreanDate(input.now));
   const result: PerformanceBatchResult = {
     stationCount: stations.length,
     observationsStored: 0,

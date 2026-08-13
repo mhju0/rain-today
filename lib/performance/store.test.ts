@@ -42,7 +42,7 @@ const observation: PrecipObservation = {
 test("performance store keeps captures immutable and round-trips profile inputs", async () => {
   const store = new InMemoryPerformanceStore();
   await store.initialize();
-  await store.upsertStations([station]);
+  await store.syncStations([station], "2026-08-13");
 
   assert.equal(await store.saveCapture(capture), "inserted");
   assert.equal(
@@ -78,5 +78,21 @@ test("corrected observations replace the same station-day without duplicating it
 
   assert.deepEqual(await store.loadObservations("108"), [
     { ...observation, observedMm: 3.1 },
+  ]);
+});
+
+test("station catalog sync closes stations missing from the next active catalog", async () => {
+  const store = new InMemoryPerformanceStore();
+  const retired: ObservationStation = {
+    ...station,
+    id: "999",
+    name: "이전지점",
+  };
+  await store.syncStations([station, retired], "2026-08-13");
+  await store.syncStations([station], "2026-08-14");
+
+  assert.deepEqual(await store.listStations(), [
+    station,
+    { ...retired, activeTo: "2026-08-13" },
   ]);
 });
