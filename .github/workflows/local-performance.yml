@@ -47,8 +47,6 @@ jobs:
           PIRATE_WEATHER_API_KEY: ${{ secrets.PIRATE_WEATHER_API_KEY }}
           WEATHERAPI_KEY: ${{ secrets.WEATHERAPI_KEY }}
         run: |
-          cohort="${{ inputs.cohort }}"
-          if [ -z "$cohort" ]; then
-            cohort="$(TZ=Asia/Seoul date +%H)"
-          fi
-          npm run performance:capture -- --cohort="$cohort"
+          npm run performance:capture -- \
+            --cohort="${{ inputs.cohort }}" \
+            --schedule="${{ github.event.schedule }}"
