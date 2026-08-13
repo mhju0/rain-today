@@ -1,4 +1,4 @@
-import { createKoreanLocation, type KoreanLocation } from "../location.ts";
+import { createForecastLocation, type ForecastLocation } from "../location.ts";
 import { providers as weatherProviders } from "../providers/registry.ts";
 import type { ProviderSnapshot } from "../types.ts";
 import { buildRecentPerformanceProfile, DEFAULT_PERFORMANCE_POLICY } from "./performance.ts";
@@ -24,7 +24,7 @@ export interface CaptureStationInput {
   cohort: CaptureCohort;
   now: Date;
   store: PerformanceStore;
-  readForecasts?: (location: KoreanLocation) => Promise<ProviderSnapshot[]>;
+  readForecasts?: (location: ForecastLocation) => Promise<ProviderSnapshot[]>;
 }
 
 export interface CaptureStationResult {
@@ -81,7 +81,7 @@ function normalizedInfluence(
   );
 }
 
-async function readAllForecasts(location: KoreanLocation): Promise<ProviderSnapshot[]> {
+async function readAllForecasts(location: ForecastLocation): Promise<ProviderSnapshot[]> {
   return Promise.all(weatherProviders.map((provider) => provider.read(location)));
 }
 
@@ -90,7 +90,7 @@ export async function captureStationForecast(
   input: CaptureStationInput,
 ): Promise<CaptureStationResult> {
   const targetDate = addCalendarDays(koreanDate(input.now), 1);
-  const location = createKoreanLocation({
+  const location = createForecastLocation({
     name: input.station.name,
     latitude: input.station.latitude,
     longitude: input.station.longitude,

@@ -1,4 +1,4 @@
-import type { KoreanLocation } from "../location.ts";
+import type { ForecastLocation } from "../location.ts";
 import type {
   CurrentWeather,
   DailyForecast,
@@ -82,7 +82,7 @@ function symbolOf(ts: MetTimeseries): string | undefined {
   return ts.data.next_1_hours?.summary?.symbol_code ?? ts.data.next_6_hours?.summary?.symbol_code;
 }
 
-async function fetchSnapshot(location: KoreanLocation): Promise<Snapshot> {
+async function fetchSnapshot(location: ForecastLocation): Promise<Snapshot> {
   const ua = userAgent();
   if (!ua) throw new Error("MET Norway: MET_NO_USER_AGENT not configured");
   const url = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${location.latitude}&lon=${location.longitude}`;

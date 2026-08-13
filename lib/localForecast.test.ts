@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createKoreanLocation } from "./location.ts";
+import { createForecastLocation } from "./location.ts";
 import { readLocalForecast, readPerformanceEvidenceFromStore } from "./localForecast.ts";
 import { InMemoryPerformanceStore } from "./performance/store.ts";
 import type { RecentPerformanceProfile } from "./performance/types.ts";
@@ -45,7 +45,7 @@ const profile: RecentPerformanceProfile = {
   windowEnd: "2026-08-13",
   mode: "learned",
   reason: "learned",
-  confidence: 1,
+  rampProgress: 1,
   providers: [],
   effectiveWeights: { "open-meteo": 0.6, kma: 0.4 },
   prospectiveBenchmark: {
@@ -59,7 +59,7 @@ const profile: RecentPerformanceProfile = {
 };
 
 test("local forecast targets the user's coordinate and applies only recent local influence", async () => {
-  const location = createKoreanLocation({
+  const location = createForecastLocation({
     name: "부산 수영구",
     latitude: 35.1532,
     longitude: 129.1187,
@@ -97,11 +97,11 @@ test("local forecast targets the user's coordinate and applies only recent local
   }]);
   assert.equal(response.performance.status, "active");
   assert.equal(response.performance.station?.distanceKm, 6.2);
-  assert.deepEqual(response.providerInfluence, { "open-meteo": 0.6, kma: 0.4 });
+  assert.deepEqual(response.effectiveInfluence, { "open-meteo": 0.6, kma: 0.4 });
 });
 
 test("local forecast stays useful with equal influence when evidence is unavailable", async () => {
-  const location = createKoreanLocation({
+  const location = createForecastLocation({
     name: "현재 위치",
     latitude: 37.5665,
     longitude: 126.978,
@@ -122,12 +122,12 @@ test("local forecast stays useful with equal influence when evidence is unavaila
 
   assert.equal(response.captureCohort, "18");
   assert.equal(response.recommendation.precipitationProbability, 50);
-  assert.deepEqual(response.providerInfluence, { "open-meteo": 0.5, kma: 0.5 });
+  assert.deepEqual(response.effectiveInfluence, { "open-meteo": 0.5, kma: 0.5 });
   assert.equal(response.performance.reason, "database-not-configured");
 });
 
 test("equal fallback renormalizes each outlook day over providers available that day", async () => {
-  const location = createKoreanLocation({
+  const location = createForecastLocation({
     name: "현재 위치",
     latitude: 37.5665,
     longitude: 126.978,
@@ -165,7 +165,7 @@ test("equal fallback renormalizes each outlook day over providers available that
 });
 
 test("active weighting gives a newly available provider the policy floor instead of zero", async () => {
-  const location = createKoreanLocation({
+  const location = createForecastLocation({
     name: "부산 수영구",
     latitude: 35.1532,
     longitude: 129.1187,
@@ -188,13 +188,13 @@ test("active weighting gives a newly available provider the policy floor instead
     },
   );
 
-  assert.ok(response.providerInfluence["weather-api"] > 0);
-  assert.ok(response.providerInfluence["weather-api"] < response.providerInfluence.kma);
+  assert.ok(response.effectiveInfluence["weather-api"] > 0);
+  assert.ok(response.effectiveInfluence["weather-api"] < response.effectiveInfluence.kma);
   assert.ok((response.recommendation.precipitationProbability ?? 0) > 68);
 });
 
 test("local forecast starts provider and evidence reads concurrently", async () => {
-  const location = createKoreanLocation({
+  const location = createForecastLocation({
     name: "서울",
     latitude: 37.5665,
     longitude: 126.978,
@@ -260,7 +260,7 @@ test("runtime evidence reads do not run schema setup or close the shared store",
 
   const evidence = await readPerformanceEvidenceFromStore(
     store,
-    createKoreanLocation({ name: "서울", latitude: 37.5665, longitude: 126.978 }),
+    createForecastLocation({ name: "서울", latitude: 37.5665, longitude: 126.978 }),
     null,
     "18",
     new Date("2026-08-13T18:20:00+09:00"),
@@ -272,7 +272,7 @@ test("runtime evidence reads do not run schema setup or close the shared store",
 });
 
 test("next-day performance influence does not leak into later outlook horizons", async () => {
-  const location = createKoreanLocation({
+  const location = createForecastLocation({
     name: "서울",
     latitude: 37.5665,
     longitude: 126.978,

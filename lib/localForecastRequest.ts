@@ -1,9 +1,9 @@
-import { createKoreanLocation, type KoreanLocation } from "./location.ts";
+import { createForecastLocation, type ForecastLocation } from "./location.ts";
 
 const MAX_LOCAL_FORECAST_BODY_BYTES = 4 * 1024;
 
 export interface ParsedLocalForecastRequest {
-  location: KoreanLocation;
+  location: ForecastLocation;
   elevationM: number | null;
 }
 
@@ -71,7 +71,7 @@ export async function parseLocalForecastRequest(
     throw new RangeError("elevation must be a finite Korean terrain height");
   }
   return {
-    location: createKoreanLocation({ name, latitude, longitude }),
+    location: createForecastLocation({ name, latitude, longitude }),
     elevationM,
   };
 }

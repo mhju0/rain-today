@@ -1,7 +1,7 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { clearCache } from "../cache.ts";
-import { createKoreanLocation } from "../location.ts";
+import { createForecastLocation } from "../location.ts";
 import {
   classifyKmaResponse,
   getKmaWarningStatus,
@@ -157,7 +157,7 @@ test("short-term forecast reads KMA_SHORT_TERM_API_KEY and hits VilageFcstInfoSe
 test("short-term forecast uses the selected location's KMA grid", async () => {
   process.env.KMA_SHORT_TERM_API_KEY = SHORT_TERM_KEY;
   installFetch({ shortTerm: { body: okJson([...NCST_ITEMS, ...FCST_ITEMS]) } });
-  const busan = createKoreanLocation({ name: "부산", latitude: 35.1796, longitude: 129.0756 });
+  const busan = createForecastLocation({ name: "부산", latitude: 35.1796, longitude: 129.0756 });
 
   await kmaProvider.read(busan);
 

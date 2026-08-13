@@ -1,5 +1,5 @@
 /** One validated forecast target inside the South Korea launch area. */
-export interface KoreanLocation {
+export interface ForecastLocation {
   name: string;
   latitude: number;
   longitude: number;
@@ -8,7 +8,7 @@ export interface KoreanLocation {
   kmaGrid: { nx: number; ny: number };
 }
 
-export interface KoreanLocationInput {
+export interface ForecastLocationInput {
   name: string;
   latitude: number;
   longitude: number;
@@ -62,7 +62,7 @@ export function locationToKmaGrid(latitude: number, longitude: number): { nx: nu
 }
 
 /** Validate and normalize one coordinate target for the South Korea launch. */
-export function createKoreanLocation(input: KoreanLocationInput): KoreanLocation {
+export function createForecastLocation(input: ForecastLocationInput): ForecastLocation {
   if (!Number.isFinite(input.latitude) || !Number.isFinite(input.longitude)) {
     throw new TypeError("location coordinates must be finite");
   }
@@ -86,11 +86,11 @@ export function createKoreanLocation(input: KoreanLocationInput): KoreanLocation
 }
 
 /** Stable location identity for provider caches; four decimals retain street-scale separation. */
-export function koreanLocationCacheKey(location: KoreanLocation): string {
+export function forecastLocationCacheKey(location: ForecastLocation): string {
   return `kr:${location.latitude.toFixed(4)}:${location.longitude.toFixed(4)}`;
 }
 
-export const DEFAULT_KOREAN_LOCATION = createKoreanLocation({
+export const DEFAULT_FORECAST_LOCATION = createForecastLocation({
   name: "서울",
   latitude: 37.5665,
   longitude: 126.978,

@@ -2,9 +2,9 @@ import { inflateSync } from "node:zlib";
 import { cachedFetch } from "../cache.ts";
 import { readResponseBytes } from "../httpResponse.ts";
 import {
-  DEFAULT_KOREAN_LOCATION,
-  koreanLocationCacheKey,
-  type KoreanLocation,
+  DEFAULT_FORECAST_LOCATION,
+  forecastLocationCacheKey,
+  type ForecastLocation,
 } from "../location.ts";
 import type {
   NormalizedRadarFrame,
@@ -143,7 +143,7 @@ export function validateRainViewerPath(value: string): boolean {
 // ─── tile math + sampling ────────────────────────────────────────────────────
 
 function locationTile(
-  location: KoreanLocation,
+  location: ForecastLocation,
   z: number,
 ): { x: number; y: number; px: number; py: number } {
   const n = 2 ** z;
@@ -179,7 +179,7 @@ function coverage(
 }
 
 async function fetchTile(
-  location: KoreanLocation,
+  location: ForecastLocation,
   host: string,
   path: string,
 ): Promise<Buffer | null> {
@@ -213,7 +213,7 @@ interface Approach {
  * west". Anything ambiguous returns approaching:false (no directional claim).
  */
 async function analyzeApproach(
-  location: KoreanLocation,
+  location: ForecastLocation,
   host: string,
   paths: string[],
 ): Promise<Approach> {
@@ -256,7 +256,7 @@ async function analyzeApproach(
 
 // ─── fetch + summarize ───────────────────────────────────────────────────────
 
-async function fetchRadar(location: KoreanLocation): Promise<RadarSummary> {
+async function fetchRadar(location: ForecastLocation): Promise<RadarSummary> {
   const res = await fetch(MAPS_URL, {
     redirect: "error",
     signal: AbortSignal.timeout(8_000),
@@ -297,16 +297,16 @@ async function fetchRadar(location: KoreanLocation): Promise<RadarSummary> {
   };
 }
 
-const radarCached = (location: KoreanLocation) =>
+const radarCached = (location: ForecastLocation) =>
   cachedFetch(
-    `rainviewer-radar:${koreanLocationCacheKey(location)}`,
+    `rainviewer-radar:${forecastLocationCacheKey(location)}`,
     RADAR_TTL_MS,
     () => fetchRadar(location),
   );
 
 /** Full radar summary for /diagnostics + the radar route. Never throws. */
 export async function getRadarSummary(
-  location: KoreanLocation = DEFAULT_KOREAN_LOCATION,
+  location: ForecastLocation = DEFAULT_FORECAST_LOCATION,
 ): Promise<RadarSummary | null> {
   try {
     const r = await radarCached(location);
@@ -318,7 +318,7 @@ export async function getRadarSummary(
 
 /** Lean radar bits for the cinematic scene (/api/sky). Never throws. */
 export async function getSkyRadar(
-  location: KoreanLocation = DEFAULT_KOREAN_LOCATION,
+  location: ForecastLocation = DEFAULT_FORECAST_LOCATION,
 ): Promise<SkyRadar | null> {
   const s = await getRadarSummary(location);
   if (!s || !s.available) return null;
@@ -331,7 +331,7 @@ export async function getSkyRadar(
 
 /** Status row for /diagnostics. */
 export async function radarStatus(
-  location: KoreanLocation = DEFAULT_KOREAN_LOCATION,
+  location: ForecastLocation = DEFAULT_FORECAST_LOCATION,
 ): Promise<WeatherProviderStatus> {
   const s = await getRadarSummary(location);
   if (!s) {

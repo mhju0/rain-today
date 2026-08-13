@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { LocalForecastResponse } from "@/lib/localForecast";
-import type { KoreanLocationSearchResult } from "@/lib/locationSearch";
+import type { ForecastLocationSearchResult } from "@/lib/locationSearch";
 
 type ViewState =
   | { kind: "idle" }
@@ -98,7 +98,7 @@ function LocationChooser({ onChoose }: {
   }): void;
 }) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<KoreanLocationSearchResult[]>([]);
+  const [results, setResults] = useState<ForecastLocationSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -135,7 +135,7 @@ function LocationChooser({ onChoose }: {
     try {
       const response = await fetch(`/api/locations/search?q=${encodeURIComponent(normalized)}`);
       if (!response.ok) throw new Error("location search failed");
-      const payload = (await response.json()) as { results: KoreanLocationSearchResult[] };
+      const payload = (await response.json()) as { results: ForecastLocationSearchResult[] };
       setResults(payload.results);
       if (payload.results.length === 0) setMessage("대한민국 안에서 일치하는 지역을 찾지 못했어요.");
     } catch {
@@ -307,8 +307,8 @@ function ForecastDashboard({ forecast, onReset }: {
     ? "최근 관측 성능 반영"
     : "동일 가중 평균";
   const sortedInfluence = useMemo(
-    () => Object.entries(forecast.providerInfluence).sort((a, b) => b[1] - a[1]),
-    [forecast.providerInfluence],
+    () => Object.entries(forecast.effectiveInfluence).sort((a, b) => b[1] - a[1]),
+    [forecast.effectiveInfluence],
   );
 
   return (

@@ -1,8 +1,8 @@
 import { cachedFetch } from "../cache.ts";
 import {
-  DEFAULT_KOREAN_LOCATION,
-  koreanLocationCacheKey,
-  type KoreanLocation,
+  DEFAULT_FORECAST_LOCATION,
+  forecastLocationCacheKey,
+  type ForecastLocation,
 } from "../location.ts";
 import type { DailyForecast, ProviderSnapshot, WeatherProviderStatus } from "../types.ts";
 import type { NormalizedForecast, WeatherProvider } from "./base.ts";
@@ -26,7 +26,7 @@ export interface WeatherProviderDefinition {
   messages: ProviderMessages;
   missingConfiguration(): string[];
   ttlMs: number;
-  load(location: KoreanLocation): Promise<NormalizedForecast>;
+  load(location: ForecastLocation): Promise<NormalizedForecast>;
   failureMessage?(error: unknown): string;
 }
 
@@ -51,7 +51,7 @@ export function createWeatherProvider(definition: WeatherProviderDefinition): We
     id: definition.id,
     name: definition.name,
 
-    async read(location = DEFAULT_KOREAN_LOCATION): Promise<ProviderSnapshot> {
+    async read(location = DEFAULT_FORECAST_LOCATION): Promise<ProviderSnapshot> {
       try {
         const missingEnvVars = definition.missingConfiguration();
         if (missingEnvVars.length > 0) {
@@ -67,7 +67,7 @@ export function createWeatherProvider(definition: WeatherProviderDefinition): We
         }
 
         const result = await cachedFetch(
-          `${cacheKey}:${koreanLocationCacheKey(location)}`,
+          `${cacheKey}:${forecastLocationCacheKey(location)}`,
           definition.ttlMs,
           () => definition.load(location),
         );
@@ -103,7 +103,7 @@ export function createWeatherProvider(definition: WeatherProviderDefinition): We
 /** Read the complete snapshot through the factory-owned cache and failure boundary. */
 export async function readProviderSnapshot(
   provider: WeatherProvider,
-  location: KoreanLocation = DEFAULT_KOREAN_LOCATION,
+  location: ForecastLocation = DEFAULT_FORECAST_LOCATION,
 ): Promise<ProviderSnapshot> {
   return provider.read(location);
 }
@@ -114,7 +114,7 @@ export async function readProviderSnapshot(
  */
 export async function readAvailableProviderDaily(
   provider: WeatherProvider,
-  location: KoreanLocation = DEFAULT_KOREAN_LOCATION,
+  location: ForecastLocation = DEFAULT_FORECAST_LOCATION,
 ): Promise<AvailableProviderDaily | null> {
   const snapshot = await provider.read(location);
   return snapshot.status.availability === "ok"

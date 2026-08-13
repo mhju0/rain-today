@@ -1,5 +1,5 @@
 import { readResponseBytes } from "../httpResponse.ts";
-import { DEFAULT_KOREAN_LOCATION, type KoreanLocation } from "../location.ts";
+import { DEFAULT_FORECAST_LOCATION, type ForecastLocation } from "../location.ts";
 import { CACHE_TTL_MS } from "../seoul.ts";
 import type {
   CurrentWeather,
@@ -31,7 +31,7 @@ function apiKey(): string | null {
 
 export function buildPirateWeatherUrl(
   key: string,
-  location: KoreanLocation = DEFAULT_KOREAN_LOCATION,
+  location: ForecastLocation = DEFAULT_FORECAST_LOCATION,
 ): URL {
   if (!PIRATE_WEATHER_KEY.test(key)) throw new Error("Pirate Weather: invalid API key format");
   const url = new URL(PIRATE_WEATHER_BASE);
@@ -103,7 +103,7 @@ interface Snapshot {
   daily: DailyForecast[];
 }
 
-async function fetchSnapshot(location: KoreanLocation): Promise<Snapshot> {
+async function fetchSnapshot(location: ForecastLocation): Promise<Snapshot> {
   const key = apiKey();
   if (!key) throw new Error("Pirate Weather: PIRATE_WEATHER_API_KEY not configured");
   const url = buildPirateWeatherUrl(key, location);
