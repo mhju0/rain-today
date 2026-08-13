@@ -1,4 +1,5 @@
 import { cachedFetch } from "../cache.ts";
+import { readResponseBytes } from "../httpResponse.ts";
 import type { ForecastLocation } from "../location.ts";
 import { CACHE_TTL_MS, SEOUL } from "../seoul.ts";
 import type {
@@ -34,6 +35,7 @@ import { createWeatherProvider } from "./read.ts";
 
 const API_BASE = "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0";
 const WARN_BASE = "https://apis.data.go.kr/1360000/WthrWrnInfoService";
+const KMA_RESPONSE_MAX_BYTES = 2 * 1024 * 1024;
 
 /**
  * data.go.kr issues both URL-encoded ("Encoding") and plain ("Decoding") keys;
@@ -215,7 +217,8 @@ async function callShortTerm(
   const res = await fetch(`${API_BASE}/${endpoint}?${params}`, {
     signal: AbortSignal.timeout(10_000),
   });
-  const text = await res.text();
+  const bytes = await readResponseBytes(res, { maxBytes: KMA_RESPONSE_MAX_BYTES });
+  const text = new TextDecoder().decode(bytes);
   const c = classifyKmaResponse(res.status, text);
   if (c.class === "ok") {
     const items = (c.json?.response.body?.items?.item ?? []) as KmaItem[];
@@ -358,7 +361,8 @@ async function fetchWarnings(): Promise<NormalizedWarning[]> {
   const res = await fetch(`${WARN_BASE}/getWthrWrnList?${params}`, {
     signal: AbortSignal.timeout(10_000),
   });
-  const text = await res.text();
+  const bytes = await readResponseBytes(res, { maxBytes: KMA_RESPONSE_MAX_BYTES });
+  const text = new TextDecoder().decode(bytes);
   const c = classifyKmaResponse(res.status, text);
 
   if (c.class === "empty") return []; // NODATA → no active warnings (a real success)
