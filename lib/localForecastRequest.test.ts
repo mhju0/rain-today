@@ -37,3 +37,16 @@ test("local forecast request rejects coordinates outside Korea and invalid eleva
     /elevation/,
   );
 });
+
+test("local forecast request rejects an oversized streamed JSON body", async () => {
+  const request = new Request("https://x.test/api/local-forecast", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ latitude: 37.5, longitude: 127 }) + " ".repeat(5_000),
+  });
+
+  await assert.rejects(
+    () => parseLocalForecastRequest(request),
+    /body too large/,
+  );
+});
