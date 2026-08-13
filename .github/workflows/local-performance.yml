@@ -1,0 +1,54 @@
+name: local-performance
+
+on:
+  workflow_dispatch:
+    inputs:
+      cohort:
+        description: "Fixed KST forecast-capture cohort"
+        required: true
+        default: "06"
+        type: choice
+        options:
+          - "06"
+          - "18"
+  schedule:
+    - cron: "10 21 * * *"
+    - cron: "10 9 * * *"
+
+concurrency:
+  group: local-performance
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Capture observations and next-day forecasts
+        env:
+          PERFORMANCE_DATABASE_URL: ${{ secrets.PERFORMANCE_DATABASE_URL }}
+          KMA_APIHUB_KEY: ${{ secrets.KMA_APIHUB_KEY }}
+          KMA_OBSERVATION_API_KEY: ${{ secrets.KMA_OBSERVATION_API_KEY }}
+          KMA_SHORT_TERM_API_KEY: ${{ secrets.KMA_SHORT_TERM_API_KEY }}
+          MET_NO_USER_AGENT: ${{ secrets.MET_NO_USER_AGENT }}
+          PIRATE_WEATHER_API_KEY: ${{ secrets.PIRATE_WEATHER_API_KEY }}
+          WEATHERAPI_KEY: ${{ secrets.WEATHERAPI_KEY }}
+        run: |
+          cohort="${{ inputs.cohort }}"
+          if [ -z "$cohort" ]; then
+            cohort="$(TZ=Asia/Seoul date +%H)"
+          fi
+          npm run performance:capture -- --cohort="$cohort"
