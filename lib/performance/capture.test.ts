@@ -102,3 +102,37 @@ test("capture skips a station when no provider has a valid next-day probability"
   assert.equal(result.status, "skipped");
   assert.equal(result.reason, "no-next-day-probability");
 });
+
+test("insufficient historical evidence keeps all current providers equally weighted", async () => {
+  const store = new InMemoryPerformanceStore();
+  await store.upsertStations([station]);
+  await store.saveCapture({
+    stationId: station.id,
+    targetDate: "2026-08-01",
+    cohort: "06",
+    capturedAt: "2026-07-31T06:10:00+09:00",
+    providers: [{ provider: "open-meteo", probability: 40, amountMm: null }],
+    frozenBlend: {
+      adaptiveProbability: 40,
+      equalProbability: 40,
+      influence: { "open-meteo": 1 },
+    },
+  });
+  await store.saveObservation({
+    stationId: station.id,
+    date: "2026-08-01",
+    observedMm: 0,
+    observedAt: "2026-08-02T06:10:00+09:00",
+    source: "kma-asos",
+  });
+
+  const result = await captureStationForecast({
+    station,
+    cohort: "06",
+    now: new Date("2026-08-13T06:10:00+09:00"),
+    store,
+    readForecasts: async () => [snapshot("open-meteo", 80), snapshot("kma", 40)],
+  });
+
+  assert.deepEqual(result.capture?.frozenBlend.influence, { "open-meteo": 0.5, kma: 0.5 });
+});

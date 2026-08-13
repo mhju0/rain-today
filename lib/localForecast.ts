@@ -1,5 +1,9 @@
 import type { KoreanLocation } from "./location.ts";
-import { blendPrecipProbability, buildLocalPerformanceProfile } from "./performance/performance.ts";
+import {
+  blendPrecipProbability,
+  buildLocalPerformanceProfile,
+  DEFAULT_PERFORMANCE_POLICY,
+} from "./performance/performance.ts";
 import { PostgresPerformanceStore } from "./performance/postgres.ts";
 import { selectObservationStation } from "./performance/stations.ts";
 import type {
@@ -126,7 +130,10 @@ function normalizeInfluence(
   weights: Readonly<Record<string, number>>,
 ): Record<string, number> {
   const present = Object.fromEntries(
-    forecasts.map((forecast) => [forecast.provider, Math.max(0, weights[forecast.provider] ?? 0)]),
+    forecasts.map((forecast) => [
+      forecast.provider,
+      Math.max(0, weights[forecast.provider] ?? DEFAULT_PERFORMANCE_POLICY.weightFloor),
+    ]),
   );
   const total = Object.values(present).reduce((sum, value) => sum + value, 0);
   if (total <= 0) return equalInfluence(forecasts);
@@ -284,7 +291,7 @@ export async function readLocalForecast(
   const operatingWeights =
     performance.status === "active" && performance.profile
       ? performance.profile.effectiveWeights
-      : equalInfluence(forecasts);
+      : {};
   const outlook = Array.from(
     new Set(
       snapshots.flatMap((snapshot) => snapshot.daily.map((day) => day.date))

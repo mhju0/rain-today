@@ -5,14 +5,14 @@ import { enforceRequestRateLimit } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request) {
+export async function POST(request: Request) {
   const limited = enforceRequestRateLimit(request, "local-forecast", {
     limit: 30,
     windowMs: 60_000,
   });
   if (limited) return limited;
   try {
-    const input = parseLocalForecastRequest(request);
+    const input = await parseLocalForecastRequest(request);
     return NextResponse.json(await readLocalForecast(input), {
       headers: { "Cache-Control": "private, no-store" },
     });
