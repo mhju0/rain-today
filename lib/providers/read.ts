@@ -1,4 +1,9 @@
 import { cachedFetch } from "../cache.ts";
+import {
+  DEFAULT_KOREAN_LOCATION,
+  koreanLocationCacheKey,
+  type KoreanLocation,
+} from "../location.ts";
 import type { DailyForecast, ProviderSnapshot, WeatherProviderStatus } from "../types.ts";
 import type { NormalizedForecast, WeatherProvider } from "./base.ts";
 
@@ -21,7 +26,7 @@ export interface WeatherProviderDefinition {
   messages: ProviderMessages;
   missingConfiguration(): string[];
   ttlMs: number;
-  load(): Promise<NormalizedForecast>;
+  load(location: KoreanLocation): Promise<NormalizedForecast>;
   failureMessage?(error: unknown): string;
 }
 
@@ -46,7 +51,7 @@ export function createWeatherProvider(definition: WeatherProviderDefinition): We
     id: definition.id,
     name: definition.name,
 
-    async read(): Promise<ProviderSnapshot> {
+    async read(location = DEFAULT_KOREAN_LOCATION): Promise<ProviderSnapshot> {
       try {
         const missingEnvVars = definition.missingConfiguration();
         if (missingEnvVars.length > 0) {
@@ -61,7 +66,11 @@ export function createWeatherProvider(definition: WeatherProviderDefinition): We
           });
         }
 
-        const result = await cachedFetch(cacheKey, definition.ttlMs, definition.load);
+        const result = await cachedFetch(
+          `${cacheKey}:${koreanLocationCacheKey(location)}`,
+          definition.ttlMs,
+          () => definition.load(location),
+        );
         return {
           id: definition.id,
           status: {
@@ -92,16 +101,22 @@ export function createWeatherProvider(definition: WeatherProviderDefinition): We
 }
 
 /** Read the complete snapshot through the factory-owned cache and failure boundary. */
-export async function readProviderSnapshot(provider: WeatherProvider): Promise<ProviderSnapshot> {
-  return provider.read();
+export async function readProviderSnapshot(
+  provider: WeatherProvider,
+  location: KoreanLocation = DEFAULT_KOREAN_LOCATION,
+): Promise<ProviderSnapshot> {
+  return provider.read(location);
 }
 
 /**
  * Read one provider's daily forecast for callers that intentionally omit an
  * unavailable or failing optional source from a consensus or batch run.
  */
-export async function readAvailableProviderDaily(provider: WeatherProvider): Promise<AvailableProviderDaily | null> {
-  const snapshot = await provider.read();
+export async function readAvailableProviderDaily(
+  provider: WeatherProvider,
+  location: KoreanLocation = DEFAULT_KOREAN_LOCATION,
+): Promise<AvailableProviderDaily | null> {
+  const snapshot = await provider.read(location);
   return snapshot.status.availability === "ok"
     ? { source: snapshot.id, daily: snapshot.daily }
     : null;

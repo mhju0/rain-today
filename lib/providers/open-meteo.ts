@@ -1,5 +1,6 @@
 import { conditionFromWmoCode } from "../conditions.ts";
-import { CACHE_TTL_MS, SEOUL } from "../seoul.ts";
+import type { KoreanLocation } from "../location.ts";
+import { CACHE_TTL_MS } from "../seoul.ts";
 import type {
   CurrentWeather,
   DailyForecast,
@@ -60,11 +61,11 @@ function toKstIso(naive: string): string {
   return `${naive}:00+09:00`.replace(/:00:00\+/, ":00+");
 }
 
-async function fetchSnapshot(): Promise<Snapshot> {
+async function fetchSnapshot(location: KoreanLocation): Promise<Snapshot> {
   const params = new URLSearchParams({
-    latitude: String(SEOUL.latitude),
-    longitude: String(SEOUL.longitude),
-    timezone: SEOUL.timezone,
+    latitude: String(location.latitude),
+    longitude: String(location.longitude),
+    timezone: location.timezone,
     forecast_days: "7",
     current:
       "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,snowfall,weather_code,cloud_cover,wind_speed_10m,wind_gusts_10m,wind_direction_10m,is_day,visibility",

@@ -1,7 +1,11 @@
 import { inflateSync } from "node:zlib";
 import { cachedFetch } from "../cache.ts";
 import { readResponseBytes } from "../httpResponse.ts";
-import { SEOUL } from "../seoul.ts";
+import {
+  DEFAULT_KOREAN_LOCATION,
+  koreanLocationCacheKey,
+  type KoreanLocation,
+} from "../location.ts";
 import type {
   NormalizedRadarFrame,
   RadarSummary,
@@ -138,10 +142,13 @@ export function validateRainViewerPath(value: string): boolean {
 
 // ─── tile math + sampling ────────────────────────────────────────────────────
 
-function seoulTile(z: number): { x: number; y: number; px: number; py: number } {
+function locationTile(
+  location: KoreanLocation,
+  z: number,
+): { x: number; y: number; px: number; py: number } {
   const n = 2 ** z;
-  const xf = ((SEOUL.longitude + 180) / 360) * n;
-  const latRad = (SEOUL.latitude * Math.PI) / 180;
+  const xf = ((location.longitude + 180) / 360) * n;
+  const latRad = (location.latitude * Math.PI) / 180;
   const yf = ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n;
   const x = Math.floor(xf);
   const y = Math.floor(yf);
@@ -171,8 +178,12 @@ function coverage(
   return total === 0 ? 0 : hit / total;
 }
 
-async function fetchTile(host: string, path: string): Promise<Buffer | null> {
-  const { x, y } = seoulTile(ZOOM);
+async function fetchTile(
+  location: KoreanLocation,
+  host: string,
+  path: string,
+): Promise<Buffer | null> {
+  const { x, y } = locationTile(location, ZOOM);
   try {
     const url = new URL(`${path}/256/${ZOOM}/${x}/${y}/2/1_1.png`, host);
     if (url.origin !== host) return null;
@@ -201,18 +212,22 @@ interface Approach {
  * mostly clear, persisting across two frames, reads as "approaching from the
  * west". Anything ambiguous returns approaching:false (no directional claim).
  */
-async function analyzeApproach(host: string, paths: string[]): Promise<Approach> {
+async function analyzeApproach(
+  location: KoreanLocation,
+  host: string,
+  paths: string[],
+): Promise<Approach> {
   const none: Approach = { precipNearby: false, approaching: null, fromDirection: null };
   const recent = paths.slice(-2); // [prev, latest]
   if (recent.length === 0) return none;
 
-  const tiles = await Promise.all(recent.map((p) => fetchTile(host, p)));
+  const tiles = await Promise.all(recent.map((p) => fetchTile(location, host, p)));
   const imgs = tiles.map((b) => (b ? decodeRainViewerPng(b) : null));
   const latest = imgs.at(-1);
   if (!latest) return none;
   const prev = imgs.length > 1 ? imgs[0] : null;
 
-  const { px, py } = seoulTile(ZOOM);
+  const { px, py } = locationTile(location, ZOOM);
   const yTop = py - 55;
   const yBot = py + 55;
 
@@ -241,7 +256,7 @@ async function analyzeApproach(host: string, paths: string[]): Promise<Approach>
 
 // ─── fetch + summarize ───────────────────────────────────────────────────────
 
-async function fetchRadar(): Promise<RadarSummary> {
+async function fetchRadar(location: KoreanLocation): Promise<RadarSummary> {
   const res = await fetch(MAPS_URL, {
     redirect: "error",
     signal: AbortSignal.timeout(8_000),
@@ -266,7 +281,7 @@ async function fetchRadar(): Promise<RadarSummary> {
   const latestObservedAt = past.length ? new Date(past[past.length - 1].time * 1000).toISOString() : null;
 
   const approach = past.length
-    ? await analyzeApproach(host, past.map((f) => f.path))
+    ? await analyzeApproach(location, host, past.map((f) => f.path))
     : { precipNearby: false, approaching: null as boolean | null, fromDirection: null };
 
   return {
@@ -282,12 +297,19 @@ async function fetchRadar(): Promise<RadarSummary> {
   };
 }
 
-const radarCached = () => cachedFetch("rainviewer-radar", RADAR_TTL_MS, fetchRadar);
+const radarCached = (location: KoreanLocation) =>
+  cachedFetch(
+    `rainviewer-radar:${koreanLocationCacheKey(location)}`,
+    RADAR_TTL_MS,
+    () => fetchRadar(location),
+  );
 
 /** Full radar summary for /diagnostics + the radar route. Never throws. */
-export async function getRadarSummary(): Promise<RadarSummary | null> {
+export async function getRadarSummary(
+  location: KoreanLocation = DEFAULT_KOREAN_LOCATION,
+): Promise<RadarSummary | null> {
   try {
-    const r = await radarCached();
+    const r = await radarCached(location);
     return { ...r.value, stale: r.stale };
   } catch {
     return null;
@@ -295,8 +317,10 @@ export async function getRadarSummary(): Promise<RadarSummary | null> {
 }
 
 /** Lean radar bits for the cinematic scene (/api/sky). Never throws. */
-export async function getSkyRadar(): Promise<SkyRadar | null> {
-  const s = await getRadarSummary();
+export async function getSkyRadar(
+  location: KoreanLocation = DEFAULT_KOREAN_LOCATION,
+): Promise<SkyRadar | null> {
+  const s = await getRadarSummary(location);
   if (!s || !s.available) return null;
   return {
     precipNearby: s.precipNearby,
@@ -306,8 +330,10 @@ export async function getSkyRadar(): Promise<SkyRadar | null> {
 }
 
 /** Status row for /diagnostics. */
-export async function radarStatus(): Promise<WeatherProviderStatus> {
-  const s = await getRadarSummary();
+export async function radarStatus(
+  location: KoreanLocation = DEFAULT_KOREAN_LOCATION,
+): Promise<WeatherProviderStatus> {
+  const s = await getRadarSummary(location);
   if (!s) {
     return {
       id: "rainviewer",

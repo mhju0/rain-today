@@ -1,5 +1,6 @@
 import { readResponseBytes } from "../httpResponse.ts";
-import { CACHE_TTL_MS, SEOUL } from "../seoul.ts";
+import { DEFAULT_KOREAN_LOCATION, type KoreanLocation } from "../location.ts";
+import { CACHE_TTL_MS } from "../seoul.ts";
 import type {
   CurrentWeather,
   DailyForecast,
@@ -28,10 +29,13 @@ function apiKey(): string | null {
   return value && PIRATE_WEATHER_KEY.test(value) ? value : null;
 }
 
-export function buildPirateWeatherUrl(key: string): URL {
+export function buildPirateWeatherUrl(
+  key: string,
+  location: KoreanLocation = DEFAULT_KOREAN_LOCATION,
+): URL {
   if (!PIRATE_WEATHER_KEY.test(key)) throw new Error("Pirate Weather: invalid API key format");
   const url = new URL(PIRATE_WEATHER_BASE);
-  url.pathname += `${encodeURIComponent(key)}/${SEOUL.latitude},${SEOUL.longitude}`;
+  url.pathname += `${encodeURIComponent(key)}/${location.latitude},${location.longitude}`;
   url.searchParams.set("units", "si");
   return url;
 }
@@ -58,7 +62,7 @@ function unixToKstIso(ts: number): string {
 }
 
 const seoulDateFmt = new Intl.DateTimeFormat("en-CA", {
-  timeZone: SEOUL.timezone,
+  timeZone: "Asia/Seoul",
   year: "numeric",
   month: "2-digit",
   day: "2-digit",
@@ -99,10 +103,10 @@ interface Snapshot {
   daily: DailyForecast[];
 }
 
-async function fetchSnapshot(): Promise<Snapshot> {
+async function fetchSnapshot(location: KoreanLocation): Promise<Snapshot> {
   const key = apiKey();
   if (!key) throw new Error("Pirate Weather: PIRATE_WEATHER_API_KEY not configured");
-  const url = buildPirateWeatherUrl(key);
+  const url = buildPirateWeatherUrl(key, location);
   const res = await fetch(url, {
     redirect: "error",
     signal: AbortSignal.timeout(10_000),

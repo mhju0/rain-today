@@ -1,4 +1,5 @@
 import { cachedFetch } from "../cache.ts";
+import type { KoreanLocation } from "../location.ts";
 import { CACHE_TTL_MS, SEOUL } from "../seoul.ts";
 import type {
   CurrentWeather,
@@ -197,6 +198,7 @@ interface KmaItem {
 async function callShortTerm(
   endpoint: string,
   base: { baseDate: string; baseTime: string },
+  location: KoreanLocation,
 ): Promise<KmaItem[]> {
   const key = shortTermServiceKey();
   if (!key) throw new KmaError("forbidden", "KMA_SHORT_TERM_API_KEY not configured");
@@ -207,8 +209,8 @@ async function callShortTerm(
     pageNo: "1",
     base_date: base.baseDate,
     base_time: base.baseTime,
-    nx: String(SEOUL.kmaGrid.nx),
-    ny: String(SEOUL.kmaGrid.ny),
+    nx: String(location.kmaGrid.nx),
+    ny: String(location.kmaGrid.ny),
   });
   const res = await fetch(`${API_BASE}/${endpoint}?${params}`, {
     signal: AbortSignal.timeout(10_000),
@@ -239,10 +241,10 @@ const num = (v: string | undefined): number | null => {
   return v !== undefined && Number.isFinite(n) ? n : null;
 };
 
-async function fetchSnapshot(): Promise<Snapshot> {
+async function fetchSnapshot(location: KoreanLocation): Promise<Snapshot> {
   const [ncstItems, fcstItems] = await Promise.all([
-    callShortTerm("getUltraSrtNcst", ncstBase()),
-    callShortTerm("getVilageFcst", vilageBase()),
+    callShortTerm("getUltraSrtNcst", ncstBase(), location),
+    callShortTerm("getVilageFcst", vilageBase(), location),
   ]);
 
   // --- hourly from 단기예보: pivot category rows into per-hour records ---

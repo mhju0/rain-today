@@ -1,4 +1,4 @@
-import { SEOUL } from "../seoul.ts";
+import type { KoreanLocation } from "../location.ts";
 import type {
   CurrentWeather,
   DailyForecast,
@@ -78,27 +78,14 @@ interface Snapshot {
 const mps2kmh = (v: number | undefined): number | null =>
   v === undefined ? null : Math.round(v * 3.6 * 10) / 10;
 
-const seoulDateFormat = new Intl.DateTimeFormat("en-CA", {
-  timeZone: SEOUL.timezone,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
-
-const seoulHourFormat = new Intl.DateTimeFormat("en-GB", {
-  timeZone: SEOUL.timezone,
-  hour: "2-digit",
-  hour12: false,
-});
-
 function symbolOf(ts: MetTimeseries): string | undefined {
   return ts.data.next_1_hours?.summary?.symbol_code ?? ts.data.next_6_hours?.summary?.symbol_code;
 }
 
-async function fetchSnapshot(): Promise<Snapshot> {
+async function fetchSnapshot(location: KoreanLocation): Promise<Snapshot> {
   const ua = userAgent();
   if (!ua) throw new Error("MET Norway: MET_NO_USER_AGENT not configured");
-  const url = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${SEOUL.latitude}&lon=${SEOUL.longitude}`;
+  const url = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${location.latitude}&lon=${location.longitude}`;
   const res = await fetch(url, {
     headers: { "User-Agent": ua },
     signal: AbortSignal.timeout(10_000),
@@ -110,6 +97,17 @@ async function fetchSnapshot(): Promise<Snapshot> {
   const data = (await res.json()) as { properties: { timeseries: MetTimeseries[] } };
   const series = data.properties.timeseries;
   if (series.length === 0) throw new Error("MET Norway: empty timeseries");
+  const localDateFormat = new Intl.DateTimeFormat("en-CA", {
+    timeZone: location.timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const localHourFormat = new Intl.DateTimeFormat("en-GB", {
+    timeZone: location.timezone,
+    hour: "2-digit",
+    hour12: false,
+  });
 
   const toEntry = (ts: MetTimeseries): HourlyForecast => {
     const d = ts.data.instant.details;
@@ -145,7 +143,7 @@ async function fetchSnapshot(): Promise<Snapshot> {
   // cover the remaining hours — an acceptable approximation for a side source.
   const byDate = new Map<string, MetTimeseries[]>();
   for (const ts of upcoming) {
-    const date = seoulDateFormat.format(new Date(ts.time));
+    const date = localDateFormat.format(new Date(ts.time));
     byDate.set(date, [...(byDate.get(date) ?? []), ts]);
   }
   const daily: DailyForecast[] = [...byDate.entries()]
@@ -155,7 +153,7 @@ async function fetchSnapshot(): Promise<Snapshot> {
     .map(([date, list]) => {
       const temps = list.map((ts) => ts.data.instant.details.air_temperature);
       const midday =
-        list.find((ts) => Number(seoulHourFormat.format(new Date(ts.time))) >= 12) ??
+        list.find((ts) => Number(localHourFormat.format(new Date(ts.time))) >= 12) ??
         list[Math.floor(list.length / 2)];
       return {
         date,
