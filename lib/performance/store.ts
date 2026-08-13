@@ -11,7 +11,7 @@ export type CaptureWriteResult = "inserted" | "existing";
 
 const CATALOG_DROP_GUARD_MIN_ACTIVE_STATIONS = 20;
 const CATALOG_DROP_GUARD_MIN_RETAINED_RATIO = 0.8;
-const PERFORMANCE_PROVIDERS: readonly PrecipProviderId[] = [
+export const PERFORMANCE_PROVIDERS: readonly PrecipProviderId[] = [
   "open-meteo",
   "met-norway",
   "kma",
