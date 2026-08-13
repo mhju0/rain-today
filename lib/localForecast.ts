@@ -6,6 +6,7 @@ import {
 } from "./performance/performance.ts";
 import { PostgresPerformanceStore } from "./performance/postgres.ts";
 import { selectObservationStation } from "./performance/stations.ts";
+import type { PerformanceStore } from "./performance/store.ts";
 import type {
   CaptureCohort,
   CapturedProviderForecast,
@@ -23,6 +24,7 @@ const PRECIP_PROVIDERS = new Set<PrecipProviderId>([
   "weather-api",
 ]);
 const STATION_POLICY = { maxDistanceKm: 100, maxElevationDifferenceM: 400 };
+let runtimePerformanceStore: PostgresPerformanceStore | null = null;
 
 export interface LocalForecastEvidence {
   status: "active" | "collecting" | "unavailable";
@@ -203,9 +205,19 @@ export async function readDatabaseEvidence(
   if (!connectionUrl) {
     return { status: "unavailable", reason: "database-not-configured", station: null, profile: null };
   }
-  const store = new PostgresPerformanceStore(connectionUrl);
+  runtimePerformanceStore ??= new PostgresPerformanceStore(connectionUrl);
+  const store = runtimePerformanceStore;
+  return readPerformanceEvidenceFromStore(store, location, elevationM, cohort, now);
+}
+
+export async function readPerformanceEvidenceFromStore(
+  store: PerformanceStore,
+  location: KoreanLocation,
+  elevationM: number | null,
+  cohort: CaptureCohort,
+  now: Date,
+): Promise<LocalForecastEvidence> {
   try {
-    await store.initialize();
     const selection = selectObservationStation({
       location: { ...location, elevationM },
       stations: await store.listStations(),
@@ -243,8 +255,6 @@ export async function readDatabaseEvidence(
     };
   } catch {
     return { status: "unavailable", reason: "database-unavailable", station: null, profile: null };
-  } finally {
-    await store.close().catch(() => undefined);
   }
 }
 
@@ -255,7 +265,14 @@ export async function readLocalForecast(
 ): Promise<LocalForecastResponse> {
   const now = dependencies.now ?? new Date();
   const cohort = captureCohortAt(now);
-  const snapshots = await (dependencies.readForecasts ?? readAllForecasts)(input.location);
+  const snapshotsPromise = (dependencies.readForecasts ?? readAllForecasts)(input.location);
+  const performancePromise = (dependencies.readEvidence ?? readDatabaseEvidence)(
+    input.location,
+    input.elevationM,
+    cohort,
+    now,
+  );
+  const snapshots = await snapshotsPromise;
   const targetDate = nextCalendarDate(now);
   const providerRows = snapshots.flatMap((snapshot) => {
     if (!PRECIP_PROVIDERS.has(snapshot.id as PrecipProviderId)) return [];
@@ -276,12 +293,7 @@ export async function readLocalForecast(
       ? [{ provider: provider.id, probability: provider.probability, amountMm: provider.amountMm }]
       : [],
   );
-  const performance = await (dependencies.readEvidence ?? readDatabaseEvidence)(
-    input.location,
-    input.elevationM,
-    cohort,
-    now,
-  );
+  const performance = await performancePromise;
   const providerInfluence = normalizeInfluence(
     forecasts,
     performance.status === "active" && performance.profile
