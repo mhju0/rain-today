@@ -2,13 +2,25 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { LocalForecastResponse } from "@/lib/localForecast";
+import {
+  describeForecastLocationSelection,
+  type ForecastLocationSelection,
+} from "@/lib/locationPrecision";
 import type { ForecastLocationSearchResult } from "@/lib/locationSearch";
 
 type ViewState =
   | { kind: "idle" }
   | { kind: "loading"; label: string }
-  | { kind: "ready"; forecast: LocalForecastResponse }
+  | { kind: "ready"; forecast: LocalForecastResponse; selection: ForecastLocationSelection }
   | { kind: "error"; message: string };
+
+interface ChosenForecastLocation {
+  name: string;
+  latitude: number;
+  longitude: number;
+  elevationM: number | null;
+  selection: ForecastLocationSelection;
+}
 
 const PROVIDER_SHORT_NAMES: Readonly<Record<string, string>> = {
   "open-meteo": "Open-Meteo",
@@ -50,10 +62,6 @@ function formatOutlookDate(date: string): string {
   }).format(new Date(`${date}T12:00:00+09:00`));
 }
 
-function coordinateLabel(latitude: number, longitude: number): string {
-  return `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-}
-
 async function loadForecast(input: {
   name: string;
   latitude: number;
@@ -90,12 +98,7 @@ function SearchMark() {
 }
 
 function LocationChooser({ onChoose }: {
-  onChoose(input: {
-    name: string;
-    latitude: number;
-    longitude: number;
-    elevationM: number | null;
-  }): void;
+  onChoose(input: ChosenForecastLocation): void;
 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ForecastLocationSearchResult[]>([]);
@@ -161,6 +164,7 @@ function LocationChooser({ onChoose }: {
       latitude: result.latitude,
       longitude: result.longitude,
       elevationM: result.elevationM,
+      selection: { kind: "administrative-area" },
     });
   };
 
@@ -180,6 +184,13 @@ function LocationChooser({ onChoose }: {
           position.coords.altitude !== null && Number.isFinite(position.coords.altitude)
             ? position.coords.altitude
             : null,
+        selection: {
+          kind: "device",
+          accuracyM:
+            Number.isFinite(position.coords.accuracy) && position.coords.accuracy >= 0
+              ? position.coords.accuracy
+              : null,
+        },
       }),
       () => setMessage("위치를 확인하지 못했어요. 권한을 확인하거나 지역을 검색해 주세요."),
       { enableHighAccuracy: true, timeout: 12_000, maximumAge: 0 },
@@ -294,8 +305,10 @@ function LocationChooser({ onChoose }: {
         </ul>
 
         <p className="local-privacy-note">
-          현재 위치는 예보 요청에만 사용합니다. 검색 결과는 행정구역의 대표 위치입니다.
-          <span>지역 검색 · Kakao</span>
+          현재 위치 좌표는 예보를 위해 서버와 날씨 제공사에 전송되며, 계정이나 DB에
+          저장하지 않습니다. 예보 데이터는 좌표 기반으로 서버 메모리에 잠시 캐시될 수
+          있습니다. 지역 검색어는 Kakao에 전달됩니다.
+          <span>검색 결과는 행정구역 대표 위치 · 지역 검색 Kakao</span>
         </p>
       </div>
     </section>
@@ -384,8 +397,9 @@ function PerformanceEvidence({ performance }: Pick<LocalForecastResponse, "perfo
   );
 }
 
-function ForecastDashboard({ forecast, onReset }: {
+function ForecastDashboard({ forecast, selection, onReset }: {
   forecast: LocalForecastResponse;
+  selection: ForecastLocationSelection;
   onReset(): void;
 }) {
   const availableProviders = forecast.providers.filter((provider) => provider.available);
@@ -397,15 +411,22 @@ function ForecastDashboard({ forecast, onReset }: {
     () => Object.entries(forecast.effectiveInfluence).sort((a, b) => b[1] - a[1]),
     [forecast.effectiveInfluence],
   );
+  const locationDescription = describeForecastLocationSelection(selection);
 
   return (
     <main className="local-dashboard">
       <div className="local-dashboard-topline">
         <div>
           <span>{forecast.location.name}</span>
-          <small>{coordinateLabel(forecast.location.latitude, forecast.location.longitude)}</small>
+          <small>{locationDescription.source}</small>
         </div>
         <button type="button" onClick={onReset}>위치 바꾸기</button>
+      </div>
+
+      <div className="local-precision-summary" aria-label="예보 위치 정밀도">
+        <div><span>위치 기준</span><strong>{locationDescription.precision}</strong></div>
+        <div><span>기상청 단기예보</span><strong>5 km 격자</strong></div>
+        <div><span>최근 성능 근거</span><strong>별도 관측소 거리로 표시</strong></div>
       </div>
 
       <section className="local-forecast-hero" aria-labelledby="tomorrow-heading">
@@ -502,15 +523,15 @@ function ForecastDashboard({ forecast, onReset }: {
 export default function LocalForecastExperience() {
   const [state, setState] = useState<ViewState>({ kind: "idle" });
 
-  const chooseLocation = async (input: {
-    name: string;
-    latitude: number;
-    longitude: number;
-    elevationM: number | null;
-  }) => {
+  const chooseLocation = async (input: ChosenForecastLocation) => {
     setState({ kind: "loading", label: input.name });
     try {
-      setState({ kind: "ready", forecast: await loadForecast(input) });
+      const { selection, ...forecastInput } = input;
+      setState({
+        kind: "ready",
+        forecast: await loadForecast(forecastInput),
+        selection,
+      });
     } catch {
       setState({ kind: "error", message: "이 위치의 예보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요." });
     }
@@ -544,7 +565,11 @@ export default function LocalForecastExperience() {
       )}
 
       {state.kind === "ready" && (
-        <ForecastDashboard forecast={state.forecast} onReset={() => setState({ kind: "idle" })} />
+        <ForecastDashboard
+          forecast={state.forecast}
+          selection={state.selection}
+          onReset={() => setState({ kind: "idle" })}
+        />
       )}
     </div>
   );
