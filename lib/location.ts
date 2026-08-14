@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 /** One validated forecast target inside the South Korea launch area. */
 export interface ForecastLocation {
   name: string;
@@ -85,9 +87,13 @@ export function createForecastLocation(input: ForecastLocationInput): ForecastLo
   };
 }
 
-/** Process-local cache identity at roughly 100 m, below forecast-grid resolution. */
+/** Opaque cache identity that never merges two distinct validated coordinates. */
 export function forecastLocationCacheKey(location: ForecastLocation): string {
-  return `kr:${location.latitude.toFixed(3)}:${location.longitude.toFixed(3)}`;
+  const digest = createHash("sha256")
+    .update(`${location.latitude}:${location.longitude}`)
+    .digest("base64url")
+    .slice(0, 22);
+  return `kr:${digest}`;
 }
 
 export const DEFAULT_FORECAST_LOCATION = createForecastLocation({
