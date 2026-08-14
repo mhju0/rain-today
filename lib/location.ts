@@ -85,9 +85,9 @@ export function createForecastLocation(input: ForecastLocationInput): ForecastLo
   };
 }
 
-/** Stable location identity for provider caches; four decimals retain street-scale separation. */
+/** Process-local cache identity at roughly 100 m, below forecast-grid resolution. */
 export function forecastLocationCacheKey(location: ForecastLocation): string {
-  return `kr:${location.latitude.toFixed(4)}:${location.longitude.toFixed(4)}`;
+  return `kr:${location.latitude.toFixed(3)}:${location.longitude.toFixed(3)}`;
 }
 
 export const DEFAULT_FORECAST_LOCATION = createForecastLocation({

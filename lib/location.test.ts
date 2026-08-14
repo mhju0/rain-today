@@ -37,10 +37,24 @@ test("locationToKmaGrid matches known Korean forecast-grid points", () => {
   assert.deepEqual(locationToKmaGrid(33.4996, 126.5312), { nx: 53, ny: 38 });
 });
 
-test("forecastLocationCacheKey separates materially different coordinates", () => {
-  const seoul = createForecastLocation({ name: "서울", latitude: 37.5665, longitude: 126.978 });
-  const busan = createForecastLocation({ name: "부산", latitude: 35.1796, longitude: 129.0756 });
+test("forecastLocationCacheKey keeps street-scale fixes out of cache identity", () => {
+  const firstFix = createForecastLocation({
+    name: "현재 위치",
+    latitude: 37.5662,
+    longitude: 126.9782,
+  });
+  const nearbyFix = createForecastLocation({
+    name: "현재 위치",
+    latitude: 37.5664,
+    longitude: 126.9784,
+  });
+  const distinctArea = createForecastLocation({
+    name: "현재 위치",
+    latitude: 37.5674,
+    longitude: 126.9784,
+  });
 
-  assert.equal(forecastLocationCacheKey(seoul), "kr:37.5665:126.9780");
-  assert.notEqual(forecastLocationCacheKey(seoul), forecastLocationCacheKey(busan));
+  assert.equal(forecastLocationCacheKey(firstFix), "kr:37.566:126.978");
+  assert.equal(forecastLocationCacheKey(firstFix), forecastLocationCacheKey(nearbyFix));
+  assert.notEqual(forecastLocationCacheKey(firstFix), forecastLocationCacheKey(distinctArea));
 });
