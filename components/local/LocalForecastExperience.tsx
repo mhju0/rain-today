@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { LocalForecastResponse } from "@/lib/localForecast";
 import type { ForecastLocationSearchResult } from "@/lib/locationSearch";
 
@@ -101,6 +101,68 @@ function LocationChooser({ onChoose }: {
   const [results, setResults] = useState<ForecastLocationSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [activeResultIndex, setActiveResultIndex] = useState(-1);
+  const listboxId = useId();
+  const requestSequence = useRef(0);
+  const activeRequest = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    const normalized = query.normalize("NFKC").trim().replace(/\s+/g, " ");
+    const sequence = requestSequence.current;
+    if (normalized.length < 2) return;
+
+    const controller = new AbortController();
+    activeRequest.current = controller;
+
+    const timeout = window.setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `/api/locations/search?q=${encodeURIComponent(normalized)}`,
+          { signal: controller.signal },
+        );
+        if (response.status === 429) {
+          throw new Error("rate-limited");
+        }
+        if (!response.ok) throw new Error("unavailable");
+        const payload = (await response.json()) as { results: ForecastLocationSearchResult[] };
+        if (sequence !== requestSequence.current) return;
+        setResults(payload.results);
+        setActiveResultIndex(payload.results.length > 0 ? 0 : -1);
+        setMessage(
+          payload.results.length === 0
+            ? "대한민국 안에서 일치하는 행정구역을 찾지 못했어요. 시·구·동을 함께 입력해 보세요."
+            : null,
+        );
+      } catch (error) {
+        if (controller.signal.aborted || sequence !== requestSequence.current) return;
+        setResults([]);
+        setActiveResultIndex(-1);
+        setMessage(
+          error instanceof Error && error.message === "rate-limited"
+            ? "검색 요청이 많아요. 잠시 후 다시 입력해 주세요."
+            : "지역 검색이 잠시 원활하지 않아요. 다시 시도해 주세요.",
+        );
+      } finally {
+        if (sequence === requestSequence.current) setSearching(false);
+      }
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [query]);
+
+  const chooseSearchResult = (result: ForecastLocationSearchResult) => {
+    requestSequence.current += 1;
+    activeRequest.current?.abort();
+    onChoose({
+      name: result.name,
+      latitude: result.latitude,
+      longitude: result.longitude,
+      elevationM: result.elevationM,
+    });
+  };
 
   const useCurrentLocation = () => {
     setMessage(null);
@@ -122,27 +184,6 @@ function LocationChooser({ onChoose }: {
       () => setMessage("위치를 확인하지 못했어요. 권한을 확인하거나 지역을 검색해 주세요."),
       { enableHighAccuracy: true, timeout: 12_000, maximumAge: 0 },
     );
-  };
-
-  const search = async () => {
-    const normalized = query.trim();
-    if (normalized.length < 2) {
-      setMessage("지역 이름을 두 글자 이상 입력해 주세요.");
-      return;
-    }
-    setSearching(true);
-    setMessage(null);
-    try {
-      const response = await fetch(`/api/locations/search?q=${encodeURIComponent(normalized)}`);
-      if (!response.ok) throw new Error("location search failed");
-      const payload = (await response.json()) as { results: ForecastLocationSearchResult[] };
-      setResults(payload.results);
-      if (payload.results.length === 0) setMessage("대한민국 안에서 일치하는 지역을 찾지 못했어요.");
-    } catch {
-      setMessage("지역 검색이 잠시 원활하지 않아요. 다시 시도해 주세요.");
-    } finally {
-      setSearching(false);
-    }
   };
 
   return (
@@ -168,7 +209,12 @@ function LocationChooser({ onChoose }: {
           className="local-search-form"
           onSubmit={(event) => {
             event.preventDefault();
-            void search();
+            const selected = results[activeResultIndex];
+            if (selected) {
+              chooseSearchResult(selected);
+            } else if (query.trim().length < 2) {
+              setMessage("지역 이름을 두 글자 이상 입력해 주세요.");
+            }
           }}
         >
           <label htmlFor="location-search" className="sr-only">대한민국 지역 검색</label>
@@ -176,39 +222,80 @@ function LocationChooser({ onChoose }: {
           <input
             id="location-search"
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              const nextQuery = event.target.value;
+              const normalized = nextQuery.normalize("NFKC").trim().replace(/\s+/g, " ");
+              requestSequence.current += 1;
+              activeRequest.current?.abort();
+              setQuery(nextQuery);
+              setResults([]);
+              setActiveResultIndex(-1);
+              setSearching(normalized.length >= 2);
+              setMessage(null);
+            }}
             placeholder="동네, 도시 이름 검색"
             autoComplete="off"
             maxLength={80}
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={results.length > 0}
+            aria-controls={listboxId}
+            aria-activedescendant={
+              activeResultIndex >= 0 ? `${listboxId}-option-${activeResultIndex}` : undefined
+            }
+            aria-busy={searching}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowDown" && results.length > 0) {
+                event.preventDefault();
+                setActiveResultIndex((current) => (current + 1) % results.length);
+              } else if (event.key === "ArrowUp" && results.length > 0) {
+                event.preventDefault();
+                setActiveResultIndex((current) => current <= 0 ? results.length - 1 : current - 1);
+              } else if (event.key === "Escape") {
+                requestSequence.current += 1;
+                activeRequest.current?.abort();
+                setSearching(false);
+                setResults([]);
+                setActiveResultIndex(-1);
+                setMessage(null);
+              }
+            }}
           />
-          <button type="submit" disabled={searching}>{searching ? "찾는 중" : "검색"}</button>
+          <button type="submit" disabled={searching || activeResultIndex < 0}>
+            {searching ? "찾는 중" : "선택"}
+          </button>
         </form>
 
         {message && <p className="local-form-message" role="status">{message}</p>}
 
-        {results.length > 0 && (
-          <ul className="local-search-results" aria-label="검색 결과">
-            {results.map((result) => (
-              <li key={result.id}>
-                <button
-                  type="button"
-                  onClick={() => onChoose({
-                    name: result.name,
-                    latitude: result.latitude,
-                    longitude: result.longitude,
-                    elevationM: result.elevationM,
-                  })}
-                >
-                  <span>{result.label}</span>
-                  <small>{coordinateLabel(result.latitude, result.longitude)}</small>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+        <ul
+          id={listboxId}
+          className="local-search-results"
+          aria-label="대한민국 행정구역 검색 결과"
+          role="listbox"
+          hidden={results.length === 0}
+        >
+          {results.map((result, index) => (
+            <li
+              id={`${listboxId}-option-${index}`}
+              key={result.id}
+              role="option"
+              aria-selected={index === activeResultIndex}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => chooseSearchResult(result)}
+              onMouseEnter={() => setActiveResultIndex(index)}
+            >
+              <span>{result.label}</span>
+              <small>
+                {result.kind === "administrative-area" ? "행정구역" : "법정구역"} 대표 위치
+              </small>
+            </li>
+          ))}
+        </ul>
 
         <p className="local-privacy-note">
-          위치는 계정이나 서버에 저장하지 않으며, 이 예보 요청에만 사용합니다.
+          현재 위치는 예보 요청에만 사용합니다. 검색 결과는 행정구역의 대표 위치입니다.
+          <span>지역 검색 · Kakao</span>
         </p>
       </div>
     </section>
