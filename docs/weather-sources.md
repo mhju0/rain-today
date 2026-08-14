@@ -2,12 +2,12 @@
 
 SeoulSky accepts validated coordinates inside the configured South Korea launch bounds and uses `Asia/Seoul`. Exact-coordinate validation currently uses a bounding box rather than an administrative-border polygon; Korea-filtered manual search is stricter than browser-coordinate admission. Forecast providers receive the user's submitted coordinate for the current request. The local-performance collector separately requests forecasts at official KMA ASOS coordinates. All upstream calls run on the server. Provider keys, database credentials, and the MET Norway contact-bearing user agent must never be returned to the browser or written to logs.
 
-The application is usable without keys: Open-Meteo supplies weather and air quality, and RainViewer supplies the conservative rain-approach signal. Optional sources enrich the response and fail independently.
+The application remains usable without weather-provider keys: Open-Meteo supplies weather and air quality, and RainViewer supplies the conservative rain-approach signal. Manual administrative-area search requires a server-side Kakao REST key; browser current-location selection remains available without it. Optional weather sources enrich the response and fail independently.
 
 | Source | Purpose | Configuration | Cache | Failure behavior |
 | --- | --- | --- | --- | --- |
 | Open-Meteo Forecast | Current, hourly, and seven-day baseline at the requested coordinate | None | 5 min per location | Expired cache, then route-level 503 |
-| Open-Meteo Geocoding | Korea-filtered manual place search | None | HTTP response cache 5 min | Search route returns 503; precise browser location remains available |
+| Kakao Map Local REST | Korean administrative-area search and WGS84 resolution | `KAKAO_REST_API_KEY` | HTTP response cache 5 min | Search route returns 503; browser current location remains available |
 | Open-Meteo Air Quality | Keyless PM, gases, aerosol, and UV baseline | None | 20 min | Air quality becomes `null` |
 | MET Norway | Provider comparison | `MET_NO_USER_AGENT` with contact | 15 min | Provider reports `needs-config` or `error` |
 | KMA short-term | Forecast comparison at the requested KMA grid | `KMA_SHORT_TERM_API_KEY` | 5 min per location | Source is omitted from the current blend |
@@ -58,7 +58,7 @@ Each forecast provider exposes one Provider Snapshot read. Its availability, cac
 
 ## Attribution
 
-The UI must retain the applicable credits: Open-Meteo; MET Norway; 기상청 (KMA); AirKorea; Pirate Weather; WeatherAPI; RainViewer; and © CARTO / © OpenStreetMap for the radar basemap. Check provider terms before changing commercial use, caching, or redistribution behavior.
+The UI must retain the applicable credits: Kakao Map for administrative search; Open-Meteo; MET Norway; 기상청 (KMA); AirKorea; Pirate Weather; WeatherAPI; RainViewer; and © CARTO / © OpenStreetMap for the radar basemap. Check provider terms before changing commercial use, caching, or redistribution behavior.
 
 ## Implementation map
 
