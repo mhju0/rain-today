@@ -840,9 +840,6 @@ html {
 
 .local-search-results li {
   border-bottom: 1px solid var(--local-line);
-}
-
-.local-search-results button {
   width: 100%;
   padding: 1rem 0.25rem;
   display: flex;
@@ -851,10 +848,16 @@ html {
   gap: 1rem;
   text-align: left;
   cursor: pointer;
+  outline: none;
 }
 
-.local-search-results button:hover span {
+.local-search-results li:hover span,
+.local-search-results li[aria-selected="true"] span {
   color: var(--local-accent);
+}
+
+.local-search-results li[aria-selected="true"] {
+  background: rgb(215 236 231 / 0.05);
 }
 
 .local-search-results span {
@@ -865,8 +868,13 @@ html {
 .local-search-results small {
   flex: 0 0 auto;
   color: var(--local-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.64rem;
+}
+
+.local-privacy-note span {
+  display: block;
+  margin-top: 0.35rem;
+  color: #84969d;
 }
 
 .local-loading {
@@ -1345,7 +1353,7 @@ html {
     font-size: 0.94rem;
   }
 
-  .local-search-results button {
+  .local-search-results li {
     align-items: flex-start;
     flex-direction: column;
     gap: 0.4rem;
