@@ -25,7 +25,7 @@ Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", {
 
 const { act } = await import("react");
 const { createRoot } = await import("react-dom/client");
-const { LocationChooser } = await import("./LocalForecastExperience");
+const { LocationChooser, default: LocalForecastExperience } = await import("./LocalForecastExperience");
 
 function kakaoResult(input: {
   id: string;
@@ -185,4 +185,72 @@ test("empty and failed searches expose distinct status and retry UI", async () =
   assert.match(view.container.textContent ?? "", /지역 검색이 잠시 원활하지 않아요/);
   assert.equal(view.container.querySelector(".local-form-status button")?.textContent, "다시 시도");
   await view.cleanup();
+});
+
+test("device accuracy is displayed but not sent to the forecast API", async () => {
+  let requestBody = "";
+  globalThis.fetch = async (_input, init) => {
+    requestBody = String(init?.body ?? "");
+    return Response.json({
+      generatedAt: "2026-08-14T00:00:00.000Z",
+      location: {
+        name: "현재 위치",
+        latitude: 37.5,
+        longitude: 127,
+        elevationM: null,
+      },
+      targetDate: "2026-08-15",
+      captureCohort: "06",
+      recommendation: {
+        precipitationProbability: 30,
+        precipitationAmountMm: 0,
+        temperatureMax: 30,
+        temperatureMin: 22,
+        condition: "clear",
+      },
+      outlook: [],
+      providers: [],
+      effectiveInfluence: {},
+      performance: {
+        status: "unavailable",
+        reason: "database-not-configured",
+        station: null,
+        profile: null,
+      },
+    });
+  };
+  Object.defineProperty(navigator, "geolocation", {
+    configurable: true,
+    value: {
+      getCurrentPosition(success: PositionCallback) {
+        success({
+          coords: {
+            latitude: 37.5,
+            longitude: 127,
+            altitude: null,
+            accuracy: 27,
+          },
+        } as GeolocationPosition);
+      },
+    },
+  });
+
+  document.body.replaceChildren();
+  const container = document.createElement("div");
+  document.body.append(container);
+  let root: Root | null = null;
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<LocalForecastExperience />);
+  });
+  const locationButton = [...container.querySelectorAll("button")]
+    .find((button) => button.textContent?.includes("내 위치로 보기"));
+  await act(async () => {
+    locationButton?.click();
+    await Promise.resolve();
+  });
+
+  assert.match(container.querySelector(".local-precision-summary")?.textContent ?? "", /약 30 m/);
+  assert.equal(JSON.parse(requestBody).accuracyM, undefined);
+  await act(async () => root?.unmount());
 });

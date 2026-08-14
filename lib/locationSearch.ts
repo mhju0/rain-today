@@ -89,43 +89,60 @@ function optionalCode(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
-function toResult(document: KakaoAddressDocument): ForecastLocationSearchResult | null {
-  if (document.address_type !== "REGION") return null;
+function toResults(document: KakaoAddressDocument): ForecastLocationSearchResult[] {
+  if (document.address_type !== "REGION") return [];
   const address = document.address;
-  if (!address || typeof address !== "object") return null;
+  if (!address || typeof address !== "object") return [];
   const latitude = Number(address.y ?? document.y);
   const longitude = Number(address.x ?? document.x);
   const administrativeCode = optionalCode(address.h_code);
   const legalCode = optionalCode(address.b_code);
-  if (!administrativeCode && !legalCode) return null;
+  if (!administrativeCode && !legalCode) return [];
 
   const sido = canonicalSido(address.region_1depth_name);
   const district = address.region_2depth_name?.trim() ?? "";
-  const neighborhood = (
-    address.region_3depth_h_name?.trim() || address.region_3depth_name?.trim() || ""
-  );
-  const name = neighborhood || district || sido;
-  if (!name) return null;
+  const legalNeighborhood = address.region_3depth_name?.trim() ?? "";
+  const administrativeNeighborhood = address.region_3depth_h_name?.trim() || legalNeighborhood;
 
-  try {
-    const location = createForecastLocation({ name, latitude, longitude });
-    const kind = administrativeCode ? "administrative-area" : "legal-area";
-    const idCode = administrativeCode ?? legalCode;
-    return {
-      id: `kakao:${kind === "administrative-area" ? "h" : "b"}:${idCode}`,
-      name: location.name,
-      label: Array.from(new Set([sido, district, neighborhood].filter(Boolean))).join(" "),
-      latitude: location.latitude,
-      longitude: location.longitude,
-      elevationM: null,
-      kind,
-      ...(administrativeCode ? { administrativeCode } : {}),
-      ...(legalCode ? { legalCode } : {}),
-      source: "kakao",
-    };
-  } catch {
-    return null;
+  const buildResult = (
+    kind: ForecastLocationSearchResult["kind"],
+    code: string,
+    neighborhood: string,
+  ): ForecastLocationSearchResult | null => {
+    const name = neighborhood || district || sido;
+    if (!name) return null;
+    try {
+      const location = createForecastLocation({ name, latitude, longitude });
+      return {
+        id: `kakao:${kind === "administrative-area" ? "h" : "b"}:${code}`,
+        name: location.name,
+        label: Array.from(new Set([sido, district, neighborhood].filter(Boolean))).join(" "),
+        latitude: location.latitude,
+        longitude: location.longitude,
+        elevationM: null,
+        kind,
+        ...(administrativeCode ? { administrativeCode } : {}),
+        ...(legalCode ? { legalCode } : {}),
+        source: "kakao",
+      };
+    } catch {
+      return null;
+    }
+  };
+
+  const results: ForecastLocationSearchResult[] = [];
+  if (administrativeCode) {
+    const result = buildResult("administrative-area", administrativeCode, administrativeNeighborhood);
+    if (result) results.push(result);
   }
+  if (
+    legalCode &&
+    (!administrativeCode || legalNeighborhood !== administrativeNeighborhood)
+  ) {
+    const result = buildResult("legal-area", legalCode, legalNeighborhood);
+    if (result) results.push(result);
+  }
+  return results;
 }
 
 async function fetchKakaoDocuments(
@@ -179,7 +196,7 @@ export async function searchKoreanLocations(
   options: LocationSearchOptions = {},
 ): Promise<ForecastLocationSearchResult[]> {
   const normalized = query.normalize("NFKC").trim().replace(/\s+/g, " ");
-  if (normalized.length < 2) return [];
+  if (normalized.length < 2) throw new RangeError("location query must contain two characters");
   if (normalized.length > 80) throw new RangeError("location query is too long");
   const apiKey = options.apiKey?.trim() || process.env.KAKAO_REST_API_KEY?.trim();
   if (!apiKey) throw new Error("Kakao location search is not configured");
@@ -199,8 +216,9 @@ export async function searchKoreanLocations(
       options.fetchImpl ?? fetch,
       signal,
     )) {
-      const result = toResult(document);
-      if (result && !unique.has(result.id)) unique.set(result.id, result);
+      for (const result of toResults(document)) {
+        if (!unique.has(result.id)) unique.set(result.id, result);
+      }
     }
     if (unique.size > 0) return rankResults([...unique.values()], normalized);
   }

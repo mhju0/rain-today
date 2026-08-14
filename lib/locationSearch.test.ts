@@ -98,7 +98,10 @@ test("location search rejects one-character and oversized queries before fetchin
     calls += 1;
     return Response.json({ results: [] });
   };
-  assert.deepEqual(await searchKoreanLocations("서", { apiKey: "test-key", fetchImpl }), []);
+  await assert.rejects(
+    () => searchKoreanLocations("서", { apiKey: "test-key", fetchImpl }),
+    /two characters/,
+  );
   await assert.rejects(
     () => searchKoreanLocations("가".repeat(81), { apiKey: "test-key", fetchImpl }),
     /too long/,
@@ -170,7 +173,13 @@ test("duplicate neighborhood leaves remain fully qualified selectable candidates
 
   assert.deepEqual(results.map((result) => result.label), [
     "서울특별시 강남구 삼성1동",
+    "서울특별시 강남구 삼성동",
     "대전광역시 동구 삼성동",
+  ]);
+  assert.deepEqual(results.map((result) => result.kind), [
+    "administrative-area",
+    "legal-area",
+    "administrative-area",
   ]);
 });
 
@@ -183,7 +192,7 @@ test("exact full hierarchy ranks ahead of a fuzzy provider candidate", async () 
           region_1depth_name: "부산",
           region_2depth_name: "강남구",
           region_3depth_name: "삼성동",
-          region_3depth_h_name: "삼성동",
+          region_3depth_h_name: "삼성1동",
           h_code: "2600010000",
           b_code: "2600010000",
           x: "129.05",
@@ -196,7 +205,7 @@ test("exact full hierarchy ranks ahead of a fuzzy provider candidate", async () 
           region_1depth_name: "서울",
           region_2depth_name: "강남구",
           region_3depth_name: "삼성동",
-          region_3depth_h_name: "삼성동",
+          region_3depth_h_name: "삼성1동",
           h_code: "1168058000",
           b_code: "1168010500",
           x: "127.0628",
@@ -212,6 +221,7 @@ test("exact full hierarchy ranks ahead of a fuzzy provider candidate", async () 
   );
 
   assert.equal(results[0]?.label, "서울특별시 강남구 삼성동");
+  assert.equal(results[0]?.kind, "legal-area");
 });
 
 test("bare neighborhood search retries the administrative dong suffix", async () => {
