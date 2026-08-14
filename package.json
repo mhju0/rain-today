@@ -12,7 +12,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test \"lib/**/*.test.ts\"",
+    "test": "node --test \"lib/**/*.test.ts\" && tsx --test components/local/LocalForecastExperience.test.tsx",
     "performance:capture": "node --env-file-if-exists=.env.local --env-file-if-exists=.env scripts/local-performance.ts",
     "reliability:daily": "node --env-file-if-exists=.env.local --env-file-if-exists=.env scripts/precip-reliability.ts",
     "reliability:state": "node scripts/reliability-state.ts"
@@ -26,13 +26,16 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/jsdom": "^30.0.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "9.39.5",
     "eslint-config-next": "16.3.0",
     "fast-check": "4.9.0",
+    "jsdom": "^29.1.1",
     "tailwindcss": "^4",
+    "tsx": "^4.23.12",
     "typescript": "^6"
   },
   "overrides": {

@@ -101,7 +101,7 @@ function SearchMark() {
   );
 }
 
-function LocationChooser({ onChoose }: {
+export function LocationChooser({ onChoose }: {
   onChoose(input: ChosenForecastLocation): void;
 }) {
   const [query, setQuery] = useState("");
@@ -274,6 +274,9 @@ function LocationChooser({ onChoose }: {
               } else if (event.key === "ArrowUp" && results.length > 0) {
                 event.preventDefault();
                 setActiveResultIndex((current) => current <= 0 ? results.length - 1 : current - 1);
+              } else if (event.key === "Enter" && results[activeResultIndex]) {
+                event.preventDefault();
+                chooseSearchResult(results[activeResultIndex]);
               } else if (event.key === "Escape") {
                 requestSequence.current += 1;
                 activeRequest.current?.abort();
