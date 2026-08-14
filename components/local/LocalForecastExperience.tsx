@@ -22,6 +22,10 @@ interface ChosenForecastLocation {
   selection: ForecastLocationSelection;
 }
 
+function normalizeLocationQuery(query: string): string {
+  return query.normalize("NFKC").trim().replace(/\s+/g, " ");
+}
+
 const PROVIDER_SHORT_NAMES: Readonly<Record<string, string>> = {
   "open-meteo": "Open-Meteo",
   "met-norway": "MET Norway",
@@ -104,13 +108,15 @@ function LocationChooser({ onChoose }: {
   const [results, setResults] = useState<ForecastLocationSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [retryAvailable, setRetryAvailable] = useState(false);
+  const [retryVersion, setRetryVersion] = useState(0);
   const [activeResultIndex, setActiveResultIndex] = useState(-1);
   const listboxId = useId();
   const requestSequence = useRef(0);
   const activeRequest = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    const normalized = query.normalize("NFKC").trim().replace(/\s+/g, " ");
+    const normalized = normalizeLocationQuery(query);
     const sequence = requestSequence.current;
     if (normalized.length < 2) return;
 
@@ -124,27 +130,30 @@ function LocationChooser({ onChoose }: {
           { signal: controller.signal },
         );
         if (response.status === 429) {
-          throw new Error("rate-limited");
+          if (sequence !== requestSequence.current) return;
+          setResults([]);
+          setActiveResultIndex(-1);
+          setRetryAvailable(true);
+          setMessage("검색 요청이 많아요. 잠시 후 다시 시도해 주세요.");
+          return;
         }
         if (!response.ok) throw new Error("unavailable");
         const payload = (await response.json()) as { results: ForecastLocationSearchResult[] };
         if (sequence !== requestSequence.current) return;
         setResults(payload.results);
         setActiveResultIndex(payload.results.length > 0 ? 0 : -1);
+        setRetryAvailable(false);
         setMessage(
           payload.results.length === 0
             ? "대한민국 안에서 일치하는 행정구역을 찾지 못했어요. 시·구·동을 함께 입력해 보세요."
             : null,
         );
-      } catch (error) {
+      } catch {
         if (controller.signal.aborted || sequence !== requestSequence.current) return;
         setResults([]);
         setActiveResultIndex(-1);
-        setMessage(
-          error instanceof Error && error.message === "rate-limited"
-            ? "검색 요청이 많아요. 잠시 후 다시 입력해 주세요."
-            : "지역 검색이 잠시 원활하지 않아요. 다시 시도해 주세요.",
-        );
+        setRetryAvailable(true);
+        setMessage("지역 검색이 잠시 원활하지 않아요. 다시 시도해 주세요.");
       } finally {
         if (sequence === requestSequence.current) setSearching(false);
       }
@@ -154,7 +163,7 @@ function LocationChooser({ onChoose }: {
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [query]);
+  }, [query, retryVersion]);
 
   const chooseSearchResult = (result: ForecastLocationSearchResult) => {
     requestSequence.current += 1;
@@ -164,7 +173,7 @@ function LocationChooser({ onChoose }: {
       latitude: result.latitude,
       longitude: result.longitude,
       elevationM: result.elevationM,
-      selection: { kind: "administrative-area" },
+      selection: { kind: "area", areaKind: result.kind },
     });
   };
 
@@ -235,14 +244,17 @@ function LocationChooser({ onChoose }: {
             value={query}
             onChange={(event) => {
               const nextQuery = event.target.value;
-              const normalized = nextQuery.normalize("NFKC").trim().replace(/\s+/g, " ");
+              const normalized = normalizeLocationQuery(nextQuery);
               requestSequence.current += 1;
               activeRequest.current?.abort();
               setQuery(nextQuery);
               setResults([]);
               setActiveResultIndex(-1);
               setSearching(normalized.length >= 2);
-              setMessage(null);
+              setRetryAvailable(false);
+              setMessage(
+                normalized.length === 1 ? "지역 이름을 두 글자 이상 입력해 주세요." : null,
+              );
             }}
             placeholder="동네, 도시 이름 검색"
             autoComplete="off"
@@ -268,6 +280,7 @@ function LocationChooser({ onChoose }: {
                 setSearching(false);
                 setResults([]);
                 setActiveResultIndex(-1);
+                setRetryAvailable(false);
                 setMessage(null);
               }
             }}
@@ -277,7 +290,29 @@ function LocationChooser({ onChoose }: {
           </button>
         </form>
 
-        {message && <p className="local-form-message" role="status">{message}</p>}
+        {searching && (
+          <p className="local-form-message" role="status">지역 검색 중…</p>
+        )}
+
+        {!searching && message && (
+          <div className="local-form-status">
+            <p className="local-form-message" role="status">{message}</p>
+            {retryAvailable && (
+              <button
+                type="button"
+                onClick={() => {
+                  requestSequence.current += 1;
+                  setSearching(true);
+                  setRetryAvailable(false);
+                  setMessage(null);
+                  setRetryVersion((current) => current + 1);
+                }}
+              >
+                다시 시도
+              </button>
+            )}
+          </div>
+        )}
 
         <ul
           id={listboxId}
@@ -307,8 +342,8 @@ function LocationChooser({ onChoose }: {
         <p className="local-privacy-note">
           현재 위치 좌표는 예보를 위해 서버와 날씨 제공사에 전송되며, 계정이나 DB에
           저장하지 않습니다. 예보 데이터는 좌표 기반으로 서버 메모리에 잠시 캐시될 수
-          있습니다. 지역 검색어는 Kakao에 전달됩니다.
-          <span>검색 결과는 행정구역 대표 위치 · 지역 검색 Kakao</span>
+          있습니다. 지역 검색어는 Kakao에 전달되고 검색 응답은 최대 5분 캐시될 수 있습니다.
+          <span>검색 결과는 행정구역 또는 법정구역 대표 위치 · 지역 검색 Kakao Map</span>
         </p>
       </div>
     </section>

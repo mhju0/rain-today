@@ -19,7 +19,14 @@ test("missing or invalid browser accuracy is not fabricated", () => {
 
 test("administrative search selection is described as a representative point", () => {
   assert.deepEqual(
-    describeForecastLocationSelection({ kind: "administrative-area" }),
+    describeForecastLocationSelection({ kind: "area", areaKind: "administrative-area" }),
     { source: "검색한 행정구역", precision: "행정구역 대표 위치" },
+  );
+});
+
+test("legal-area search selection retains its distinct identity", () => {
+  assert.deepEqual(
+    describeForecastLocationSelection({ kind: "area", areaKind: "legal-area" }),
+    { source: "검색한 법정구역", precision: "법정구역 대표 위치" },
   );
 });

@@ -2,35 +2,36 @@ import { readResponseBytes } from "./httpResponse.ts";
 import { createForecastLocation } from "./location.ts";
 
 const KAKAO_ADDRESS_URL = "https://dapi.kakao.com/v2/local/search/address.json";
-const KOREAN_CITY_ALIASES: Readonly<Record<string, string>> = {
-  서울: "서울특별시",
-  서울시: "서울특별시",
-  부산: "부산광역시",
-  부산시: "부산광역시",
-  대구: "대구광역시",
-  대구시: "대구광역시",
-  인천: "인천광역시",
-  인천시: "인천광역시",
-  광주: "광주광역시",
-  광주시: "광주광역시",
-  대전: "대전광역시",
-  대전시: "대전광역시",
-  울산: "울산광역시",
-  울산시: "울산광역시",
-  세종: "세종특별자치시",
-  세종시: "세종특별자치시",
-} as const;
-
 const SIDO_LABELS: Readonly<Record<string, string>> = {
   서울: "서울특별시",
   부산: "부산광역시",
   대구: "대구광역시",
   인천: "인천광역시",
-  광주: "광주광역시",
+  광주: "전남광주통합특별시",
+  전남광주: "전남광주통합특별시",
   대전: "대전광역시",
   울산: "울산광역시",
   세종: "세종특별자치시",
   제주: "제주특별자치도",
+} as const;
+
+const KOREAN_CITY_ALIASES: Readonly<Record<string, string>> = {
+  서울: SIDO_LABELS.서울,
+  서울시: SIDO_LABELS.서울,
+  부산: SIDO_LABELS.부산,
+  부산시: SIDO_LABELS.부산,
+  대구: SIDO_LABELS.대구,
+  대구시: SIDO_LABELS.대구,
+  인천: SIDO_LABELS.인천,
+  인천시: SIDO_LABELS.인천,
+  광주: SIDO_LABELS.광주,
+  광주시: SIDO_LABELS.광주,
+  대전: SIDO_LABELS.대전,
+  대전시: SIDO_LABELS.대전,
+  울산: SIDO_LABELS.울산,
+  울산시: SIDO_LABELS.울산,
+  세종: SIDO_LABELS.세종,
+  세종시: SIDO_LABELS.세종,
 } as const;
 
 export interface ForecastLocationSearchResult {
@@ -131,6 +132,7 @@ async function fetchKakaoDocuments(
   query: string,
   apiKey: string,
   fetchImpl: typeof fetch,
+  signal: AbortSignal,
 ): Promise<KakaoAddressDocument[]> {
   const params = new URLSearchParams({
     query,
@@ -143,7 +145,7 @@ async function fetchKakaoDocuments(
       Accept: "application/json",
       Authorization: `KakaoAK ${apiKey}`,
     },
-    signal: AbortSignal.timeout(8_000),
+    signal,
   });
   if (!response.ok) throw new Error(`location search returned HTTP ${response.status}`);
   const bytes = await readResponseBytes(response, {
@@ -151,6 +153,24 @@ async function fetchKakaoDocuments(
     contentType: "application/json",
   });
   return documentsFrom(JSON.parse(new TextDecoder().decode(bytes)) as unknown);
+}
+
+function rankResults(
+  results: ForecastLocationSearchResult[],
+  normalizedQuery: string,
+): ForecastLocationSearchResult[] {
+  if (!normalizedQuery.includes(" ")) return results;
+  const segments = normalizedQuery.split(" ");
+  const canonicalQuery = [KOREAN_CITY_ALIASES[segments[0]] ?? segments[0], ...segments.slice(1)]
+    .join(" ");
+  return results
+    .map((result, index) => ({ result, index }))
+    .sort((a, b) => {
+      const aExact = a.result.label === canonicalQuery ? 0 : 1;
+      const bExact = b.result.label === canonicalQuery ? 0 : 1;
+      return aExact - bExact || a.index - b.index;
+    })
+    .map(({ result }) => result);
 }
 
 /** Search Korean administrative places without retaining the query or selected coordinates. */
@@ -170,17 +190,19 @@ export async function searchKoreanLocations(
     queries.push(`${normalized}동`);
   }
 
+  const signal = AbortSignal.timeout(8_000);
   for (const searchQuery of queries) {
     const unique = new Map<string, ForecastLocationSearchResult>();
     for (const document of await fetchKakaoDocuments(
       searchQuery,
       apiKey,
       options.fetchImpl ?? fetch,
+      signal,
     )) {
       const result = toResult(document);
       if (result && !unique.has(result.id)) unique.set(result.id, result);
     }
-    if (unique.size > 0) return [...unique.values()];
+    if (unique.size > 0) return rankResults([...unique.values()], normalized);
   }
   return [];
 }

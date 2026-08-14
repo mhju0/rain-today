@@ -787,6 +787,12 @@ html {
   align-items: center;
   gap: 0.8rem;
   border-bottom: 1px solid rgb(210 224 226 / 0.42);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.local-search-form:focus-within {
+  border-bottom-color: var(--local-accent);
+  box-shadow: 0 1px 0 rgb(158 217 210 / 0.25);
 }
 
 .local-search-form > svg {
@@ -829,12 +835,31 @@ html {
   margin-top: 1rem;
 }
 
+.local-form-status {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.local-form-status button {
+  flex: 0 0 auto;
+  padding: 0.8rem 0 0.2rem;
+  border-bottom: 1px solid rgb(158 217 210 / 0.55);
+  color: var(--local-accent);
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
 .local-privacy-note {
   margin-top: 1.6rem;
 }
 
 .local-search-results {
   margin-top: 0.65rem;
+  max-height: min(19rem, 42svh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border-top: 1px solid var(--local-line);
 }
 
