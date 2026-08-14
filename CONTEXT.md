@@ -8,6 +8,18 @@ SeoulSky presents a South Korea local rain forecast whose provider influence can
 The user-selected coordinate where every provider forecast is requested.
 _Avoid_: User station, saved location
 
+**Location Candidate**:
+A selectable, fully qualified Korean administrative or legal area with a representative coordinate and source-scoped identity.
+_Avoid_: Search hit, exact location
+
+**Area Representative**:
+The provider-supplied coordinate used as the Forecast Location after a Location Candidate is selected. It represents the named area, not the user's position.
+_Avoid_: User location, neighborhood center
+
+**Device Location Selection**:
+A Forecast Location supplied by browser geolocation together with the browser's temporary horizontal-accuracy estimate.
+_Avoid_: Exact address, saved location
+
 **Observation Station**:
 An official KMA station supplying completed precipitation ground truth.
 _Avoid_: User location, exact local weather

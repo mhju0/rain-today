@@ -1,6 +1,6 @@
 export type ForecastLocationSelection =
   | { kind: "device"; accuracyM: number | null }
-  | { kind: "administrative-area" };
+  | { kind: "area"; areaKind: "administrative-area" | "legal-area" };
 
 export function formatHorizontalAccuracy(accuracyM: number | null): string {
   if (accuracyM === null || !Number.isFinite(accuracyM) || accuracyM < 0) {
@@ -23,6 +23,9 @@ export function describeForecastLocationSelection(
       source: "현재 기기 위치",
       precision: formatHorizontalAccuracy(selection.accuracyM),
     };
+  }
+  if (selection.areaKind === "legal-area") {
+    return { source: "검색한 법정구역", precision: "법정구역 대표 위치" };
   }
   return { source: "검색한 행정구역", precision: "행정구역 대표 위치" };
 }

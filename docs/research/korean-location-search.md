@@ -1,6 +1,6 @@
 # Korea-wide city, district, and neighborhood search research
 
-**Status:** research and planning only
+**Status:** research complete; Kakao implementation pending credentialed matrix validation
 
 **Researched:** 2026-08-14
 

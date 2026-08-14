@@ -106,32 +106,112 @@ test("location search rejects one-character and oversized queries before fetchin
   assert.equal(calls, 0);
 });
 
-test("major Korean city aliases use their canonical Korean administrative name", async () => {
+test("서울시 uses its canonical Korean administrative name", async () => {
   const fetchImpl: typeof fetch = async (input, init) => {
     const url = new URL(String(input));
-    assert.equal(url.searchParams.get("query"), "부산광역시");
+    assert.equal(url.searchParams.get("query"), "서울특별시");
     assert.equal(new Headers(init?.headers).get("Authorization"), "KakaoAK test-key");
     return Response.json({
       documents: [{
         address_type: "REGION",
-        x: "129.03004",
-        y: "35.10168",
+        x: "126.978",
+        y: "37.5665",
         address: {
-          region_1depth_name: "부산",
+          region_1depth_name: "서울",
           region_2depth_name: "",
           region_3depth_name: "",
           region_3depth_h_name: "",
-          h_code: "2600000000",
+          h_code: "1100000000",
           b_code: "",
-          x: "129.03004",
-          y: "35.10168",
+          x: "126.978",
+          y: "37.5665",
         },
       }],
     });
   };
 
-  const results = await searchKoreanLocations("부산", { apiKey: "test-key", fetchImpl });
-  assert.equal(results[0]?.name, "부산광역시");
+  const results = await searchKoreanLocations("서울시", { apiKey: "test-key", fetchImpl });
+  assert.equal(results[0]?.name, "서울특별시");
+});
+
+test("duplicate neighborhood leaves remain fully qualified selectable candidates", async () => {
+  const fetchImpl: typeof fetch = async () => Response.json({
+    documents: [
+      {
+        address_type: "REGION",
+        address: {
+          region_1depth_name: "서울",
+          region_2depth_name: "강남구",
+          region_3depth_name: "삼성동",
+          region_3depth_h_name: "삼성1동",
+          h_code: "1168058000",
+          b_code: "1168010500",
+          x: "127.0628",
+          y: "37.5143",
+        },
+      },
+      {
+        address_type: "REGION",
+        address: {
+          region_1depth_name: "대전",
+          region_2depth_name: "동구",
+          region_3depth_name: "삼성동",
+          region_3depth_h_name: "삼성동",
+          h_code: "3011063000",
+          b_code: "3011011400",
+          x: "127.4227",
+          y: "36.3442",
+        },
+      },
+    ],
+  });
+
+  const results = await searchKoreanLocations("삼성동", { apiKey: "test-key", fetchImpl });
+
+  assert.deepEqual(results.map((result) => result.label), [
+    "서울특별시 강남구 삼성1동",
+    "대전광역시 동구 삼성동",
+  ]);
+});
+
+test("exact full hierarchy ranks ahead of a fuzzy provider candidate", async () => {
+  const fetchImpl: typeof fetch = async () => Response.json({
+    documents: [
+      {
+        address_type: "REGION",
+        address: {
+          region_1depth_name: "부산",
+          region_2depth_name: "강남구",
+          region_3depth_name: "삼성동",
+          region_3depth_h_name: "삼성동",
+          h_code: "2600010000",
+          b_code: "2600010000",
+          x: "129.05",
+          y: "35.15",
+        },
+      },
+      {
+        address_type: "REGION",
+        address: {
+          region_1depth_name: "서울",
+          region_2depth_name: "강남구",
+          region_3depth_name: "삼성동",
+          region_3depth_h_name: "삼성동",
+          h_code: "1168058000",
+          b_code: "1168010500",
+          x: "127.0628",
+          y: "37.5143",
+        },
+      },
+    ],
+  });
+
+  const results = await searchKoreanLocations(
+    "서울 강남구 삼성동",
+    { apiKey: "test-key", fetchImpl },
+  );
+
+  assert.equal(results[0]?.label, "서울특별시 강남구 삼성동");
 });
 
 test("bare neighborhood search retries the administrative dong suffix", async () => {

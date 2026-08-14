@@ -53,7 +53,7 @@ The restrained atmospheric background preserves the original cinematic character
 flowchart TB
   Browser["Browser /sky"] --> Search["/api/locations/search"]
   Browser --> Local["/api/local-forecast"]
-  Search --> Geocoding["Open-Meteo geocoding · KR only"]
+  Search --> Geocoding["Kakao Map administrative search · KR only"]
   Local --> Providers["Forecast provider snapshots at user coordinates"]
   Local --> Match["ASOS Station Match"]
   Match --> Database["PostgreSQL performance evidence"]
