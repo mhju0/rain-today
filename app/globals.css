@@ -944,7 +944,6 @@ html {
 
 .local-dashboard-topline small {
   color: var(--local-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.67rem;
 }
 
@@ -955,6 +954,36 @@ html {
   color: var(--local-accent);
   font-size: 0.78rem;
   cursor: pointer;
+}
+
+.local-precision-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-bottom: 1px solid var(--local-line);
+}
+
+.local-precision-summary div {
+  padding: 1rem 1.25rem 1rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.local-precision-summary div + div {
+  padding-left: 1.25rem;
+  border-left: 1px solid var(--local-line);
+}
+
+.local-precision-summary span {
+  color: var(--local-muted);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+}
+
+.local-precision-summary strong {
+  color: #cbd5d7;
+  font-size: 0.75rem;
+  font-weight: 560;
 }
 
 .local-forecast-hero {
@@ -1362,6 +1391,20 @@ html {
   .local-dashboard-topline > div {
     flex-direction: column;
     gap: 0.25rem;
+  }
+
+  .local-precision-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .local-precision-summary div {
+    padding: 0.85rem 0;
+  }
+
+  .local-precision-summary div + div {
+    padding-left: 0;
+    border-top: 1px solid var(--local-line);
+    border-left: 0;
   }
 
   .local-forecast-hero {
