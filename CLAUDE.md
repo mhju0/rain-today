@@ -8,7 +8,7 @@ SeoulSky is a completed, Seoul-only cinematic weather project. Keep changes focu
 - `npm run dev` — local server at `http://localhost:3000/sky`.
 - `npm run lint` — ESLint.
 - `npx tsc --noEmit` — strict TypeScript check.
-- `npm test` — Node's native test runner over `lib/**/*.test.ts`.
+- `npm test` — Node's native runner over `lib/**/*.test.ts`, then the focused TSX/JSDOM component suite.
 - `npm run build` — production build; `next/font` needs network access to fetch Geist and Noto Sans KR during a clean build.
 
 The application works without environment variables. Copy `.env.example` to `.env.local` only to enable optional server-side providers. Never expose provider keys through `NEXT_PUBLIC_*`, logs, errors, fixtures, or responses.
