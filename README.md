@@ -103,7 +103,7 @@ install -m 600 .env.example .env.local
 npm run dev
 ```
 
-Open [http://localhost:3000/sky](http://localhost:3000/sky). Open-Meteo provides a keyless forecast baseline; optional providers activate when configured.
+Open [http://localhost:3000/sky](http://localhost:3000/sky). Open-Meteo provides a keyless forecast baseline; configure `KAKAO_REST_API_KEY` for Korean administrative-area search. Optional weather providers activate when configured.
 
 To collect regional performance, configure:
 
