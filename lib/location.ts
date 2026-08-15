@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isInsideServiceArea } from "./locationServiceArea.ts";
 
 /** One validated forecast target inside the South Korea launch area. */
 export interface ForecastLocation {
@@ -15,13 +16,6 @@ export interface ForecastLocationInput {
   latitude: number;
   longitude: number;
 }
-
-const KOREA_BOUNDS = {
-  south: 32.75,
-  north: 38.65,
-  west: 124.5,
-  east: 132,
-} as const;
 
 const KMA_GRID = {
   earthRadiusKm: 6371.00877,
@@ -68,12 +62,7 @@ export function createForecastLocation(input: ForecastLocationInput): ForecastLo
   if (!Number.isFinite(input.latitude) || !Number.isFinite(input.longitude)) {
     throw new TypeError("location coordinates must be finite");
   }
-  if (
-    input.latitude < KOREA_BOUNDS.south ||
-    input.latitude > KOREA_BOUNDS.north ||
-    input.longitude < KOREA_BOUNDS.west ||
-    input.longitude > KOREA_BOUNDS.east
-  ) {
+  if (!isInsideServiceArea(input.latitude, input.longitude)) {
     throw new RangeError("location must be within the South Korea service area");
   }
 
