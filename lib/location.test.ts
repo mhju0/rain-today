@@ -31,6 +31,33 @@ test("createForecastLocation rejects non-finite and out-of-service coordinates",
   );
 });
 
+test("createForecastLocation rejects coordinates the launch rectangle wrongly admitted", () => {
+  // 개성 and 대마도 both sit inside latitude 32.75–38.65, longitude 124.5–132.
+  assert.throws(
+    () => createForecastLocation({ name: "개성", latitude: 37.97, longitude: 126.55 }),
+    /South Korea/,
+  );
+  assert.throws(
+    () => createForecastLocation({ name: "대마도", latitude: 34.4028, longitude: 129.3 }),
+    /South Korea/,
+  );
+  assert.throws(
+    () => createForecastLocation({ name: "황해", latitude: 36.5, longitude: 125 }),
+    /South Korea/,
+  );
+});
+
+test("createForecastLocation accepts required Korean islands", () => {
+  for (const [name, latitude, longitude] of [
+    ["마라도", 33.1167, 126.2681],
+    ["독도", 37.24, 131.869],
+    ["백령도", 37.9636, 124.6797],
+    ["울릉도", 37.4845, 130.9057],
+  ] as const) {
+    assert.equal(createForecastLocation({ name, latitude, longitude }).name, name);
+  }
+});
+
 test("locationToKmaGrid matches known Korean forecast-grid points", () => {
   assert.deepEqual(locationToKmaGrid(37.5665, 126.978), { nx: 60, ny: 127 });
   assert.deepEqual(locationToKmaGrid(35.1796, 129.0756), { nx: 98, ny: 76 });
