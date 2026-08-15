@@ -11,7 +11,7 @@ SeoulSky is a South Korea local rain forecast. It compares next-day precipitatio
 
 ## Product contract
 
-- The forecast target is the user's exact submitted coordinate inside the configured South Korea launch bounds.
+- The forecast target is the user's exact submitted coordinate inside the supported South Korea service area, validated against official administrative boundaries.
 - The user explicitly taps for browser geolocation or searches for a Korean place. The app does not prompt automatically or infer location from an IP address.
 - User coordinates are used for the request and are not written to the performance database.
 - Local performance is evidence from the KMA Station Match, not a claim that the station is the user's location.
@@ -141,7 +141,7 @@ Manual product checks should cover:
 ## Limits
 
 - Initial launch covers South Korea and precipitation only.
-- Exact-coordinate admission currently uses a South Korea launch bounding box rather than an administrative-border polygon, so nearby offshore or cross-border coordinates inside that box can pass validation. Manual place search remains country-filtered to Korea.
+- Exact-coordinate admission uses the official SGIS 시도 boundary geometry, so offshore and cross-border coordinates are rejected. The geometry is simplified to a 10 m tolerance, so a decision within roughly 25 m of the coastline can differ from the unsimplified source. Manual place search remains country-filtered to Korea.
 - ASOS is the first observation network. AWS eligibility remains a later audited expansion.
 - Initial shadow-validation policy defaults are: station distance at most 100 km; elevation difference at most 400 m; rain at 0.1 mm; miss/false-alarm decisions at 50%; at least 30 comparable captures with both wet and dry evidence; influence ramping through 60 captures; provider influence bounded to 5–60%; and an `exp(-4 × Brier)` score transform. These values, including the one-wet-day minimum, require validation against shadow data before marketing local coverage or performance guarantees.
 - A location may have no eligible observation station even when forecasts are available.

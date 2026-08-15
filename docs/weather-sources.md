@@ -1,6 +1,6 @@
 # Weather and environment sources
 
-SeoulSky accepts validated coordinates inside the configured South Korea launch bounds and uses `Asia/Seoul`. Exact-coordinate validation currently uses a bounding box rather than an administrative-border polygon; Korea-filtered manual search is stricter than browser-coordinate admission. On a cache miss, forecast providers receive the submitted coordinate. Process-local provider caches use a truncated SHA-256 digest of the complete validated numeric coordinate: raw coordinates do not appear in cache keys, and distinct coordinates do not intentionally share provider snapshots. This preserves the Forecast Location contract instead of quantizing one user's response onto another user's coordinate. The exact coordinate also determines the request's KMA grid and observation-station match. The local-performance collector separately requests forecasts at official KMA ASOS coordinates. All upstream calls run on the server. Provider keys, database credentials, and the MET Norway contact-bearing user agent must never be returned to the browser or written to logs.
+SeoulSky accepts validated coordinates inside the supported South Korea service area and uses `Asia/Seoul`. Exact-coordinate validation tests the coordinate against official SGIS 시도 boundary geometry, so sea and cross-border coordinates are rejected; see [`docs/research/sgis-boundary-acquisition.md`](./research/sgis-boundary-acquisition.md) for the source package, terms, boundary vintage, and update procedure. The geometry is generated offline into a server-only asset and is never sent to the browser. On a cache miss, forecast providers receive the submitted coordinate. Process-local provider caches use a truncated SHA-256 digest of the complete validated numeric coordinate: raw coordinates do not appear in cache keys, and distinct coordinates do not intentionally share provider snapshots. This preserves the Forecast Location contract instead of quantizing one user's response onto another user's coordinate. The exact coordinate also determines the request's KMA grid and observation-station match. The local-performance collector separately requests forecasts at official KMA ASOS coordinates. All upstream calls run on the server. Provider keys, database credentials, and the MET Norway contact-bearing user agent must never be returned to the browser or written to logs.
 
 The application remains usable without weather-provider keys: Open-Meteo supplies weather and air quality, and RainViewer supplies the conservative rain-approach signal. Manual administrative-area search requires a server-side Kakao REST key; browser current-location selection remains available without it. Optional weather sources enrich the response and fail independently.
 
@@ -58,11 +58,12 @@ Each forecast provider exposes one Provider Snapshot read. Its availability, cac
 
 ## Attribution
 
-The UI must retain the applicable credits: Kakao Map for administrative search; Open-Meteo; MET Norway; 기상청 (KMA); AirKorea; Pirate Weather; WeatherAPI; RainViewer; and © CARTO / © OpenStreetMap for the radar basemap. Check provider terms before changing commercial use, caching, or redistribution behavior.
+The UI must retain the applicable credits: Kakao Map for administrative search; Open-Meteo; MET Norway; 기상청 (KMA); AirKorea; Pirate Weather; WeatherAPI; RainViewer; and © CARTO / © OpenStreetMap for the radar basemap. The service-area geometry is derived from 국가데이터처 SGIS 행정구역 경계, published with no stated usage restriction; it is used server-side only and no boundary geometry is displayed. Check provider terms before changing commercial use, caching, or redistribution behavior.
 
 ## Implementation map
 
 - Forecast-location validation and KMA grid conversion: `lib/location.ts`
+- Service-area containment and its generated geometry: `lib/locationServiceArea.ts`, `lib/locationServiceAreaData.ts`, `scripts/generate-service-area.ts`
 - Korea-only manual search: `lib/locationSearch.ts`, `app/api/locations/search/route.ts`
 - Exact-location forecast assembly: `lib/localForecast.ts`, `app/api/local-forecast/route.ts`
 - Recent performance scoring and station matching: `lib/performance/performance.ts`, `lib/performance/stations.ts`
