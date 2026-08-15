@@ -13,7 +13,7 @@
  */
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, join, resolve } from "node:path";
 
 /** Douglas-Peucker tolerance in source-projection metres. */
 const SIMPLIFY_TOLERANCE_M = 10;
@@ -219,12 +219,25 @@ function writeVarint(out: number[], value: number): void {
   out.push(zigzag);
 }
 
-function main(): void {
-  const shpPath = process.argv[2];
-  if (!shpPath) {
-    console.error("usage: node scripts/generate-service-area.ts <bnd_sido_*.shp>");
-    process.exit(1);
+/**
+ * Resolve the operator-supplied argument to the one shapefile this generator
+ * accepts. Only an `bnd_<layer>_<code>_<year>_<quarter>.shp` basename from the
+ * official package is allowed, so the argument selects a package location
+ * rather than an arbitrary file to read.
+ */
+function resolveSourcePath(argument: string | undefined): string {
+  if (!argument) {
+    throw new Error("usage: npm run service-area:generate -- <bnd_sido_*.shp>");
   }
+  const resolved = resolve(argument);
+  if (!/^bnd_[a-z]+_\d+_\d{4}_\dQ\.shp$/.test(basename(resolved))) {
+    throw new Error(`not an official SGIS boundary shapefile: ${basename(resolved)}`);
+  }
+  return resolved;
+}
+
+function main(): void {
+  const shpPath = resolveSourcePath(process.argv[2]);
 
   const shp = readFileSync(shpPath);
   const sourceChecksum = createHash("sha256").update(shp).digest("hex");
