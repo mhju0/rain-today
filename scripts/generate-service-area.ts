@@ -13,7 +13,7 @@
  */
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
-import { basename } from "node:path";
+import { basename, join } from "node:path";
 
 /** Douglas-Peucker tolerance in source-projection metres. */
 const SIMPLIFY_TOLERANCE_M = 10;
@@ -23,7 +23,7 @@ const SPAN_TOLERANCE_DIVISOR = 8;
 const QUANTUM = 1e-5;
 const SCALE = Math.round(1 / QUANTUM);
 
-const OUTPUT_PATH = "lib/locationServiceAreaData.ts";
+const OUTPUT_PATH = join(import.meta.dirname, "..", "lib", "locationServiceAreaData.ts");
 
 // EPSG:5179 (Korea 2000 / Unified CS), read from the package's .prj.
 const A = 6378137.0;
@@ -85,9 +85,15 @@ function toWgs84(x: number, y: number): [number, number] {
 
 type Point = [number, number];
 
-/** Read every polygon ring from an ESRI shapefile of shape type 5. */
-function readRings(shp: Buffer): Point[][] {
-  const rings: Point[][] = [];
+/**
+ * Read each ESRI shapefile record of shape type 5 as one feature's ring list.
+ *
+ * Rings must stay grouped by feature: 전라남도 carries a hole where 광주광역시
+ * sits, and 광주's own outer ring belongs to a different feature. Evaluating
+ * holes across the whole layer would reject every coordinate in that city.
+ */
+function readFeatures(shp: Buffer): Point[][][] {
+  const features: Point[][][] = [];
   let pos = 100;
   while (pos < shp.length) {
     const contentLength = shp.readInt32BE(pos + 4);
@@ -102,6 +108,7 @@ function readRings(shp: Buffer): Point[][] {
       for (let i = 0; i < numParts; i += 1) {
         parts.push(shp.readInt32LE(partsOffset + 4 * i));
       }
+      const rings: Point[][] = [];
       for (let i = 0; i < numParts; i += 1) {
         const start = parts[i];
         const end = i + 1 < numParts ? parts[i + 1] : numPoints;
@@ -114,10 +121,48 @@ function readRings(shp: Buffer): Point[][] {
         }
         rings.push(ring);
       }
+      features.push(rings);
     }
     pos = body + contentLength * 2;
   }
-  return rings;
+  return features;
+}
+
+/** Read the layer's boundary vintage from the sibling DBF's BASE_DATE column. */
+function readBoundaryVintage(dbfPath: string): string {
+  const dbf = readFileSync(dbfPath);
+  const headerLength = dbf.readUInt16LE(8);
+  const recordLength = dbf.readUInt16LE(10);
+  let offset = 32;
+  let columnOffset = 1;
+  let found: number | null = null;
+  let width = 0;
+  while (dbf[offset] !== 0x0d) {
+    const name = dbf.subarray(offset, offset + 11).toString("utf8").replace(/\0.*$/, "");
+    const fieldWidth = dbf[offset + 16];
+    if (name === "BASE_DATE") {
+      found = columnOffset;
+      width = fieldWidth;
+    }
+    columnOffset += fieldWidth;
+    offset += 32;
+  }
+  if (found === null) throw new Error("boundary DBF has no BASE_DATE column");
+  const raw = dbf
+    .subarray(headerLength + found, headerLength + found + width)
+    .toString("utf8")
+    .trim();
+  if (!/^\d{8}$/.test(raw)) throw new Error(`unexpected BASE_DATE value: ${raw}`);
+
+  // Every record must share one vintage; a mixed package is not a valid source.
+  const recordCount = dbf.readInt32LE(4);
+  for (let record = 1; record < recordCount; record += 1) {
+    const start = headerLength + record * recordLength + found;
+    if (dbf.subarray(start, start + width).toString("utf8").trim() !== raw) {
+      throw new Error("boundary DBF mixes BASE_DATE vintages");
+    }
+  }
+  return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
 }
 
 /** Shoelace area; shapefile outer rings are clockwise and therefore negative. */
@@ -183,46 +228,52 @@ function main(): void {
 
   const shp = readFileSync(shpPath);
   const sourceChecksum = createHash("sha256").update(shp).digest("hex");
-  const rings = readRings(shp);
+  const boundaryVintage = readBoundaryVintage(shpPath.replace(/\.shp$/i, ".dbf"));
+  const features = readFeatures(shp);
 
   const encoded: number[] = [];
+  let ringCount = 0;
   let outerCount = 0;
   let holeCount = 0;
   let vertexCount = 0;
 
-  for (const ring of rings) {
-    const area = signedArea(ring);
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-    for (const [x, y] of ring) {
-      if (x < minX) minX = x;
-      if (y < minY) minY = y;
-      if (x > maxX) maxX = x;
-      if (y > maxY) maxY = y;
-    }
-    const span = Math.max(maxX - minX, maxY - minY);
-    const tolerance = Math.min(SIMPLIFY_TOLERANCE_M, span / SPAN_TOLERANCE_DIVISOR);
-    const simplified = simplify(ring, tolerance);
+  writeVarint(encoded, features.length);
 
-    if (area < 0) outerCount += 1;
-    else holeCount += 1;
-    vertexCount += simplified.length;
+  for (const rings of features) {
+    writeVarint(encoded, rings.length);
+    for (const ring of rings) {
+      const area = signedArea(ring);
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const [x, y] of ring) {
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+      }
+      const span = Math.max(maxX - minX, maxY - minY);
+      const tolerance = Math.min(SIMPLIFY_TOLERANCE_M, span / SPAN_TOLERANCE_DIVISOR);
+      const simplified = simplify(ring, tolerance);
 
-    // Ring header: vertex count, then 1 for an outer ring or 0 for a hole.
-    writeVarint(encoded, simplified.length);
-    writeVarint(encoded, area < 0 ? 1 : 0);
-    let previousLon = 0;
-    let previousLat = 0;
-    for (const [x, y] of simplified) {
-      const [lon, lat] = toWgs84(x, y);
-      const qLon = Math.round(lon * SCALE);
-      const qLat = Math.round(lat * SCALE);
-      writeVarint(encoded, qLon - previousLon);
-      writeVarint(encoded, qLat - previousLat);
-      previousLon = qLon;
-      previousLat = qLat;
+      ringCount += 1;
+      if (area < 0) outerCount += 1;
+      else holeCount += 1;
+      vertexCount += simplified.length;
+
+      writeVarint(encoded, simplified.length);
+      let previousLon = 0;
+      let previousLat = 0;
+      for (const [x, y] of simplified) {
+        const [lon, lat] = toWgs84(x, y);
+        const qLon = Math.round(lon * SCALE);
+        const qLat = Math.round(lat * SCALE);
+        writeVarint(encoded, qLon - previousLon);
+        writeVarint(encoded, qLat - previousLat);
+        previousLon = qLon;
+        previousLat = qLat;
+      }
     }
   }
 
@@ -239,18 +290,22 @@ function main(): void {
 export const SERVICE_AREA_SOURCE = {
   dataset: "국가데이터처_SGIS 행정구역 통계 및 경계",
   layer: ${JSON.stringify(basename(shpPath))},
-  boundaryVintage: "2025-06-30",
+  boundaryVintage: ${JSON.stringify(boundaryVintage)},
   sourceChecksum: ${JSON.stringify(sourceChecksum)},
   payloadChecksum: ${JSON.stringify(payloadChecksum)},
   simplifyToleranceMetres: ${SIMPLIFY_TOLERANCE_M},
   coordinateQuantumDegrees: ${QUANTUM},
-  ringCount: ${rings.length},
+  featureCount: ${features.length},
+  ringCount: ${ringCount},
   outerRingCount: ${outerCount},
   holeRingCount: ${holeCount},
   vertexCount: ${vertexCount},
 } as const;
 
-/** Zigzag-varint delta-encoded WGS84 rings. Decoded lazily by locationServiceArea.ts. */
+/**
+ * Zigzag-varint delta-encoded WGS84 geometry, grouped by feature so holes are
+ * only ever subtracted from their own feature. Decoded by locationServiceArea.ts.
+ */
 export const SERVICE_AREA_PAYLOAD =
   "${base64}";
 `;
@@ -259,7 +314,9 @@ export const SERVICE_AREA_PAYLOAD =
 
   console.log(`source        ${shpPath}`);
   console.log(`source sha256 ${sourceChecksum}`);
-  console.log(`rings         ${rings.length} (${outerCount} outer, ${holeCount} holes)`);
+  console.log(`vintage       ${boundaryVintage}`);
+  console.log(`features      ${features.length}`);
+  console.log(`rings         ${ringCount} (${outerCount} outer, ${holeCount} holes)`);
   console.log(`vertices      ${vertexCount}`);
   console.log(`payload       ${payload.length} bytes, base64 ${base64.length} bytes`);
   console.log(`payload sha256 ${payloadChecksum}`);

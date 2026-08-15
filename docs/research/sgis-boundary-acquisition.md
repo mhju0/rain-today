@@ -128,6 +128,18 @@ Mainland controls (서울, 부산, 강릉) also pass.
 
 [Verified] 개성 (37.97N, 126.55E) and 대마도 (34.40N, 129.30E) are both admitted by the current `KOREA_BOUNDS` rectangle in [`lib/location.ts`](../../lib/location.ts) and both rejected by this geometry. This is the concrete correctness gain issue #28 requires.
 
+### Enclave holes
+
+[Verified] The 시도 layer carries 13 hole rings. Twelve are intra-province water; one is an enclave — 전라남도 fully encloses 광주광역시, so 전남's polygon has a 498 km² hole (measured; 광주's published area is 501 km²) exactly where the city sits.
+
+[Verified] Holes must therefore be evaluated per feature. Treating them layer-wide rejected every coordinate in 광주, including KMA ASOS station 156 at 35.17294, 126.89156, which the scheduled capture requests on every cycle. An island-only acceptance corpus did not catch this; a per-시도 representative-point corpus does.
+
+### End-to-end verification of the generated asset
+
+[Verified] The shipped asset, decoded by the runtime, was compared against unsimplified geometry on 10,000 points — 6,000 uniform over the national bounding box and 4,000 within 3 km of a boundary vertex. Agreement was 99.87%, and all 13 disagreements lay within 6.8 m of the reference coastline.
+
+[Inferred] That comparison alone is not sufficient evidence of correctness: the first reference implementation shared the layer-wide hole flaw, so both sides agreed on 광주 and the sweep could not surface it. Agreement against a reference is only as strong as the reference's independence.
+
 [Verified] The acceptance set must be tested with genuine interior land coordinates. Plausible-looking centre coordinates for 추자도, 마라도, and 독도 initially fell in water — 독도's commonly cited coordinate lies in the channel between the two islets — and produced false rejections against correct geometry. Island test points in the implementation suite must be justified against the geometry, not assumed from a place-name lookup.
 
 ## 7. Consequences for implementation

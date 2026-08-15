@@ -16,7 +16,9 @@ A forecast coordinate is admitted only when it falls on South Korean land in the
 
 ## Consequences
 
-`createForecastLocation` delegates to a single containment seam and keeps its existing error contract, so every entry path — browser geolocation, administrative search selection, and direct API calls — is validated identically before any KMA grid conversion or provider request. Containment runs before grid conversion; a coordinate on land whose grid cell has no data must still surface an honest unavailable result rather than a fabricated forecast.
+`createForecastLocation` delegates to a single containment seam and keeps its existing error contract, so every entry path — browser geolocation, administrative search selection, scheduled station capture, and direct API calls — is validated identically before any KMA grid conversion or provider request. Containment runs before grid conversion; a coordinate on land whose grid cell has no data must still surface an honest unavailable result rather than a fabricated forecast.
+
+Geometry stays grouped by feature and containment is decided by ring-nesting parity within each feature. This is load-bearing, not an implementation detail: 전라남도 encloses 광주광역시, so 전남's polygon carries a hole exactly where that city sits. Evaluating holes across the whole layer rejected every coordinate in 광주 — a city of 1.4 million and the location of KMA ASOS station 156 — while still passing an island-only test corpus. The regression tests therefore assert a representative point for all 17 시도 and specifically for 광주, so a province cannot silently drop out again.
 
 The asset is derived from the 2025-06-30 boundary vintage, simplified with a 10 m Douglas-Peucker tolerance capped at one eighth of each ring's extent so small islands keep their shape, and quantized to about 1.1 m. Measured against the unsimplified geometry, disagreement is confined to within roughly 25 m of the coastline — far inside the 5 km KMA forecast grid and typical device GPS accuracy — and no required island or rejection case changes. This bound is a documented product limit, not an unbounded approximation.
 

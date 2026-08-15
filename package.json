@@ -15,7 +15,8 @@
     "test": "node --test \"lib/**/*.test.ts\" && tsx --test components/local/LocalForecastExperience.test.tsx",
     "performance:capture": "node --env-file-if-exists=.env.local --env-file-if-exists=.env scripts/local-performance.ts",
     "reliability:daily": "node --env-file-if-exists=.env.local --env-file-if-exists=.env scripts/precip-reliability.ts",
-    "reliability:state": "node scripts/reliability-state.ts"
+    "reliability:state": "node scripts/reliability-state.ts",
+    "service-area:generate": "node scripts/generate-service-area.ts"
   },
   "dependencies": {
     "framer-motion": "^13.0.0",

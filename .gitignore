@@ -76,5 +76,13 @@ skills-lock.json
 /public/cinematic/generated/
 /public/cinematic/locations/
 
+# The raw SGIS boundary package is an offline generator input, never a runtime
+# or repository artifact. Only lib/locationServiceAreaData.ts is committed.
+*.shp
+*.shx
+*.dbf
+*.prj
+*.cpg
+
 pnpm-lock.yaml
 pnpm-workspace.yaml
