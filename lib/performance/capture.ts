@@ -1,6 +1,7 @@
 import { createForecastLocation, type ForecastLocation } from "../location.ts";
 import { providers as weatherProviders } from "../providers/registry.ts";
 import type { ProviderSnapshot } from "../types.ts";
+import { blendPrecipitation } from "./influence.ts";
 import { buildRecentPerformanceProfile, DEFAULT_PERFORMANCE_POLICY } from "./performance.ts";
 import type { PerformanceStore } from "./store.ts";
 import type {
@@ -58,29 +59,6 @@ function validAmount(value: number | null | undefined): number | null {
     : null;
 }
 
-function normalizedInfluence(
-  forecasts: readonly CapturedProviderForecast[],
-  profileWeights: Readonly<Record<string, number>>,
-): Record<string, number> {
-  const raw = Object.fromEntries(
-    forecasts.map((forecast) => [
-      forecast.provider,
-      Math.max(
-        0,
-        profileWeights[forecast.provider] ?? DEFAULT_PERFORMANCE_POLICY.weightFloor,
-      ),
-    ]),
-  );
-  const total = Object.values(raw).reduce((sum, value) => sum + value, 0);
-  if (total <= 0) {
-    const equal = 1 / forecasts.length;
-    return Object.fromEntries(forecasts.map((forecast) => [forecast.provider, equal]));
-  }
-  return Object.fromEntries(
-    Object.entries(raw).map(([provider, weight]) => [provider, weight / total]),
-  );
-}
-
 async function readAllForecasts(location: ForecastLocation): Promise<ProviderSnapshot[]> {
   return Promise.all(weatherProviders.map((provider) => provider.read(location)));
 }
@@ -122,25 +100,22 @@ export async function captureStationForecast(
     observations: comparisons.map((comparison) => comparison.observation),
     asOf: input.now,
   });
-  const influence = normalizedInfluence(
-    forecasts,
-    profile.mode === "learned" || profile.mode === "ramping"
-      ? profile.effectiveWeights
-      : {},
-  );
-  const equalProbability =
-    forecasts.reduce((sum, forecast) => sum + forecast.probability!, 0) / forecasts.length;
-  const adaptiveProbability = forecasts.reduce(
-    (sum, forecast) => sum + forecast.probability! * influence[forecast.provider],
-    0,
-  );
+  // Both blends come from the module the serving path uses, so the Prospective
+  // Benchmark compares the adaptive and equal probabilities a user would have
+  // been shown rather than two separately derived numbers.
+  const adaptive = blendPrecipitation(forecasts, profile);
+  const equal = blendPrecipitation(forecasts, null);
   const capture: ForecastCapture = {
     stationId: input.station.id,
     targetDate,
     cohort: input.cohort,
     capturedAt: input.now.toISOString(),
     providers: forecasts,
-    frozenBlend: { adaptiveProbability, equalProbability, influence },
+    frozenBlend: {
+      adaptiveProbability: adaptive.probability,
+      equalProbability: equal.probability,
+      influence: adaptive.influence,
+    },
   };
   const status = await input.store.saveCapture(capture);
   return {
