@@ -1,6 +1,6 @@
 import type { ForecastLocation } from "./location.ts";
+import { blendPrecipitation } from "./performance/influence.ts";
 import {
-  blendPrecipProbability,
   buildRecentPerformanceProfile,
   DEFAULT_PERFORMANCE_POLICY,
 } from "./performance/performance.ts";
@@ -122,32 +122,10 @@ function validAmount(value: number | null | undefined): number | null {
     : null;
 }
 
-function equalInfluence(forecasts: readonly CapturedProviderForecast[]): Record<string, number> {
-  const weight = forecasts.length > 0 ? 1 / forecasts.length : 0;
-  return Object.fromEntries(forecasts.map((forecast) => [forecast.provider, weight]));
-}
-
-function normalizeInfluence(
-  forecasts: readonly CapturedProviderForecast[],
-  weights: Readonly<Record<string, number>>,
-): Record<string, number> {
-  const present = Object.fromEntries(
-    forecasts.map((forecast) => [
-      forecast.provider,
-      Math.max(0, weights[forecast.provider] ?? DEFAULT_PERFORMANCE_POLICY.weightFloor),
-    ]),
-  );
-  const total = Object.values(present).reduce((sum, value) => sum + value, 0);
-  if (total <= 0) return equalInfluence(forecasts);
-  return Object.fromEntries(
-    Object.entries(present).map(([provider, value]) => [provider, value / total]),
-  );
-}
-
 function buildForecastDay(
   date: string,
   snapshots: readonly ProviderSnapshot[],
-  weights: Readonly<Record<string, number>>,
+  profile: RecentPerformanceProfile | null,
 ): LocalForecastResponse["outlook"][number] | null {
   const rows = snapshots.flatMap((snapshot) => {
     if (!PRECIP_PROVIDERS.has(snapshot.id as PrecipProviderId)) return [];
@@ -168,23 +146,11 @@ function buildForecastDay(
     probability: row.probability,
     amountMm: row.amountMm,
   }));
-  const influence = normalizeInfluence(forecasts, weights);
-  const amounts = forecasts.filter((forecast) => forecast.amountMm !== null);
-  const amountWeight = amounts.reduce(
-    (sum, forecast) => sum + (influence[forecast.provider] ?? 0),
-    0,
-  );
+  const blend = blendPrecipitation(forecasts, profile);
   return {
     date,
-    precipitationProbability: blendPrecipProbability(forecasts, influence),
-    precipitationAmountMm:
-      amountWeight > 0
-        ? amounts.reduce(
-            (sum, forecast) =>
-              sum + forecast.amountMm! * (influence[forecast.provider] ?? 0) / amountWeight,
-            0,
-          )
-        : null,
+    precipitationProbability: blend.probability,
+    precipitationAmountMm: blend.amountMm,
     temperatureMax: rows[0].temperatureMax,
     temperatureMin: rows[0].temperatureMin,
     condition: rows[0].condition,
@@ -295,16 +261,11 @@ export async function readLocalForecast(
       : [],
   );
   const performance = await performancePromise;
-  const effectiveInfluence = normalizeInfluence(
-    forecasts,
-    performance.status === "active" && performance.profile
-      ? performance.profile.effectiveWeights
-      : equalInfluence(forecasts),
-  );
-  const operatingWeights =
-    performance.status === "active" && performance.profile
-      ? performance.profile.effectiveWeights
-      : {};
+  // Learned influence is evidence for one cohort's next day, so only the target
+  // date operates under the profile; later outlook days stay on Equal Fallback.
+  const operatingProfile =
+    performance.status === "active" ? performance.profile : null;
+  const effectiveInfluence = blendPrecipitation(forecasts, operatingProfile).influence;
   const outlook = Array.from(
     new Set(
       snapshots.flatMap((snapshot) => snapshot.daily.map((day) => day.date))
@@ -314,14 +275,10 @@ export async function readLocalForecast(
     .sort()
     .slice(0, 7)
     .flatMap((date) => {
-      const day = buildForecastDay(
-        date,
-        snapshots,
-        date === targetDate ? operatingWeights : {},
-      );
+      const day = buildForecastDay(date, snapshots, date === targetDate ? operatingProfile : null);
       return day ? [day] : [];
     });
-  const recommendation = buildForecastDay(targetDate, snapshots, operatingWeights) ?? {
+  const recommendation = buildForecastDay(targetDate, snapshots, operatingProfile) ?? {
     date: targetDate,
     precipitationProbability: null,
     precipitationAmountMm: null,

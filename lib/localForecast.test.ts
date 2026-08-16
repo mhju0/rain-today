@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createForecastLocation } from "./location.ts";
 import { readLocalForecast, readPerformanceEvidenceFromStore } from "./localForecast.ts";
+import { captureStationForecast } from "./performance/capture.ts";
 import { InMemoryPerformanceStore } from "./performance/store.ts";
 import type { RecentPerformanceProfile } from "./performance/types.ts";
 import type { ProviderSnapshot } from "./types.ts";
@@ -317,4 +318,90 @@ test("next-day performance influence does not leak into later outlook horizons",
 
   assert.equal(response.recommendation.precipitationProbability, 68);
   assert.equal(response.outlook[1]?.precipitationProbability, 50);
+});
+
+test("the frozen capture blend and the served blend agree on one station's evidence", async () => {
+  // The Prospective Benchmark scores the probability frozen at capture time
+  // against the blend served to users. If those two are derived separately they
+  // can drift apart while every isolated test still passes, and the benchmark
+  // silently stops measuring what it claims to.
+  const now = new Date("2026-08-13T18:20:00+09:00");
+  const store = new InMemoryPerformanceStore();
+  await store.syncStations([{
+    id: "108",
+    name: "서울",
+    network: "ASOS",
+    latitude: 37.5714,
+    longitude: 126.9658,
+    elevationM: 85.7,
+    activeFrom: "2026-01-01",
+    activeTo: null,
+  }], "2026-08-13");
+
+  // 60 completed comparisons in which open-meteo is sharp and kma is not, and
+  // the adaptive blend prospectively beat equal weighting, so influence is
+  // actually learned rather than trivially equal.
+  for (let daysAgo = 60; daysAgo >= 1; daysAgo -= 1) {
+    const targetDate = new Date(now.getTime() - daysAgo * 86_400_000).toISOString().slice(0, 10);
+    const wet = daysAgo % 2 === 0;
+    await store.saveCapture({
+      stationId: "108",
+      targetDate,
+      cohort: "18",
+      capturedAt: `${targetDate}T18:00:00+09:00`,
+      providers: [
+        { provider: "open-meteo", probability: wet ? 90 : 10, amountMm: null },
+        { provider: "kma", probability: wet ? 30 : 70, amountMm: null },
+      ],
+      frozenBlend: {
+        adaptiveProbability: wet ? 80 : 20,
+        equalProbability: 50,
+        influence: { "open-meteo": 0.5, kma: 0.5 },
+      },
+    });
+    await store.saveObservation({
+      stationId: "108",
+      date: targetDate,
+      observedMm: wet ? 10 : 0,
+      observedAt: `${targetDate}T23:59:00+09:00`,
+      source: "kma-asos",
+    });
+  }
+
+  const readForecasts = async () => [snapshot("open-meteo", 80, 5), snapshot("kma", 50, null)];
+  const captured = await captureStationForecast({
+    station: (await store.listStations())[0],
+    cohort: "18",
+    now,
+    store,
+    readForecasts,
+  });
+  const served = await readLocalForecast(
+    {
+      location: createForecastLocation({
+        name: "서울",
+        latitude: 37.5714,
+        longitude: 126.9658,
+      }),
+      elevationM: 85.7,
+    },
+    {
+      now,
+      readForecasts,
+      readEvidence: async (location, elevationM, cohort, at) =>
+        readPerformanceEvidenceFromStore(store, location, elevationM, cohort, at),
+    },
+  );
+
+  assert.equal(served.performance.status, "active", "evidence must be learning for this to bite");
+  assert.notDeepEqual(
+    served.effectiveInfluence,
+    { "open-meteo": 0.5, kma: 0.5 },
+    "influence must be learned, not equal, or agreement proves nothing",
+  );
+  assert.deepEqual(captured.capture?.frozenBlend.influence, served.effectiveInfluence);
+  assert.equal(
+    captured.capture?.frozenBlend.adaptiveProbability,
+    served.recommendation.precipitationProbability,
+  );
 });
