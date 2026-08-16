@@ -100,7 +100,11 @@ function renormalize(weights: Record<string, number>): Record<string, number> {
   return Object.fromEntries(entries.map(([provider, value]) => [provider, value / total]));
 }
 
-function normalizeClamped(
+/**
+ * Project raw scores onto { sum = 1, floor <= w <= cap } by water-filling.
+ * Exported for the cross-pipeline contract test; see ADR 0004.
+ */
+export function normalizeClamped(
   raw: Record<string, number>,
   floor: number,
   cap: number,
