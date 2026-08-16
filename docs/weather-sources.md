@@ -66,6 +66,8 @@ The UI must retain the applicable credits: Kakao Map for administrative search; 
 - Service-area containment and its generated geometry: `lib/locationServiceArea.ts`, `lib/locationServiceAreaData.ts`, `scripts/generate-service-area.ts`
 - Korea-only manual search: `lib/locationSearch.ts`, `app/api/locations/search/route.ts`
 - Exact-location forecast assembly: `lib/localForecast.ts`, `app/api/local-forecast/route.ts`
+- Effective Influence and the blend it produces: `lib/performance/influence.ts`
+- The flat page contract `/api/local-forecast` returns: `lib/localForecastView.ts`
 - Recent performance scoring and station matching: `lib/performance/performance.ts`, `lib/performance/stations.ts`
 - Performance persistence, capture, and fixed-cohort batch: `lib/performance/store.ts`, `lib/performance/postgres.ts`, `lib/performance/capture.ts`, `lib/performance/batch.ts`, `scripts/local-performance.ts`
 

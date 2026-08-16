@@ -193,14 +193,8 @@ test("device accuracy is displayed but not sent to the forecast API", async () =
     requestBody = String(init?.body ?? "");
     return Response.json({
       generatedAt: "2026-08-14T00:00:00.000Z",
-      location: {
-        name: "현재 위치",
-        latitude: 37.5,
-        longitude: 127,
-        elevationM: null,
-      },
+      locationName: "현재 위치",
       targetDate: "2026-08-15",
-      captureCohort: "06",
       recommendation: {
         precipitationProbability: 30,
         precipitationAmountMm: 0,
@@ -209,13 +203,17 @@ test("device accuracy is displayed but not sent to the forecast API", async () =
         condition: "clear",
       },
       outlook: [],
-      providers: [],
-      effectiveInfluence: {},
-      performance: {
+      blendMode: "equal",
+      comparedProviderCount: 0,
+      influence: [],
+      evidence: {
         status: "unavailable",
-        reason: "database-not-configured",
+        statusLabel: "근거 준비 중",
         station: null,
-        profile: null,
+        comparisonSampleCount: 0,
+        emptyMessage: "지역 성능 데이터베이스를 연결하면 이곳에 실제 비교가 표시됩니다.",
+        scores: [],
+        benchmark: null,
       },
     });
   };
@@ -251,6 +249,11 @@ test("device accuracy is displayed but not sent to the forecast API", async () =
   });
 
   assert.match(container.querySelector(".local-precision-summary")?.textContent ?? "", /약 30 m/);
-  assert.equal(JSON.parse(requestBody).accuracyM, undefined);
+  // The horizontal-accuracy estimate is shown to the user but must never reach
+  // the server, so assert on the whole body rather than on one absent key.
+  assert.deepEqual(
+    Object.keys(JSON.parse(requestBody)).sort(),
+    ["elevationM", "latitude", "longitude", "name"],
+  );
   await act(async () => root?.unmount());
 });

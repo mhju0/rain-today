@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
-import type { LocalForecastResponse } from "@/lib/localForecast";
+import { useEffect, useId, useRef, useState } from "react";
+import type { LocalForecastView } from "@/lib/localForecastView";
 import {
   describeForecastLocationSelection,
   type ForecastLocationSelection,
@@ -11,7 +11,7 @@ import type { ForecastLocationSearchResult } from "@/lib/locationSearch";
 type ViewState =
   | { kind: "idle" }
   | { kind: "loading"; label: string }
-  | { kind: "ready"; forecast: LocalForecastResponse; selection: ForecastLocationSelection }
+  | { kind: "ready"; forecast: LocalForecastView; selection: ForecastLocationSelection }
   | { kind: "error"; message: string };
 
 interface ChosenForecastLocation {
@@ -25,14 +25,6 @@ interface ChosenForecastLocation {
 function normalizeLocationQuery(query: string): string {
   return query.normalize("NFKC").trim().replace(/\s+/g, " ");
 }
-
-const PROVIDER_SHORT_NAMES: Readonly<Record<string, string>> = {
-  "open-meteo": "Open-Meteo",
-  "met-norway": "MET Norway",
-  kma: "기상청",
-  "pirate-weather": "Pirate Weather",
-  "weather-api": "WeatherAPI",
-};
 
 function probabilityLabel(probability: number | null): string {
   if (probability === null) return "—";
@@ -71,7 +63,7 @@ async function loadForecast(input: {
   latitude: number;
   longitude: number;
   elevationM: number | null;
-}): Promise<LocalForecastResponse> {
+}): Promise<LocalForecastView> {
   const response = await fetch("/api/local-forecast", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -79,7 +71,7 @@ async function loadForecast(input: {
     cache: "no-store",
   });
   if (!response.ok) throw new Error("forecast request failed");
-  return response.json() as Promise<LocalForecastResponse>;
+  return response.json() as Promise<LocalForecastView>;
 }
 
 function LocationMark() {
@@ -353,13 +345,8 @@ export function LocationChooser({ onChoose }: {
   );
 }
 
-function PerformanceEvidence({ performance }: Pick<LocalForecastResponse, "performance">) {
-  const { status, reason, station, profile } = performance;
-  const active = status === "active";
-  const providerRows = profile?.providers ?? [];
-  const sampleCount = providerRows.length > 0
-    ? Math.min(...providerRows.map((provider) => provider.windowSampleCount))
-    : 0;
+function PerformanceEvidence({ evidence }: { evidence: LocalForecastView["evidence"] }) {
+  const { status, statusLabel, station, comparisonSampleCount, emptyMessage, scores } = evidence;
 
   return (
     <section className="local-evidence-section" aria-labelledby="evidence-heading">
@@ -368,9 +355,7 @@ function PerformanceEvidence({ performance }: Pick<LocalForecastResponse, "perfo
           <p className="local-eyebrow">RECENT LOCAL PERFORMANCE</p>
           <h2 id="evidence-heading">최근 이 지역에서<br />누가 더 잘 맞았나</h2>
         </div>
-        <span className={`local-status-pill is-${status}`}>
-          {active ? "가중치 반영 중" : status === "collecting" ? "근거 수집 중" : "근거 준비 중"}
-        </span>
+        <span className={`local-status-pill is-${status}`}>{statusLabel}</span>
       </div>
 
       <div className="local-evidence-meta">
@@ -384,11 +369,11 @@ function PerformanceEvidence({ performance }: Pick<LocalForecastResponse, "perfo
         </div>
         <div>
           <span>비교 표본</span>
-          <strong>{sampleCount > 0 ? `${sampleCount}회 / 코호트` : "수집 전"}</strong>
+          <strong>{comparisonSampleCount > 0 ? `${comparisonSampleCount}회 / 코호트` : "수집 전"}</strong>
         </div>
       </div>
 
-      {profile && providerRows.length > 0 ? (
+      {emptyMessage === null ? (
         <div className="local-score-table" role="table" aria-label="서비스별 최근 강수 예보 성능">
           <div className="local-score-row local-score-header" role="row">
             <span role="columnheader">서비스</span>
@@ -397,11 +382,11 @@ function PerformanceEvidence({ performance }: Pick<LocalForecastResponse, "perfo
             <span role="columnheader">빗나감</span>
             <span role="columnheader">비 온 날 강수량 MAE</span>
           </div>
-          {providerRows.map((provider) => (
-            <div className="local-score-row" role="row" key={provider.provider}>
-              <strong role="cell">{PROVIDER_SHORT_NAMES[provider.provider] ?? provider.provider}</strong>
-              <span role="cell">{provider.last7Days.brierScore?.toFixed(3) ?? "—"}</span>
-              <span role="cell">{provider.brierScore.toFixed(3)}</span>
+          {scores.map((provider) => (
+            <div className="local-score-row" role="row" key={provider.id}>
+              <strong role="cell">{provider.name}</strong>
+              <span role="cell">{provider.last7DaysBrier?.toFixed(3) ?? "—"}</span>
+              <span role="cell">{provider.windowBrier.toFixed(3)}</span>
               <span role="cell">누락 {provider.misses} · 오보 {provider.falseAlarms}</span>
               <span role="cell">
                 {provider.rainyAmountMae === null ? "—" : `${provider.rainyAmountMae.toFixed(1)} mm`}
@@ -412,17 +397,7 @@ function PerformanceEvidence({ performance }: Pick<LocalForecastResponse, "perfo
         </div>
       ) : (
         <div className="local-empty-evidence">
-          <strong>
-            {reason === "database-not-configured"
-              ? "지역 성능 데이터베이스를 연결하면 이곳에 실제 비교가 표시됩니다."
-              : reason === "benchmark-regression"
-                ? "적응형 예보가 동일 가중 기준보다 나빠져 가중치 반영을 잠시 멈췄습니다."
-                : reason === "benchmark-insufficient"
-                  ? "적응형 방식과 동일 가중 방식을 공정하게 비교할 표본이 더 필요합니다."
-              : reason === "no-eligible-station"
-                ? "이 위치를 대표할 만한 가까운 관측소가 아직 없습니다."
-                : "충분한 예보와 관측이 쌓일 때까지 동일 가중치를 사용합니다."}
-          </strong>
+          <strong>{emptyMessage}</strong>
           <p>최소 30개의 비교 가능한 익일 예보와 비 온 날·안 온 날 근거가 모두 필요합니다.</p>
         </div>
       )}
@@ -436,26 +411,21 @@ function PerformanceEvidence({ performance }: Pick<LocalForecastResponse, "perfo
 }
 
 function ForecastDashboard({ forecast, selection, onReset }: {
-  forecast: LocalForecastResponse;
+  forecast: LocalForecastView;
   selection: ForecastLocationSelection;
   onReset(): void;
 }) {
-  const availableProviders = forecast.providers.filter((provider) => provider.available);
   const probability = forecast.recommendation.precipitationProbability;
-  const sourceMode = forecast.performance.status === "active"
+  const sourceMode = forecast.blendMode === "learned"
     ? "최근 관측 성능 반영"
     : "동일 가중 평균";
-  const sortedInfluence = useMemo(
-    () => Object.entries(forecast.effectiveInfluence).sort((a, b) => b[1] - a[1]),
-    [forecast.effectiveInfluence],
-  );
   const locationDescription = describeForecastLocationSelection(selection);
 
   return (
     <main className="local-dashboard">
       <div className="local-dashboard-topline">
         <div>
-          <span>{forecast.location.name}</span>
+          <span>{forecast.locationName}</span>
           <small>{locationDescription.source}</small>
         </div>
         <button type="button" onClick={onReset}>위치 바꾸기</button>
@@ -494,36 +464,36 @@ function ForecastDashboard({ forecast, selection, onReset }: {
             <p className="local-eyebrow">PROVIDER INFLUENCE</p>
             <h2 id="influence-heading">이번 예보에<br />각 서비스가 미친 영향</h2>
           </div>
-          <p>{availableProviders.length}개 서비스의 익일 강수 확률을 비교했습니다.</p>
+          <p>{forecast.comparedProviderCount}개 서비스의 익일 강수 확률을 비교했습니다.</p>
         </div>
 
         <div className="local-influence-grid">
-          {sortedInfluence.map(([provider, influence]) => {
-            const detail = forecast.providers.find((candidate) => candidate.id === provider);
-            return (
-              <div className="local-influence-row" key={provider}>
-                <div>
-                  <strong>{PROVIDER_SHORT_NAMES[provider] ?? provider}</strong>
-                  <span>{probabilityLabel(detail?.probability ?? null)}</span>
-                </div>
-                <div className="local-weight-track" aria-label={`${Math.round(influence * 100)}% 영향`}>
-                  <span style={{ width: `${influence * 100}%` }} />
-                </div>
-                <b>{Math.round(influence * 100)}%</b>
+          {forecast.influence.map((provider) => (
+            <div className="local-influence-row" key={provider.id}>
+              <div>
+                <strong>{provider.name}</strong>
+                <span>{probabilityLabel(provider.probability)}</span>
               </div>
-            );
-          })}
+              <div
+                className="local-weight-track"
+                aria-label={`${Math.round(provider.influence * 100)}% 영향`}
+              >
+                <span style={{ width: `${provider.influence * 100}%` }} />
+              </div>
+              <b>{Math.round(provider.influence * 100)}%</b>
+            </div>
+          ))}
         </div>
 
-        {forecast.performance.profile?.prospectiveBenchmark && (
+        {forecast.evidence.benchmark && (
           <p className="local-benchmark-line">
-            사전 고정 비교 · 적응형 Brier {forecast.performance.profile.prospectiveBenchmark.adaptiveBrier?.toFixed(3) ?? "—"}
-            <span /> 동일 가중 {forecast.performance.profile.prospectiveBenchmark.equalBrier?.toFixed(3) ?? "—"}
+            사전 고정 비교 · 적응형 Brier {forecast.evidence.benchmark.adaptiveBrier?.toFixed(3) ?? "—"}
+            <span /> 동일 가중 {forecast.evidence.benchmark.equalBrier?.toFixed(3) ?? "—"}
           </p>
         )}
       </section>
 
-      <PerformanceEvidence performance={forecast.performance} />
+      <PerformanceEvidence evidence={forecast.evidence} />
 
       {forecast.outlook.length > 1 && (
         <section className="local-outlook-section" aria-labelledby="outlook-heading">

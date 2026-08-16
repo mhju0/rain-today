@@ -78,6 +78,8 @@ Important boundaries:
 - `lib/performance/store.ts` defines persistence; `lib/performance/postgres.ts` is the production adapter.
 - `lib/performance/capture.ts` freezes one station/cohort prediction; `lib/performance/batch.ts` orchestrates the nationwide bounded run.
 - `lib/localForecast.ts` combines exact-coordinate forecasts with nearby-station evidence without persisting user coordinates.
+- `lib/performance/influence.ts` derives Effective Influence and the blend it produces, for both the capture and serving paths.
+- `lib/localForecastView.ts` projects that response onto the flat contract `/api/local-forecast` returns, so the page never reads the domain model directly.
 - `app/api/local-forecast` and `app/api/locations/search` are rate-limited HTTP adapters.
 
 The previous Seoul cinematic APIs and reliability modules remain in the repository for compatibility, but `/sky` and the nationwide local-performance workflow use the architecture above.
