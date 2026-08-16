@@ -100,14 +100,6 @@ export function createWeatherProvider(definition: WeatherProviderDefinition): We
   };
 }
 
-/** Read the complete snapshot through the factory-owned cache and failure boundary. */
-export async function readProviderSnapshot(
-  provider: WeatherProvider,
-  location: ForecastLocation = DEFAULT_FORECAST_LOCATION,
-): Promise<ProviderSnapshot> {
-  return provider.read(location);
-}
-
 /**
  * Read one provider's daily forecast for callers that intentionally omit an
  * unavailable or failing optional source from a consensus or batch run.

@@ -1,6 +1,10 @@
 import type { CaptureCohort } from "./types.ts";
 
-const SCHEDULE_COHORTS: Readonly<Record<string, CaptureCohort>> = {
+/**
+ * Every cron in `.github/workflows/local-performance.yml` must appear here; the
+ * workflow cannot see this table, so `cli.test.ts` binds the two together.
+ */
+export const SCHEDULE_COHORTS: Readonly<Record<string, CaptureCohort>> = {
   "10 21 * * *": "06",
   "10 9 * * *": "18",
 };

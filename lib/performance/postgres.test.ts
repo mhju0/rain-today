@@ -3,15 +3,19 @@ import test from "node:test";
 import { buildCompletedComparisonsQuery } from "./postgres.ts";
 import { PERFORMANCE_PROVIDERS } from "./store.ts";
 
-test("PostgreSQL comparison query limits completed evidence per provider", () => {
+/**
+ * Behaviour lives in `storeContract.test.ts`, which runs the same suite against
+ * every adapter. What remains here is the one thing a contract run cannot check
+ * without a database: that placeholders and bound parameters line up, so a
+ * reordered parameter list cannot silently query the wrong provider.
+ */
+test("PostgreSQL comparison query binds every placeholder it declares", () => {
   const query = buildCompletedComparisonsQuery("108", "06", 60);
+  const placeholders = new Set(query.text.match(/\$\d+/g) ?? []);
 
-  assert.match(query.text, /cross join lateral/i);
-  assert.match(query.text, /limit \$3/i);
-  assert.match(query.text, /capture\.providers @> jsonb_build_array/i);
-  assert.equal(
-    (query.text.match(/\(\$\d+::text\)/g) ?? []).length,
-    PERFORMANCE_PROVIDERS.length,
-  );
   assert.deepEqual(query.parameters, ["108", "06", 60, ...PERFORMANCE_PROVIDERS]);
+  assert.equal(placeholders.size, query.parameters.length);
+  for (let index = 1; index <= query.parameters.length; index += 1) {
+    assert.ok(placeholders.has(`$${index}`), `query never binds $${index}`);
+  }
 });
