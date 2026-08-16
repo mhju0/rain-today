@@ -137,6 +137,17 @@ export function LocationChooser({ onChoose }: {
           setMessage("검색 요청이 많아요. 잠시 후 다시 시도해 주세요.");
           return;
         }
+        if (response.status === 400) {
+          // The server rejected the query itself, so retrying it unchanged
+          // cannot succeed. Saying "temporarily unavailable" here would be
+          // dishonest and would offer a retry that never helps.
+          if (sequence !== requestSequence.current) return;
+          setResults([]);
+          setActiveResultIndex(-1);
+          setRetryAvailable(false);
+          setMessage("검색어를 인식하지 못했어요. 시·구·동 이름으로 더 짧게 입력해 주세요.");
+          return;
+        }
         if (!response.ok) throw new Error("unavailable");
         const payload = (await response.json()) as { results: ForecastLocationSearchResult[] };
         if (sequence !== requestSequence.current) return;
