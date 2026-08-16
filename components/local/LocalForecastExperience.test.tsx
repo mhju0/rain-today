@@ -257,3 +257,22 @@ test("device accuracy is displayed but not sent to the forecast API", async () =
   );
   await act(async () => root?.unmount());
 });
+
+test("a rejected query is not reported as a temporary outage", async () => {
+  const view = await mountChooser(async () =>
+    Response.json({ error: "invalid_query" }, { status: 400 }),
+  );
+
+  await changeInput(view.input, "가".repeat(90));
+  await settleDebounce();
+
+  const text = view.container.textContent ?? "";
+  assert.doesNotMatch(text, /잠시 원활하지 않아요/, "a 400 is not an outage");
+  assert.match(text, /검색어/, "the user is told the query itself was rejected");
+  assert.equal(
+    view.container.querySelector(".local-form-status button"),
+    null,
+    "retrying an identical rejected query cannot help",
+  );
+  await view.cleanup();
+});
