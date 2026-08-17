@@ -22,6 +22,8 @@ export interface LocalForecastProviderScore {
   name: string;
   last7DaysBrier: number | null;
   windowBrier: number;
+  /** Days scored in the window, so "빗나간 날" can be shown over its total. */
+  windowSampleCount: number;
   misses: number;
   falseAlarms: number;
   rainyAmountMae: number | null;
@@ -168,6 +170,7 @@ export function toLocalForecastView(response: LocalForecastResponse): LocalForec
         name: displayName(provider.provider),
         last7DaysBrier: provider.last7Days.brierScore,
         windowBrier: provider.brierScore,
+        windowSampleCount: provider.windowSampleCount,
         misses: provider.misses,
         falseAlarms: provider.falseAlarms,
         rainyAmountMae: provider.rainyAmountMae,

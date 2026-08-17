@@ -120,7 +120,9 @@ test("keyboard navigation selects one fully qualified duplicate candidate", asyn
       key: "Enter",
     }));
   });
-  assert.equal(view.choices[0]?.name, "삼성동");
+  // The whole label travels to the dashboard, not the leaf. Dozens of Korean
+  // towns have a 삼성동, so "삼성동" alone could not confirm the right place.
+  assert.equal(view.choices[0]?.name, "대전광역시 동구 삼성동");
   await view.cleanup();
 });
 
