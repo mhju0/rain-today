@@ -581,7 +581,11 @@ html {
   --local-accent: #9ed9d2;
   position: relative;
   min-height: 100svh;
-  overflow: hidden;
+  /* `clip` instead of `hidden`: hidden makes this element a scroll container,
+     which silently disables `position: sticky` on every descendant. The
+     decoration layer is `position: fixed` with its own clip, so nothing here
+     depended on the scroll container. */
+  overflow-x: clip;
   /* Korean must not wrap mid-word: without keep-all the hero renders
      "여기서는 어 / 떨까요?". break-word stays as the escape hatch for a single
      unbroken token (a long provider name) that cannot fit its column. */
@@ -1794,4 +1798,11 @@ html {
   .sky-data-layer:not(.is-active) {
     transform: none;
   }
+}
+
+.local-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem 1.5rem;
 }

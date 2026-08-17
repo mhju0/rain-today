@@ -13,7 +13,9 @@ type ViewState =
   | { kind: "idle" }
   | { kind: "loading"; label: string }
   | { kind: "ready"; forecast: LocalForecastView; selection: ForecastLocationSelection }
-  | { kind: "error"; message: string; retryable: boolean };
+  // Carries the input to retry, or null when retrying can never help — so the
+  // view cannot offer a button it has no way to act on.
+  | { kind: "error"; message: string; retry: ChosenForecastLocation | null };
 
 interface ChosenForecastLocation {
   name: string;
@@ -87,11 +89,21 @@ function shareableSearch(input: ChosenForecastLocation): string | null {
 
 function locationFromSearch(search: string): ChosenForecastLocation | null {
   const params = new URLSearchParams(search);
-  const latitude = Number(params.get("lat"));
-  const longitude = Number(params.get("lon"));
+  const rawLat = params.get("lat");
+  const rawLon = params.get("lon");
   const name = params.get("name")?.trim();
   const area = params.get("area");
+  // Bail on absent coordinates before Number(), which turns null and "" into 0
+  // and would send a link stripped by a chat client to the Gulf of Guinea —
+  // surfacing a dead-end "outside the service area" error as the first screen.
+  if (!rawLat?.trim() || !rawLon?.trim()) return null;
+  const latitude = Number(rawLat);
+  const longitude = Number(rawLon);
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  // Coarse Korea bounding box. The server still validates against the real
+  // service-area geometry; this only keeps a malformed link out of the loading
+  // state and on the chooser, where the user can do something about it.
+  if (latitude < 32 || latitude > 39.5 || longitude < 124 || longitude > 132) return null;
   if (!name || name.length > 80) return null;
   return {
     name,
@@ -532,10 +544,19 @@ function PerformanceEvidence({ evidence, cohortLabel }: {
     scores,
     benchmark,
   } = evidence;
-  // Best recent performer first, so the ranking is the reading order.
-  const ranked = [...scores].sort(
-    (a, b) => (a.last7DaysBrier ?? a.windowBrier) - (b.last7DaysBrier ?? b.windowBrier),
-  );
+  // Rank only the providers that actually have a seven-day record, and only
+  // against each other. Falling back to the 30-day score let a provider with no
+  // recent history be labelled "가장 잘 맞음" under a 최근 7일 heading.
+  const recent = scores
+    .filter((score) => score.last7DaysBrier !== null)
+    .sort((a, b) => (a.last7DaysBrier ?? 0) - (b.last7DaysBrier ?? 0));
+  const unranked = scores.filter((score) => score.last7DaysBrier === null);
+  const ranked = [...recent, ...unranked];
+  const rankLabel = (score: LocalForecastView["evidence"]["scores"][number]): string => {
+    const position = recent.indexOf(score);
+    if (position < 0) return "최근 7일 기록 없음";
+    return position === 0 ? "가장 잘 맞음" : `${position + 1}번째`;
+  };
   const verdict = benchmark ? benchmarkVerdict(benchmark) : null;
 
   return (
@@ -573,12 +594,10 @@ function PerformanceEvidence({ evidence, cohortLabel }: {
               <span role="columnheader">최근 7일</span>
               <span role="columnheader">빗나간 날</span>
             </div>
-            {ranked.map((provider, index) => (
+            {ranked.map((provider) => (
               <div className="local-score-row" role="row" key={provider.id}>
                 <strong role="cell">{provider.name}</strong>
-                <span role="cell">
-                  {index === 0 ? "가장 잘 맞음" : `${index + 1}번째`}
-                </span>
+                <span role="cell">{rankLabel(provider)}</span>
                 <span role="cell">{missedDays(provider)}</span>
               </div>
             ))}
@@ -801,33 +820,49 @@ export default function LocalForecastExperience() {
   const [state, setState] = useState<ViewState>({ kind: "idle" });
   const [returningToChooser, setReturningToChooser] = useState(false);
   const chooseRef = useRef<((input: ChosenForecastLocation, push: boolean) => void) | null>(null);
+  // Every path out of the loading screen bumps this. A response that arrives
+  // after the user has left must not paint a dashboard over the view they went
+  // to, leaving the URL and stored location describing something else.
+  const generation = useRef(0);
+  // Whether what is on screen is the place this device saved. A forecast opened
+  // from someone else's share link is not, so dismissing it must not delete the
+  // user's own saved location.
+  const showingStoredLocation = useRef(false);
 
   const chooseLocation = async (input: ChosenForecastLocation, push = true) => {
+    const attempt = (generation.current += 1);
     setState({ kind: "loading", label: input.name });
-    if (push && typeof window !== "undefined") {
-      const search = shareableSearch(input);
-      window.history.pushState({ seoulsky: true }, "", search ?? window.location.pathname);
-      writeStoredLocation(input);
-    }
     try {
       const { selection, ...forecastInput } = input;
-      setState({
-        kind: "ready",
-        forecast: await loadForecast(forecastInput),
-        selection,
-      });
+      const forecast = await loadForecast(forecastInput);
+      if (attempt !== generation.current) return;
+      // Commit to history and storage only once the coordinate is known to
+      // work. Saving first meant a permanently rejected coordinate reproduced
+      // its own error screen on every later visit.
+      if (push && typeof window !== "undefined") {
+        const search = shareableSearch(input);
+        window.history.pushState(
+          { seoulskyView: "forecast", location: input },
+          "",
+          search ?? window.location.pathname,
+        );
+        writeStoredLocation(input);
+        showingStoredLocation.current = true;
+      }
+      setState({ kind: "ready", forecast, selection });
     } catch (error) {
+      if (attempt !== generation.current) return;
       setState(
         error instanceof ForecastOutOfServiceAreaError
           ? {
               kind: "error",
               message: "이 위치는 대한민국 서비스 지역 밖이에요. 대한민국 안의 지역을 검색해 주세요.",
-              retryable: false,
+              retry: null,
             }
           : {
               kind: "error",
-              message: "이 위치의 예보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
-              retryable: true,
+              message: "이 위치의 예보를 불러오지 못했어요.",
+              retry: input,
             },
       );
     }
@@ -840,12 +875,16 @@ export default function LocalForecastExperience() {
   });
 
   const returnToChooser = (push: boolean) => {
-    // An explicit "change location" is a statement that this is not the place,
-    // so it clears the restore too — otherwise the next visit would bring back
-    // exactly what the user just dismissed.
-    clearStoredLocation();
+    generation.current += 1;
+    // Dismissing the saved place is a statement that it is not the place, so it
+    // clears the restore. Dismissing someone else's share link is not, and must
+    // leave this device's own saved location alone.
+    if (showingStoredLocation.current) {
+      clearStoredLocation();
+      showingStoredLocation.current = false;
+    }
     if (push && typeof window !== "undefined") {
-      window.history.pushState({ seoulsky: true }, "", window.location.pathname);
+      window.history.pushState({ seoulskyView: "chooser" }, "", window.location.pathname);
     }
     setReturningToChooser(true);
     setState({ kind: "idle" });
@@ -855,14 +894,39 @@ export default function LocalForecastExperience() {
   // last looked at. Without either, the chooser is the honest first screen.
   useEffect(() => {
     const fromLink = locationFromSearch(window.location.search);
-    const restored = fromLink ?? readStoredLocation();
-    if (restored) chooseRef.current?.(restored, false);
+    const stored = fromLink ? null : readStoredLocation();
+    const restored = fromLink ?? stored;
+    if (restored) {
+      showingStoredLocation.current = stored !== null;
+      // Stamp the entry the user landed on, so going Back to it later restores
+      // this forecast instead of falling through to the chooser.
+      window.history.replaceState(
+        { seoulskyView: "forecast", location: restored },
+        "",
+        window.location.href,
+      );
+      chooseRef.current?.(restored, false);
+    }
 
-    const onPopState = () => {
-      const target = locationFromSearch(window.location.search);
+    const onPopState = (event: PopStateEvent) => {
+      const entry = event.state as
+        | { seoulskyView?: string; location?: ChosenForecastLocation }
+        | null;
+      // A device fix carries no query string, so its history entry is
+      // indistinguishable from the chooser's by URL alone. The pushed state is
+      // what tells them apart.
+      if (entry?.seoulskyView === "chooser") {
+        generation.current += 1;
+        setReturningToChooser(true);
+        setState({ kind: "idle" });
+        return;
+      }
+      const target = locationFromSearch(window.location.search)
+        ?? (entry?.seoulskyView === "forecast" ? entry.location ?? null : null);
       if (target) {
         chooseRef.current?.(target, false);
       } else {
+        generation.current += 1;
         setReturningToChooser(true);
         setState({ kind: "idle" });
       }
@@ -870,6 +934,9 @@ export default function LocalForecastExperience() {
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
+
+  // Lifted out of the JSX so the narrowing survives into the click handler.
+  const errorRetry = state.kind === "error" ? state.retry : null;
 
   const announcement = state.kind === "loading"
     ? `${state.label}의 예보를 불러오는 중입니다.`
@@ -908,17 +975,28 @@ export default function LocalForecastExperience() {
         />
       )}
 
+      {/* No role here: the persistent region above already announces this
+          state, and two announcers read one change out twice. */}
       {state.kind === "loading" && (
-        <div className="local-loading" role="status">
+        <div className="local-loading">
           <span />
           <p>{state.label}의 내일 예보를 비교하고 있어요.</p>
         </div>
       )}
 
       {state.kind === "error" && (
-        <div className="local-loading" role="alert">
+        <div className="local-loading">
           <p>{state.message}</p>
-          <button type="button" onClick={() => returnToChooser(false)}>다른 위치 선택</button>
+          <div className="local-error-actions">
+            {/* A provider being briefly down says nothing about the location,
+                so retrying the same one is the first thing to offer. */}
+            {errorRetry && (
+              <button type="button" onClick={() => void chooseLocation(errorRetry, false)}>
+                다시 시도
+              </button>
+            )}
+            <button type="button" onClick={() => returnToChooser(false)}>다른 위치 선택</button>
+          </div>
         </div>
       )}
 
