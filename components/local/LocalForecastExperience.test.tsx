@@ -482,6 +482,8 @@ test("a shareable area link renders that place without touching stored state", a
 
   assert.ok(view.container.querySelector("#tomorrow-heading"), "the link alone produced a forecast");
   assert.match(body, /37\.5143/, "the linked coordinate was requested");
+  // Someone else's link must not overwrite the place this device saved.
+  assert.equal(window.localStorage.getItem("seoulsky.last-location.v1"), null);
   await view.cleanup();
 });
 
