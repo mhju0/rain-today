@@ -36,6 +36,8 @@ export interface LocalForecastEvidenceView {
   comparisonSampleCount: number;
   /** Present only when there is nothing to score yet; already resolved copy. */
   emptyMessage: string | null;
+  /** Second line for `emptyMessage`, only where one is actually true. */
+  emptyDetail: string | null;
   scores: LocalForecastProviderScore[];
   benchmark: { adaptiveBrier: number | null; equalBrier: number | null } | null;
 }
@@ -44,6 +46,9 @@ export interface LocalForecastView {
   generatedAt: string;
   locationName: string;
   targetDate: string | null;
+  current: LocalForecastResponse["current"];
+  /** Which daily release this forecast belongs to, already in display form. */
+  cohortLabel: string;
   recommendation: LocalForecastResponse["recommendation"];
   outlook: LocalForecastResponse["outlook"];
   /** Whether learned influence is being applied, in one word for the client. */
@@ -65,8 +70,27 @@ const EMPTY_EVIDENCE_COPY: Record<LocalForecastEvidence["reason"], string> = {
   "benchmark-insufficient": "적응형 방식과 동일 가중 방식을 공정하게 비교할 표본이 더 필요합니다.",
   "benchmark-regression": "적응형 예보가 동일 가중 기준보다 나빠져 가중치 반영을 잠시 멈췄습니다.",
   "no-eligible-station": "이 위치를 대표할 만한 가까운 관측소가 아직 없습니다.",
-  "database-not-configured": "지역 성능 데이터베이스를 연결하면 이곳에 실제 비교가 표시됩니다.",
+  // Addressed to the visitor, not the operator. "Connect the database" told a
+  // member of the public to perform an action only the operator can take.
+  "database-not-configured": "이 지역의 최근 성능 기록이 아직 없어, 서비스를 똑같은 비중으로 평균했습니다.",
   "database-unavailable": "지역 성능 근거를 지금 불러오지 못해 동일 가중치로 예보했습니다.",
+};
+
+/**
+ * The sample-size explanation is only true for the two reasons that are
+ * actually about sample size. Stapling it under "no nearby station" told a user
+ * on Jeju to wait for evidence that will never accumulate there.
+ */
+const EMPTY_EVIDENCE_DETAIL: Partial<Record<LocalForecastEvidence["reason"], string>> = {
+  "insufficient-evidence": "최소 30개의 비교 가능한 익일 예보와 비 온 날·안 온 날 근거가 모두 필요합니다.",
+  "benchmark-insufficient": "최소 30개의 비교 가능한 익일 예보와 비 온 날·안 온 날 근거가 모두 필요합니다.",
+  "no-eligible-station": "가까운 관측소가 생기면 이 지역의 비교가 시작됩니다.",
+  "benchmark-regression": "다시 나아지면 자동으로 가중치 반영으로 돌아갑니다.",
+};
+
+const COHORT_LABELS: Record<LocalForecastResponse["captureCohort"], string> = {
+  "06": "오전 6시 발표 기준",
+  "18": "오후 6시 발표 기준",
 };
 
 /**
@@ -105,6 +129,8 @@ export function toLocalForecastView(response: LocalForecastResponse): LocalForec
     generatedAt: response.generatedAt,
     locationName: response.location.name,
     targetDate: response.targetDate,
+    current: response.current,
+    cohortLabel: COHORT_LABELS[response.captureCohort],
     recommendation: response.recommendation,
     outlook: response.outlook,
     blendMode: response.performance.status === "active" ? "learned" : "equal",
@@ -134,6 +160,9 @@ export function toLocalForecastView(response: LocalForecastResponse): LocalForec
       emptyMessage: scoreRows.length > 0
         ? null
         : EMPTY_EVIDENCE_COPY[response.performance.reason],
+      emptyDetail: scoreRows.length > 0
+        ? null
+        : EMPTY_EVIDENCE_DETAIL[response.performance.reason] ?? null,
       scores: scoreRows.map((provider) => ({
         id: provider.provider,
         name: displayName(provider.provider),
