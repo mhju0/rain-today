@@ -82,7 +82,19 @@ Important boundaries:
 - `lib/localForecastView.ts` projects that response onto the flat contract `/api/local-forecast` returns, so the page never reads the domain model directly.
 - `app/api/local-forecast` and `app/api/locations/search` are rate-limited HTTP adapters.
 
-The previous Seoul cinematic APIs and reliability modules remain in the repository for compatibility, but `/sky` and the nationwide local-performance workflow use the architecture above.
+`/` redirects to `/sky`, as do the retired `/atmosphere` and `/diagnostics` routes. The Seoul cinematic scene survives as the background of `/sky`, and `/api/sky` and `/api/weather` still serve it.
+
+SeoulSky runs a **second, older scoring pipeline** alongside the one above. `lib/reliability/` scores a single station (서울 108) with an online update, persists to the `reliability-state` branch, and feeds the live `/api/sky` snapshot; `lib/performance/` scores every eligible station in batch and feeds `/api/local-forecast`. They share a vocabulary and a bounded-weight contract but not an implementation, and are deliberately not merged — see [ADR 0004](docs/adr/0004-two-precipitation-scoring-pipelines.md).
+
+## Documents
+
+| Document | Contents |
+| --- | --- |
+| [`CONTEXT.md`](CONTEXT.md) | Domain glossary: Forecast Location, Station Match, Capture Cohort, Effective Influence, and the rest |
+| [`docs/weather-sources.md`](docs/weather-sources.md) | Provider contracts, configuration, cache behavior, failure modes, and attribution |
+| [`docs/adr/`](docs/adr/) | Decision records: reliability state, Korean location selection, service-area boundary, and the two scoring pipelines |
+| [`docs/research/`](docs/research/) | Source evidence, including the SGIS boundary package's provenance and update procedure |
+| [`lib/reliability/README.md`](lib/reliability/README.md) | The single-station precipitation-scoring pipeline |
 
 ## Stack
 
@@ -130,6 +142,14 @@ npx tsc --noEmit
 npm test
 npm run build
 ```
+
+`npm test` runs the library suite and a JSDOM component suite. The PostgreSQL performance store is held to the same executable contract as the in-memory one, but only when a disposable database is supplied:
+
+```bash
+PERFORMANCE_STORE_CONTRACT_URL=postgres://… npm test
+```
+
+The suite truncates that database's tables, so it must never be a production URL. Without it, the PostgreSQL contract is reported as skipped rather than passing.
 
 Manual product checks should cover:
 

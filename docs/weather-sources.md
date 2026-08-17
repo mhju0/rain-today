@@ -70,6 +70,8 @@ The UI must retain the applicable credits: Kakao Map for administrative search; 
 - The flat page contract `/api/local-forecast` returns: `lib/localForecastView.ts`
 - Recent performance scoring and station matching: `lib/performance/performance.ts`, `lib/performance/stations.ts`
 - Performance persistence, capture, and fixed-cohort batch: `lib/performance/store.ts`, `lib/performance/postgres.ts`, `lib/performance/capture.ts`, `lib/performance/batch.ts`, `scripts/local-performance.ts`
+- Store adapter contract, run against every persistence adapter: `lib/performance/storeContract.ts`
+- The separate single-station scoring pipeline behind `/api/sky`, deliberately not merged with the above: `lib/reliability/*`, [`docs/adr/0004-two-precipitation-scoring-pipelines.md`](./adr/0004-two-precipitation-scoring-pipelines.md)
 
 - Provider contract, atomic snapshot factory, and registry: `lib/providers/base.ts`, `lib/providers/read.ts`, `lib/providers/registry.ts`
 - Provider implementations: `lib/providers/*`

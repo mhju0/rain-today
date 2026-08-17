@@ -1,6 +1,6 @@
 # Claude Code repository guidance
 
-SeoulSky is a completed, Seoul-only cinematic weather project. Keep changes focused on maintenance, correctness, security, and compatibility; do not add new product scope unless explicitly requested. `README.md` is the canonical public overview.
+SeoulSky is a South Korea local rain forecast: it compares next-day precipitation at a validated user coordinate and can weight providers by recently observed performance at a nearby KMA ASOS station. It grew out of a Seoul-only cinematic weather scene, and that scene survives as the restrained background of `/sky`. Keep changes focused on maintenance, correctness, security, and compatibility; do not add new product scope unless explicitly requested. `README.md` is the canonical public overview and `CONTEXT.md` is the domain glossary.
 
 ## Runtime and commands
 
