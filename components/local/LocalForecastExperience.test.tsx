@@ -462,11 +462,11 @@ test("a device coordinate is never written into the address bar", async () => {
   assert.ok(view.container.querySelector("#tomorrow-heading"), "the forecast rendered");
   // A precise position in the URL would leak into history and any shared link.
   assert.equal(window.location.search, "", "no coordinates in the query string");
-  assert.match(
-    window.localStorage.getItem("seoulsky.last-location.v1") ?? "",
-    /37\.5006/,
-    "it is remembered on the device instead",
-  );
+  // Remembered, but no finer than the forecast grid can use: a raw fix would
+  // pinpoint a dwelling, and anything on this origin can read the store.
+  const stored = JSON.parse(window.localStorage.getItem("seoulsky.last-location.v1") ?? "{}");
+  assert.equal(stored.latitude, 37.501, "coarsened to ~110 m before it is written");
+  assert.equal(stored.longitude, 127.036);
   await view.cleanup();
 });
 

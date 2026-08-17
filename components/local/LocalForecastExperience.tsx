@@ -145,9 +145,26 @@ function readStoredLocation(): ChosenForecastLocation | null {
   }
 }
 
+/**
+ * Persist no more precision than the forecast can use.
+ *
+ * A raw device fix is accurate to a few metres, which is enough to identify a
+ * dwelling, and browser storage is readable by anything running on this origin.
+ * Three decimals is about 110 m — far finer than the 5 km KMA grid the forecast
+ * is read on, so the restored forecast is identical while what sits on disk no
+ * longer points at a front door.
+ */
+function coarsenForStorage(input: ChosenForecastLocation): ChosenForecastLocation {
+  const round = (value: number): number => Math.round(value * 1_000) / 1_000;
+  return { ...input, latitude: round(input.latitude), longitude: round(input.longitude) };
+}
+
 function writeStoredLocation(input: ChosenForecastLocation): void {
   try {
-    window.localStorage.setItem(STORED_LOCATION_KEY, JSON.stringify(input));
+    window.localStorage.setItem(
+      STORED_LOCATION_KEY,
+      JSON.stringify(coarsenForStorage(input)),
+    );
   } catch {
     // Persistence is a convenience; losing it must not break the forecast.
   }
