@@ -40,6 +40,15 @@ export interface LocalForecastEvidence {
   profile: RecentPerformanceProfile | null;
 }
 
+export interface LocalForecastDay {
+  date: string;
+  precipitationProbability: number | null;
+  precipitationAmountMm: number | null;
+  temperatureMax: number | null;
+  temperatureMin: number | null;
+  condition: WeatherCondition;
+}
+
 export interface LocalForecastResponse {
   generatedAt: string;
   location: ForecastLocation;
@@ -67,14 +76,14 @@ export interface LocalForecastResponse {
     temperatureMin: number | null;
     condition: WeatherCondition;
   };
-  outlook: Array<{
-    date: string;
-    precipitationProbability: number | null;
-    precipitationAmountMm: number | null;
-    temperatureMax: number | null;
-    temperatureMin: number | null;
-    condition: WeatherCondition;
-  }>;
+  /**
+   * Today, always on equal weighting. The Recent Performance Profile scores
+   * next-day forecasts only, so carrying it onto today's number would be an
+   * accuracy claim nothing has verified. Null when no provider still publishes
+   * a daily entry for today.
+   */
+  today: LocalForecastDay | null;
+  outlook: LocalForecastDay[];
   providers: Array<{
     id: PrecipProviderId;
     name: string;
@@ -141,7 +150,7 @@ function buildForecastDay(
   date: string,
   snapshots: readonly ProviderSnapshot[],
   profile: RecentPerformanceProfile | null,
-): LocalForecastResponse["outlook"][number] | null {
+): LocalForecastDay | null {
   const rows = snapshots.flatMap((snapshot) => {
     if (!PRECIP_PROVIDERS.has(snapshot.id as PrecipProviderId)) return [];
     const daily = snapshot.daily.find((day) => day.date === date);
@@ -302,6 +311,8 @@ export async function readLocalForecast(
     condition: "unknown" as const,
   };
   const currentSource = snapshots.find((snapshot) => snapshot.current !== null);
+  // Equal weighting on purpose — see the `today` field docs.
+  const today = buildForecastDay(koreanDate(now), snapshots, null);
   return {
     generatedAt: now.toISOString(),
     location: input.location,
@@ -323,6 +334,7 @@ export async function readLocalForecast(
       temperatureMin: recommendation.temperatureMin,
       condition: recommendation.condition,
     },
+    today,
     outlook,
     providers: providerRows.map((provider) => ({
       id: provider.id,

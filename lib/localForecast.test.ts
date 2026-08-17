@@ -405,3 +405,63 @@ test("the frozen capture blend and the served blend agree on one station's evide
     served.recommendation.precipitationProbability,
   );
 });
+
+test("today is served on equal weighting even while the profile is active", async () => {
+  const location = createForecastLocation({
+    name: "서울",
+    latitude: 37.5665,
+    longitude: 126.978,
+  });
+  // Same two providers for today as for the target date, so any difference in
+  // the served numbers can only come from the weighting.
+  const openMeteo = snapshot("open-meteo", 80, 5);
+  openMeteo.daily.unshift({ ...openMeteo.daily[0], date: "2026-08-13" });
+  const kma = snapshot("kma", 50, null);
+  kma.daily.unshift({ ...kma.daily[0], date: "2026-08-13" });
+
+  const response = await readLocalForecast(
+    { location, elevationM: null },
+    {
+      now: new Date("2026-08-13T18:20:00+09:00"),
+      readForecasts: async () => [openMeteo, kma],
+      readEvidence: async () => ({
+        status: "active",
+        reason: "eligible-station",
+        station: { id: "108", name: "서울", distanceKm: 1.2 },
+        profile,
+      }),
+    },
+  );
+
+  assert.equal(response.today?.date, "2026-08-13");
+  // The Recent Performance Profile scores next-day forecasts only. 68 is the
+  // learned blend (0.6/0.4); 65 is the plain average. Today must be 65, or the
+  // page would claim an accuracy nothing has measured for this horizon.
+  assert.equal(response.recommendation.precipitationProbability, 68);
+  assert.equal(response.today?.precipitationProbability, 65);
+});
+
+test("today is null rather than invented when no provider still publishes it", async () => {
+  const location = createForecastLocation({
+    name: "서울",
+    latitude: 37.5665,
+    longitude: 126.978,
+  });
+
+  const response = await readLocalForecast(
+    { location, elevationM: null },
+    {
+      now: new Date("2026-08-13T18:20:00+09:00"),
+      readForecasts: async () => [snapshot("open-meteo", 80, 5)],
+      readEvidence: async () => ({
+        status: "unavailable",
+        reason: "database-not-configured",
+        station: null,
+        profile: null,
+      }),
+    },
+  );
+
+  assert.equal(response.today, null);
+  assert.equal(response.recommendation.precipitationProbability, 80);
+});

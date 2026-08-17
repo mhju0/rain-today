@@ -49,6 +49,8 @@ export interface LocalForecastView {
   locationName: string;
   targetDate: string | null;
   current: LocalForecastResponse["current"];
+  /** Today's forecast, always equal-weighted. Null when nobody still publishes it. */
+  today: LocalForecastResponse["today"];
   /** Which daily release this forecast belongs to, already in display form. */
   cohortLabel: string;
   recommendation: LocalForecastResponse["recommendation"];
@@ -132,6 +134,7 @@ export function toLocalForecastView(response: LocalForecastResponse): LocalForec
     locationName: response.location.name,
     targetDate: response.targetDate,
     current: response.current,
+    today: response.today,
     cohortLabel: COHORT_LABELS[response.captureCohort],
     recommendation: response.recommendation,
     outlook: response.outlook,

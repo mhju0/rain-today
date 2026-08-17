@@ -26,6 +26,8 @@ interface ChosenForecastLocation {
 }
 
 const STORED_LOCATION_KEY = "seoulsky.last-location.v1";
+/** What the server returns when a device coordinate could not be named. */
+const DEVICE_PLACEHOLDER_NAME = "현재 위치";
 
 /**
  * The forecast coordinate was rejected by the service-area check, so the same
@@ -344,7 +346,7 @@ export function LocationChooser({ onChoose, autoFocus = false }: {
     setMessage("정확한 위치를 확인하고 있어요…");
     navigator.geolocation.getCurrentPosition(
       (position) => onChoose({
-        name: "현재 위치",
+        name: DEVICE_PLACEHOLDER_NAME,
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
         elevationM:
@@ -680,10 +682,26 @@ function ForecastDashboard({ forecast, selection, onReset }: {
   selection: ForecastLocationSelection;
   onReset(): void;
 }) {
-  const probability = forecast.recommendation.precipitationProbability;
   const locationDescription = describeForecastLocationSelection(selection);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const learned = forecast.blendMode === "learned";
+  // Lead with today — it is what someone opening a weather app is asking. Fall
+  // back to tomorrow only when no provider still publishes a daily entry for
+  // today, so the hero is never empty.
+  // Normalise first: an absent field is not the same as an explicit null, and
+  // testing the raw value would report "오늘" while rendering tomorrow's numbers.
+  const today = forecast.today ?? null;
+  const leadIsToday = today !== null;
+  const lead = today ?? {
+    date: forecast.targetDate ?? "",
+    precipitationProbability: forecast.recommendation.precipitationProbability,
+    precipitationAmountMm: forecast.recommendation.precipitationAmountMm,
+    temperatureMax: forecast.recommendation.temperatureMax,
+    temperatureMin: forecast.recommendation.temperatureMin,
+    condition: forecast.recommendation.condition,
+  };
+  const probability = lead.precipitationProbability;
+  const dayWord = leadIsToday ? "오늘" : "내일";
 
   // The chooser this replaced is gone from the DOM, so without this the whole
   // swap leaves focus on <body> and a keyboard user restarts from the top.
@@ -696,7 +714,14 @@ function ForecastDashboard({ forecast, selection, onReset }: {
       <div className="local-dashboard-topline">
         <div className="local-topline-place">
           <span>{forecast.locationName}</span>
-          <small>{locationDescription.source}</small>
+          {/* With a resolved place name, "현재 기기 위치" says how we got it.
+              Without one it only repeats the name — "현재 위치 · 현재 기기 위치"
+              tells the reader nothing — so show the accuracy instead. */}
+          <small>
+            {forecast.locationName === DEVICE_PLACEHOLDER_NAME
+              ? locationDescription.precision
+              : locationDescription.source}
+          </small>
         </div>
         {forecast.current && (
           <p className="local-now">
@@ -708,15 +733,15 @@ function ForecastDashboard({ forecast, selection, onReset }: {
         <button type="button" onClick={onReset}>위치 바꾸기</button>
       </div>
 
-      <section className="local-forecast-hero" aria-labelledby="tomorrow-heading">
+      <section className="local-forecast-hero" aria-labelledby="forecast-heading">
         <div className="local-forecast-intro">
-          <p className="local-eyebrow">{formatDate(forecast.targetDate)} · TOMORROW</p>
-          <h1 id="tomorrow-heading" ref={headingRef} tabIndex={-1}>내일 비 올 확률</h1>
-          <p className="local-hero-condition">
-            {CONDITION_LABELS_KO[forecast.recommendation.condition]}
+          <p className="local-eyebrow">
+            {formatDate(lead.date)} · {leadIsToday ? "TODAY" : "TOMORROW"}
           </p>
+          <h1 id="forecast-heading" ref={headingRef} tabIndex={-1}>{dayWord} 비 올 확률</h1>
+          <p className="local-hero-condition">{CONDITION_LABELS_KO[lead.condition]}</p>
           <p className="local-action-copy">
-            {rainAction(probability, forecast.recommendation.precipitationAmountMm)}
+            {rainAction(probability, lead.precipitationAmountMm)}
           </p>
         </div>
 
@@ -726,16 +751,45 @@ function ForecastDashboard({ forecast, selection, onReset }: {
         </div>
 
         <div className="local-forecast-facts">
-          <div><span>예상 강수량</span><strong>{forecast.recommendation.precipitationAmountMm === null ? "—" : `${forecast.recommendation.precipitationAmountMm.toFixed(1)} mm`}</strong></div>
-          <div><span>낮 / 밤</span><strong>{forecast.recommendation.temperatureMax === null ? "—" : `${Math.round(forecast.recommendation.temperatureMax)}°`} / {forecast.recommendation.temperatureMin === null ? "—" : `${Math.round(forecast.recommendation.temperatureMin)}°`}</strong></div>
-          <div><span>계산 방식</span><strong>{learned ? "최근 관측 성능 반영" : "서비스 동일 비중 평균"}</strong></div>
+          <div><span>예상 강수량</span><strong>{lead.precipitationAmountMm === null ? "—" : `${lead.precipitationAmountMm.toFixed(1)} mm`}</strong></div>
+          <div><span>낮 / 밤</span><strong>{lead.temperatureMax === null ? "—" : `${Math.round(lead.temperatureMax)}°`} / {lead.temperatureMin === null ? "—" : `${Math.round(lead.temperatureMin)}°`}</strong></div>
+          <div>
+            <span>계산 방식</span>
+            {/* The learned profile scores next-day forecasts only, so today's
+                number is always a plain average — claiming otherwise would
+                assert an accuracy nothing has measured. */}
+            <strong>{!leadIsToday && learned ? "최근 관측 성능 반영" : "서비스 동일 비중 평균"}</strong>
+          </div>
         </div>
 
         <p className="local-hero-note">
-          강수 확률은 내일 하루 중 비가 올 가능성입니다. 비가 내리는 시간이나 지역
+          강수 확률은 {dayWord} 하루 중 비가 올 가능성입니다. 비가 내리는 시간이나 지역
           면적이 아닙니다.
         </p>
       </section>
+
+      {leadIsToday && (
+        <section className="local-tomorrow" aria-labelledby="tomorrow-heading">
+          <div className="local-tomorrow-head">
+            <p className="local-eyebrow">{formatDate(forecast.targetDate)} · TOMORROW</p>
+            <h2 id="tomorrow-heading">내일 비 올 확률</h2>
+          </div>
+          <p className="local-tomorrow-figure">
+            <strong>{probabilityLabel(forecast.recommendation.precipitationProbability)}</strong>
+            <span>{CONDITION_LABELS_KO[forecast.recommendation.condition]}</span>
+            <small>
+              {forecast.recommendation.temperatureMax === null ? "—" : `${Math.round(forecast.recommendation.temperatureMax)}°`}
+              {" / "}
+              {forecast.recommendation.temperatureMin === null ? "—" : `${Math.round(forecast.recommendation.temperatureMin)}°`}
+            </small>
+          </p>
+          <p className="local-tomorrow-note">
+            {learned
+              ? "내일 예보에만 최근 이 지역의 관측 성능을 반영합니다."
+              : "아직 이 지역의 성능 기록이 없어 서비스를 동일 비중으로 평균했습니다."}
+          </p>
+        </section>
+      )}
 
       {forecast.outlook.length > 1 && (
         <section className="local-outlook-section" aria-labelledby="outlook-heading">
