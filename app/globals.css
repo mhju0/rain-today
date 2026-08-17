@@ -582,6 +582,11 @@ html {
   position: relative;
   min-height: 100svh;
   overflow: hidden;
+  /* Korean must not wrap mid-word: without keep-all the hero renders
+     "여기서는 어 / 떨까요?". break-word stays as the escape hatch for a single
+     unbroken token (a long provider name) that cannot fit its column. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
   background:
     radial-gradient(circle at 72% 2%, rgb(41 91 104 / 0.44), transparent 34rem),
     radial-gradient(circle at 5% 86%, rgb(89 70 56 / 0.24), transparent 30rem),
