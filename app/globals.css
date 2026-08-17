@@ -684,6 +684,14 @@ html {
   border-radius: 2px;
 }
 
+/* Headings are focused programmatically so the swap is announced, not because
+   the user navigated to them. Chrome still paints a ring there, which reads as
+   a stray box drawn around the page title on arrival. */
+.local-forecast-page [tabindex="-1"]:focus,
+.local-forecast-page [tabindex="-1"]:focus-visible {
+  outline: none;
+}
+
 .local-wordmark {
   font-size: 0.82rem;
   font-weight: 680;
@@ -1579,7 +1587,12 @@ html {
     z-index: 2;
     min-height: 3.75rem;
     gap: 0.75rem;
-    background: var(--local-bg);
+    /* Full-bleed across the page gutter and frosted rather than filled: a
+       solid inset bar reads as a detached box over the scene gradient. */
+    margin-inline: -1rem;
+    padding-inline: 1rem;
+    background: color-mix(in srgb, var(--local-bg) 78%, transparent);
+    backdrop-filter: blur(14px);
   }
 
   .local-dashboard-topline .local-topline-place small {
