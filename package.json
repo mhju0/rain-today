@@ -16,6 +16,7 @@
     "performance:capture": "node --env-file-if-exists=.env.local --env-file-if-exists=.env scripts/local-performance.ts",
     "reliability:daily": "node --env-file-if-exists=.env.local --env-file-if-exists=.env scripts/precip-reliability.ts",
     "reliability:state": "node scripts/reliability-state.ts",
+    "location:matrix": "node --env-file-if-exists=.env.local --env-file-if-exists=.env scripts/location-matrix.ts",
     "service-area:generate": "node scripts/generate-service-area.ts"
   },
   "dependencies": {
