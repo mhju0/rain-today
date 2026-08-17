@@ -1620,11 +1620,17 @@ html {
 
   .local-dashboard-topline { order: 0; }
   .local-forecast-hero { order: 1; }
-  .local-outlook-section { order: 2; }
-  .local-precision-summary { order: 3; }
-  .local-influence-section { order: 4; }
-  .local-evidence-section { order: 5; }
-  .local-footer { order: 6; }
+  .local-tomorrow { order: 2; }
+  .local-outlook-section { order: 3; }
+  .local-precision-summary { order: 4; }
+  .local-influence-section { order: 5; }
+  .local-evidence-section { order: 6; }
+  .local-footer { order: 7; }
+
+  .local-tomorrow {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
 
   .local-precision-summary {
     grid-template-columns: 1fr;
@@ -1805,4 +1811,53 @@ html {
   flex-wrap: wrap;
   justify-content: center;
   gap: 0.75rem 1.5rem;
+}
+
+/* Tomorrow, after today. Secondary by scale but still its own block — the
+   recent-performance weighting only applies to this day, so it needs a home. */
+.local-tomorrow {
+  padding: clamp(2.5rem, 5vw, 4rem) 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1.5rem 2.5rem;
+  align-items: end;
+  border-bottom: 1px solid var(--local-line);
+}
+
+.local-tomorrow-head h2 {
+  margin-top: 0.5rem;
+  font-size: clamp(1.5rem, 2.6vw, 2.1rem);
+  font-weight: 380;
+  letter-spacing: -0.035em;
+}
+
+.local-tomorrow-figure {
+  display: flex;
+  align-items: baseline;
+  gap: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.local-tomorrow-figure strong {
+  font-size: clamp(2.6rem, 6vw, 3.6rem);
+  font-weight: 260;
+  letter-spacing: -0.05em;
+}
+
+.local-tomorrow-figure span {
+  color: var(--local-accent);
+  font-size: 1rem;
+}
+
+.local-tomorrow-figure small {
+  color: var(--local-muted);
+  font-size: 0.85rem;
+}
+
+.local-tomorrow-note {
+  grid-column: 1 / -1;
+  max-width: 46ch;
+  color: var(--local-muted);
+  font-size: 0.82rem;
+  line-height: 1.7;
 }

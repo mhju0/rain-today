@@ -292,6 +292,14 @@ function forecastPayload(overrides: Record<string, unknown> = {}) {
       sourceName: "Open-Meteo",
     },
     cohortLabel: "오전 6시 발표 기준",
+    today: {
+      date: "2026-08-17",
+      precipitationProbability: 85,
+      precipitationAmountMm: 2.7,
+      temperatureMax: 28,
+      temperatureMin: 23,
+      condition: "rain",
+    },
     recommendation: {
       precipitationProbability: 41,
       precipitationAmountMm: 0.7,
@@ -435,7 +443,7 @@ test("the last location is restored on the next visit without any interaction", 
 
   assert.equal(requests, 1, "the stored location is fetched on mount");
   assert.equal(view.container.querySelector("#location-heading"), null, "the chooser is skipped");
-  assert.ok(view.container.querySelector("#tomorrow-heading"), "the forecast is already showing");
+  assert.ok(view.container.querySelector("#forecast-heading"), "the forecast is already showing");
   await view.cleanup();
 });
 
@@ -459,7 +467,7 @@ test("a device coordinate is never written into the address bar", async () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
   });
 
-  assert.ok(view.container.querySelector("#tomorrow-heading"), "the forecast rendered");
+  assert.ok(view.container.querySelector("#forecast-heading"), "the forecast rendered");
   // A precise position in the URL would leak into history and any shared link.
   assert.equal(window.location.search, "", "no coordinates in the query string");
   // Remembered, but no finer than the forecast grid can use: a raw fix would
@@ -480,7 +488,7 @@ test("a shareable area link renders that place without touching stored state", a
     return Response.json(forecastPayload());
   });
 
-  assert.ok(view.container.querySelector("#tomorrow-heading"), "the link alone produced a forecast");
+  assert.ok(view.container.querySelector("#forecast-heading"), "the link alone produced a forecast");
   assert.match(body, /37\.5143/, "the linked coordinate was requested");
   // Someone else's link must not overwrite the place this device saved.
   assert.equal(window.localStorage.getItem("seoulsky.last-location.v1"), null);
@@ -528,7 +536,9 @@ test("observed conditions and tomorrow's condition both reach the screen", async
 
   assert.match(view.container.querySelector(".local-now")?.textContent ?? "", /27°/);
   assert.match(view.container.querySelector(".local-now")?.textContent ?? "", /구름 조금/);
-  assert.equal(view.container.querySelector(".local-hero-condition")?.textContent, "이슬비");
+  // The hero is today's sky; tomorrow's lives in its own block below.
+  assert.equal(view.container.querySelector(".local-hero-condition")?.textContent, "비");
+  assert.match(view.container.querySelector(".local-tomorrow")?.textContent ?? "", /이슬비/);
   await view.cleanup();
 });
 
@@ -596,7 +606,7 @@ test("a forecast that resolves after the user leaves does not paint over the cho
   });
 
   assert.equal(
-    view.container.querySelector("#tomorrow-heading"),
+    view.container.querySelector("#forecast-heading"),
     null,
     "the abandoned response must not replace the view the user chose",
   );
@@ -614,7 +624,7 @@ test("Back returns to a device forecast whose URL is identical to the chooser's"
     locationButton?.click();
     await new Promise((resolve) => setTimeout(resolve, 50));
   });
-  assert.ok(view.container.querySelector("#tomorrow-heading"), "forecast showing");
+  assert.ok(view.container.querySelector("#forecast-heading"), "forecast showing");
 
   const reset = [...view.container.querySelectorAll(".local-dashboard-topline button")][0];
   await act(async () => {
@@ -631,7 +641,7 @@ test("Back returns to a device forecast whose URL is identical to the chooser's"
   });
 
   assert.ok(
-    view.container.querySelector("#tomorrow-heading"),
+    view.container.querySelector("#forecast-heading"),
     "Back reached the forecast rather than another chooser",
   );
   await view.cleanup();
@@ -688,7 +698,7 @@ test("a transient failure offers a retry and keeps the saved location", async ()
     retry?.click();
     await new Promise((resolve) => setTimeout(resolve, 50));
   });
-  assert.ok(view.container.querySelector("#tomorrow-heading"), "the retry recovered");
+  assert.ok(view.container.querySelector("#forecast-heading"), "the retry recovered");
   await view.cleanup();
 });
 
@@ -793,5 +803,108 @@ test("a provider with no seven-day record is not ranked against ones that have i
   assert.equal(rows[0]?.[1], "가장 잘 맞음");
   assert.equal(rows[1]?.[0], "기상청");
   assert.equal(rows[1]?.[1], "최근 7일 기록 없음", "and the other is not given a rank");
+  await view.cleanup();
+});
+
+test("the headline number is today's, not tomorrow's", async () => {
+  window.localStorage.setItem(
+    "seoulsky.last-location.v1",
+    JSON.stringify({
+      name: "역삼1동", latitude: 37.5006, longitude: 127.0364,
+      elevationM: null, selection: { kind: "device", accuracyM: 18 },
+    }),
+  );
+  const view = await mountExperience(async () => Response.json(forecastPayload()));
+
+  assert.equal(view.container.querySelector("#forecast-heading")?.textContent, "오늘 비 올 확률");
+  // 85 is today; 41 is tomorrow. Someone opening a weather app is asking about today.
+  assert.match(view.container.querySelector(".local-rain-number")?.textContent ?? "", /85/);
+  assert.match(
+    view.container.querySelector(".local-rain-number")?.getAttribute("aria-label") ?? "",
+    /85%/,
+  );
+  assert.match(view.container.querySelector(".local-tomorrow")?.textContent ?? "", /41%/);
+  await view.cleanup();
+});
+
+test("today's number is never presented as performance-weighted", async () => {
+  window.localStorage.setItem(
+    "seoulsky.last-location.v1",
+    JSON.stringify({
+      name: "역삼1동", latitude: 37.5006, longitude: 127.0364,
+      elevationM: null, selection: { kind: "device", accuracyM: 18 },
+    }),
+  );
+  // Learned weighting is active, but it is trained and validated on next-day
+  // forecasts only, so claiming it for today would assert unmeasured accuracy.
+  const view = await mountExperience(async () =>
+    Response.json(forecastPayload({ blendMode: "learned" })),
+  );
+
+  assert.match(
+    view.container.querySelector(".local-forecast-facts")?.textContent ?? "",
+    /동일 비중/,
+  );
+  assert.match(
+    view.container.querySelector(".local-tomorrow-note")?.textContent ?? "",
+    /내일 예보에만/,
+  );
+  await view.cleanup();
+});
+
+test("the hero falls back to tomorrow when today is no longer published", async () => {
+  window.localStorage.setItem(
+    "seoulsky.last-location.v1",
+    JSON.stringify({
+      name: "역삼1동", latitude: 37.5006, longitude: 127.0364,
+      elevationM: null, selection: { kind: "device", accuracyM: 18 },
+    }),
+  );
+  const view = await mountExperience(async () => Response.json(forecastPayload({ today: null })));
+
+  assert.equal(view.container.querySelector("#forecast-heading")?.textContent, "내일 비 올 확률");
+  assert.match(view.container.querySelector(".local-rain-number")?.textContent ?? "", /41/);
+  assert.equal(
+    view.container.querySelector(".local-tomorrow"),
+    null,
+    "no duplicate tomorrow block when tomorrow is already the hero",
+  );
+  await view.cleanup();
+});
+
+test("an unnamed device fix shows its accuracy rather than repeating itself", async () => {
+  window.localStorage.setItem(
+    "seoulsky.last-location.v1",
+    JSON.stringify({
+      name: "현재 위치", latitude: 37.5006, longitude: 127.0364,
+      elevationM: null, selection: { kind: "device", accuracyM: 18 },
+    }),
+  );
+  const view = await mountExperience(async () =>
+    Response.json(forecastPayload({ locationName: "현재 위치" })),
+  );
+
+  const place = view.container.querySelector(".local-topline-place")?.textContent ?? "";
+  // "현재 위치 · 현재 기기 위치" told the reader nothing they did not already see.
+  assert.doesNotMatch(place, /현재 기기 위치/);
+  assert.match(place, /약 20 m/);
+  await view.cleanup();
+});
+
+test("a resolved place name keeps the provenance label", async () => {
+  window.localStorage.setItem(
+    "seoulsky.last-location.v1",
+    JSON.stringify({
+      name: "현재 위치", latitude: 37.5006, longitude: 127.0364,
+      elevationM: null, selection: { kind: "device", accuracyM: 18 },
+    }),
+  );
+  const view = await mountExperience(async () =>
+    Response.json(forecastPayload({ locationName: "서울특별시 강남구 역삼1동" })),
+  );
+
+  const place = view.container.querySelector(".local-topline-place")?.textContent ?? "";
+  assert.match(place, /서울특별시 강남구 역삼1동/);
+  assert.match(place, /현재 기기 위치/, "with a real name, how we got it is useful");
   await view.cleanup();
 });

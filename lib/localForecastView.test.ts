@@ -71,6 +71,7 @@ function response(overrides: Partial<LocalForecastResponse> = {}): LocalForecast
     targetDate: "2026-08-15",
     captureCohort: "06",
     current: null,
+    today: null,
     recommendation: {
       precipitationProbability: 68,
       precipitationAmountMm: 5,
