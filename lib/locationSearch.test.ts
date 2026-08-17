@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { searchKoreanLocations } from "./locationSearch.ts";
+import {
+  describeKoreanCoordinate,
+  LocationSearchNotConfiguredError,
+  searchKoreanLocations,
+} from "./locationSearch.ts";
 
 test("Korean district search returns a fully qualified administrative candidate", async () => {
   const fetchImpl: typeof fetch = async () => Response.json({
@@ -275,4 +279,82 @@ test("street-address matches never become administrative-area candidates", async
     await searchKoreanLocations("서울 강남구 테헤란로 152", { apiKey: "test-key", fetchImpl }),
     [],
   );
+});
+
+test("a missing credential is reported as configuration, not a transient outage", async () => {
+  const previous = process.env.KAKAO_REST_API_KEY;
+  delete process.env.KAKAO_REST_API_KEY;
+  try {
+    await assert.rejects(
+      () => searchKoreanLocations("역삼동", {
+        fetchImpl: async () => {
+          throw new Error("upstream must not be reached without a key");
+        },
+      }),
+      LocationSearchNotConfiguredError,
+    );
+  } finally {
+    if (previous !== undefined) process.env.KAKAO_REST_API_KEY = previous;
+  }
+});
+
+test("a device coordinate resolves to the administrative name a resident would use", async () => {
+  const requested: string[] = [];
+  const fetchImpl: typeof fetch = async (input) => {
+    requested.push(String(input));
+    return Response.json({
+      documents: [
+        {
+          region_type: "B",
+          region_1depth_name: "서울",
+          region_2depth_name: "강남구",
+          region_3depth_name: "역삼동",
+        },
+        {
+          region_type: "H",
+          region_1depth_name: "서울",
+          region_2depth_name: "강남구",
+          region_3depth_name: "역삼1동",
+        },
+      ],
+    });
+  };
+
+  const name = await describeKoreanCoordinate(37.5006, 127.0364, { apiKey: "k", fetchImpl });
+
+  // "H" (행정동) wins over the 법정동 leaf listed first in the response.
+  assert.equal(name, "서울특별시 강남구 역삼1동");
+  assert.match(requested[0], /x=127\.0364&y=37\.5006/);
+});
+
+test("reverse geocoding degrades to null instead of failing the forecast", async () => {
+  const rejecting: typeof fetch = async () => Response.json({ error: "nope" }, { status: 401 });
+  const throwing: typeof fetch = async () => {
+    throw new Error("network down");
+  };
+
+  assert.equal(await describeKoreanCoordinate(37.5, 127, { apiKey: "k", fetchImpl: rejecting }), null);
+  assert.equal(await describeKoreanCoordinate(37.5, 127, { apiKey: "k", fetchImpl: throwing }), null);
+  assert.equal(
+    await describeKoreanCoordinate(37.5, 127, {
+      apiKey: "k",
+      fetchImpl: async () => Response.json({ documents: [] }),
+    }),
+    null,
+  );
+});
+
+test("reverse geocoding without a key never reaches the network", async () => {
+  const previous = process.env.KAKAO_REST_API_KEY;
+  delete process.env.KAKAO_REST_API_KEY;
+  try {
+    const name = await describeKoreanCoordinate(37.5, 127, {
+      fetchImpl: async () => {
+        throw new Error("upstream must not be reached without a key");
+      },
+    });
+    assert.equal(name, null);
+  } finally {
+    if (previous !== undefined) process.env.KAKAO_REST_API_KEY = previous;
+  }
 });

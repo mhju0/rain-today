@@ -2,6 +2,20 @@ import { readResponseBytes } from "./httpResponse.ts";
 import { createForecastLocation } from "./location.ts";
 
 const KAKAO_ADDRESS_URL = "https://dapi.kakao.com/v2/local/search/address.json";
+const KAKAO_REGION_URL = "https://dapi.kakao.com/v2/local/geo/coord2regioncode.json";
+
+/**
+ * Search is unavailable because no Kakao credential is configured, which no
+ * amount of retrying fixes. Distinct from a transient upstream failure so the
+ * route can stop offering the user a retry that can never succeed.
+ */
+export class LocationSearchNotConfiguredError extends Error {
+  constructor() {
+    super("Kakao location search is not configured");
+    this.name = "LocationSearchNotConfiguredError";
+  }
+}
+
 const SIDO_LABELS: Readonly<Record<string, string>> = {
   서울: "서울특별시",
   부산: "부산광역시",
@@ -199,7 +213,7 @@ export async function searchKoreanLocations(
   if (normalized.length < 2) throw new RangeError("location query must contain two characters");
   if (normalized.length > 80) throw new RangeError("location query is too long");
   const apiKey = options.apiKey?.trim() || process.env.KAKAO_REST_API_KEY?.trim();
-  if (!apiKey) throw new Error("Kakao location search is not configured");
+  if (!apiKey) throw new LocationSearchNotConfiguredError();
 
   const upstreamQuery = KOREAN_CITY_ALIASES[normalized] ?? normalized;
   const queries = [upstreamQuery];
@@ -223,4 +237,61 @@ export async function searchKoreanLocations(
     if (unique.size > 0) return rankResults([...unique.values()], normalized);
   }
   return [];
+}
+
+interface KakaoRegionDocument {
+  region_type?: string;
+  region_1depth_name?: string;
+  region_2depth_name?: string;
+  region_3depth_name?: string;
+}
+
+/**
+ * Resolve a device coordinate to its 시·구·동 name.
+ *
+ * Enrichment only: every failure path returns null so the forecast still
+ * renders under the caller's placeholder. Without this, a geolocation user sees
+ * "현재 위치" as the only label on the page and has no way to tell whether the
+ * fix landed on their neighbourhood or the next city.
+ */
+export async function describeKoreanCoordinate(
+  latitude: number,
+  longitude: number,
+  options: LocationSearchOptions = {},
+): Promise<string | null> {
+  const apiKey = options.apiKey?.trim() || process.env.KAKAO_REST_API_KEY?.trim();
+  if (!apiKey) return null;
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+
+  const params = new URLSearchParams({ x: String(longitude), y: String(latitude) });
+  try {
+    const response = await (options.fetchImpl ?? fetch)(`${KAKAO_REGION_URL}?${params}`, {
+      headers: { Accept: "application/json", Authorization: `KakaoAK ${apiKey}` },
+      signal: AbortSignal.timeout(4_000),
+    });
+    if (!response.ok) return null;
+    const bytes = await readResponseBytes(response, {
+      maxBytes: 64 * 1024,
+      contentType: "application/json",
+    });
+    const raw = JSON.parse(new TextDecoder().decode(bytes)) as { documents?: unknown };
+    const documents = Array.isArray(raw.documents)
+      ? (raw.documents as KakaoRegionDocument[])
+      : [];
+    // "H" is the 행정동 a resident would name; "B" (법정동) is the fallback.
+    const region = documents.find((entry) => entry.region_type === "H")
+      ?? documents.find((entry) => entry.region_type === "B");
+    if (!region) return null;
+
+    const parts = [
+      canonicalSido(region.region_1depth_name),
+      region.region_2depth_name?.trim() ?? "",
+      region.region_3depth_name?.trim() ?? "",
+    ].filter(Boolean);
+    if (parts.length === 0) return null;
+    const name = Array.from(new Set(parts)).join(" ");
+    return name.length <= 80 ? name : null;
+  } catch {
+    return null;
+  }
 }

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { readLocalForecast } from "@/lib/localForecast";
 import { parseLocalForecastRequest } from "@/lib/localForecastRequest";
+import { DEVICE_LOCATION_PLACEHOLDER } from "@/lib/location";
+import { describeKoreanCoordinate } from "@/lib/locationSearch";
 import { toLocalForecastView } from "@/lib/localForecastView";
 import { enforceRequestRateLimit } from "@/lib/rateLimit";
 
@@ -25,7 +27,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "forecast_unavailable" }, { status: 503 });
   }
   try {
-    return NextResponse.json(toLocalForecastView(await readLocalForecast(input)), {
+    // A device fix arrives unnamed. Resolving it here — rather than trusting a
+    // client-supplied label — keeps the name derived from the same coordinate
+    // the forecast is read for. Enrichment only: a null keeps the placeholder.
+    const resolved = input.location.name === DEVICE_LOCATION_PLACEHOLDER
+      ? await describeKoreanCoordinate(input.location.latitude, input.location.longitude)
+      : null;
+    const located = resolved
+      ? { ...input, location: { ...input.location, name: resolved } }
+      : input;
+    return NextResponse.json(toLocalForecastView(await readLocalForecast(located)), {
       headers: { "Cache-Control": "private, no-store" },
     });
   } catch {
