@@ -120,7 +120,9 @@ test("keyboard navigation selects one fully qualified duplicate candidate", asyn
       key: "Enter",
     }));
   });
-  assert.equal(view.choices[0]?.name, "삼성동");
+  // The whole label travels to the dashboard, not the leaf. Dozens of Korean
+  // towns have a 삼성동, so "삼성동" alone could not confirm the right place.
+  assert.equal(view.choices[0]?.name, "대전광역시 동구 삼성동");
   await view.cleanup();
 });
 
@@ -274,5 +276,522 @@ test("a rejected query is not reported as a temporary outage", async () => {
     null,
     "retrying an identical rejected query cannot help",
   );
+  await view.cleanup();
+});
+
+function forecastPayload(overrides: Record<string, unknown> = {}) {
+  return {
+    generatedAt: "2026-08-17T00:00:00.000Z",
+    locationName: "서울특별시 강남구 역삼1동",
+    targetDate: "2026-08-18",
+    current: {
+      temperature: 27.4,
+      apparentTemperature: 30,
+      condition: "partly-cloudy",
+      observedAt: "2026-08-17T09:00:00+09:00",
+      sourceName: "Open-Meteo",
+    },
+    cohortLabel: "오전 6시 발표 기준",
+    recommendation: {
+      precipitationProbability: 41,
+      precipitationAmountMm: 0.7,
+      temperatureMax: 31,
+      temperatureMin: 23,
+      condition: "drizzle",
+    },
+    outlook: [],
+    blendMode: "equal",
+    comparedProviderCount: 4,
+    influence: [
+      { id: "open-meteo", name: "Open-Meteo", probability: 31, influence: 0.25 },
+      { id: "kma", name: "기상청", probability: 57, influence: 0.25 },
+    ],
+    evidence: {
+      status: "unavailable",
+      statusLabel: "근거 준비 중",
+      station: null,
+      comparisonSampleCount: 0,
+      emptyMessage: "이 지역의 최근 성능 기록이 아직 없어, 서비스를 똑같은 비중으로 평균했습니다.",
+      emptyDetail: null,
+      scores: [],
+      benchmark: null,
+    },
+    ...overrides,
+  };
+}
+
+async function mountExperience(fetchImpl: typeof fetch) {
+  globalThis.fetch = fetchImpl;
+  document.body.replaceChildren();
+  const container = document.createElement("div");
+  document.body.append(container);
+  let root: Root | null = null;
+  await act(async () => {
+    root = createRoot(container);
+    root.render(<LocalForecastExperience />);
+  });
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  });
+  return {
+    container,
+    async cleanup() {
+      await act(async () => root?.unmount());
+      window.localStorage.clear();
+      dom.reconfigure({ url: "http://localhost/sky" });
+    },
+  };
+}
+
+test("Escape collapses the suggestion list without destroying it", async () => {
+  const view = await mountChooser(async () => Response.json({
+    results: [kakaoResult({
+      id: "1168058000",
+      name: "삼성1동",
+      label: "서울특별시 강남구 삼성1동",
+      latitude: 37.5143,
+      longitude: 127.0628,
+    })],
+  }));
+
+  await changeInput(view.input, "삼성동");
+  await settleDebounce();
+  assert.equal(view.container.querySelectorAll("[role=option]").length, 1);
+
+  await act(async () => {
+    view.input.dispatchEvent(new dom.window.KeyboardEvent("keydown", { bubbles: true, key: "Escape" }));
+  });
+  assert.equal(view.container.querySelectorAll("[role=option]").length, 0, "Escape collapses");
+
+  // The matches still exist, so ArrowDown brings them back. Previously the only
+  // way to see them again was to retype the whole query.
+  await act(async () => {
+    view.input.dispatchEvent(new dom.window.KeyboardEvent("keydown", { bubbles: true, key: "ArrowDown" }));
+  });
+  assert.equal(view.container.querySelectorAll("[role=option]").length, 1, "ArrowDown reopens");
+  assert.equal(view.input.value, "삼성동", "the query was never cleared");
+  await view.cleanup();
+});
+
+test("an unconfigured search is not offered a retry that cannot succeed", async () => {
+  const view = await mountChooser(async () =>
+    Response.json({ error: "search_not_configured" }, { status: 503 }),
+  );
+
+  await changeInput(view.input, "역삼동");
+  await settleDebounce();
+
+  const text = view.container.textContent ?? "";
+  assert.doesNotMatch(text, /잠시 원활하지 않아요/, "configuration is not an outage");
+  assert.match(text, /내 위치로 보기/, "the user is pointed at the path that still works");
+  assert.equal(view.container.querySelector(".local-form-status button"), null);
+  await view.cleanup();
+});
+
+test("a coordinate outside Korea is not reported as a temporary failure", async () => {
+  Object.defineProperty(navigator, "geolocation", {
+    configurable: true,
+    value: {
+      getCurrentPosition(success: PositionCallback) {
+        success({
+          coords: { latitude: 48.8566, longitude: 2.3522, altitude: null, accuracy: 20 },
+        } as GeolocationPosition);
+      },
+    },
+  });
+  const view = await mountExperience(async () =>
+    Response.json({ error: "invalid_location" }, { status: 400 }),
+  );
+
+  const locationButton = [...view.container.querySelectorAll("button")]
+    .find((button) => button.textContent?.includes("내 위치로 보기"));
+  await act(async () => {
+    locationButton?.click();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  });
+
+  const text = view.container.textContent ?? "";
+  assert.match(text, /서비스 지역 밖/, "the user learns the coordinate itself is out of range");
+  assert.doesNotMatch(text, /잠시 후 다시 시도/, "a rejected coordinate never becomes valid by waiting");
+  await view.cleanup();
+});
+
+test("the last location is restored on the next visit without any interaction", async () => {
+  window.localStorage.setItem(
+    "seoulsky.last-location.v1",
+    JSON.stringify({
+      name: "현재 위치",
+      latitude: 37.5006,
+      longitude: 127.0364,
+      elevationM: null,
+      selection: { kind: "device", accuracyM: 18 },
+    }),
+  );
+  let requests = 0;
+  const view = await mountExperience(async () => {
+    requests += 1;
+    return Response.json(forecastPayload());
+  });
+
+  assert.equal(requests, 1, "the stored location is fetched on mount");
+  assert.equal(view.container.querySelector("#location-heading"), null, "the chooser is skipped");
+  assert.ok(view.container.querySelector("#tomorrow-heading"), "the forecast is already showing");
+  await view.cleanup();
+});
+
+test("a device coordinate is never written into the address bar", async () => {
+  Object.defineProperty(navigator, "geolocation", {
+    configurable: true,
+    value: {
+      getCurrentPosition(success: PositionCallback) {
+        success({
+          coords: { latitude: 37.5006, longitude: 127.0364, altitude: null, accuracy: 18 },
+        } as GeolocationPosition);
+      },
+    },
+  });
+  const view = await mountExperience(async () => Response.json(forecastPayload()));
+
+  const locationButton = [...view.container.querySelectorAll("button")]
+    .find((button) => button.textContent?.includes("내 위치로 보기"));
+  await act(async () => {
+    locationButton?.click();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  });
+
+  assert.ok(view.container.querySelector("#tomorrow-heading"), "the forecast rendered");
+  // A precise position in the URL would leak into history and any shared link.
+  assert.equal(window.location.search, "", "no coordinates in the query string");
+  // Remembered, but no finer than the forecast grid can use: a raw fix would
+  // pinpoint a dwelling, and anything on this origin can read the store.
+  const stored = JSON.parse(window.localStorage.getItem("seoulsky.last-location.v1") ?? "{}");
+  assert.equal(stored.latitude, 37.501, "coarsened to ~110 m before it is written");
+  assert.equal(stored.longitude, 127.036);
+  await view.cleanup();
+});
+
+test("a shareable area link renders that place without touching stored state", async () => {
+  dom.reconfigure({
+    url: "http://localhost/sky?lat=37.51430&lon=127.06280&name=%EC%84%9C%EC%9A%B8%20%EA%B0%95%EB%82%A8&area=h",
+  });
+  let body = "";
+  const view = await mountExperience(async (_input, init) => {
+    body = String(init?.body ?? "");
+    return Response.json(forecastPayload());
+  });
+
+  assert.ok(view.container.querySelector("#tomorrow-heading"), "the link alone produced a forecast");
+  assert.match(body, /37\.5143/, "the linked coordinate was requested");
+  // Someone else's link must not overwrite the place this device saved.
+  assert.equal(window.localStorage.getItem("seoulsky.last-location.v1"), null);
+  await view.cleanup();
+});
+
+test("equal weighting is stated in words instead of drawn as identical bars", async () => {
+  window.localStorage.setItem(
+    "seoulsky.last-location.v1",
+    JSON.stringify({
+      name: "현재 위치",
+      latitude: 37.5006,
+      longitude: 127.0364,
+      elevationM: null,
+      selection: { kind: "device", accuracyM: 18 },
+    }),
+  );
+  const view = await mountExperience(async () => Response.json(forecastPayload()));
+
+  const text = view.container.textContent ?? "";
+  assert.match(text, /똑같은 비중으로/, "the fallback is named");
+  assert.equal(
+    view.container.querySelectorAll(".local-weight-track").length,
+    0,
+    "no influence bars are drawn when every weight is identical",
+  );
+  // The per-provider spread is what actually carries information here.
+  assert.match(text, /31%/);
+  assert.match(text, /57%/);
+  await view.cleanup();
+});
+
+test("observed conditions and tomorrow's condition both reach the screen", async () => {
+  window.localStorage.setItem(
+    "seoulsky.last-location.v1",
+    JSON.stringify({
+      name: "현재 위치",
+      latitude: 37.5006,
+      longitude: 127.0364,
+      elevationM: null,
+      selection: { kind: "device", accuracyM: 18 },
+    }),
+  );
+  const view = await mountExperience(async () => Response.json(forecastPayload()));
+
+  assert.match(view.container.querySelector(".local-now")?.textContent ?? "", /27°/);
+  assert.match(view.container.querySelector(".local-now")?.textContent ?? "", /구름 조금/);
+  assert.equal(view.container.querySelector(".local-hero-condition")?.textContent, "이슬비");
+  await view.cleanup();
+});
+
+test("one live region survives the swap and announces the arrival", async () => {
+  window.localStorage.setItem(
+    "seoulsky.last-location.v1",
+    JSON.stringify({
+      name: "현재 위치",
+      latitude: 37.5006,
+      longitude: 127.0364,
+      elevationM: null,
+      selection: { kind: "device", accuracyM: 18 },
+    }),
+  );
+  const view = await mountExperience(async () => Response.json(forecastPayload()));
+  const live = view.container.querySelector("[aria-live=polite]");
+
+  assert.ok(live, "the region is mounted outside the views that swap");
+  assert.match(live?.textContent ?? "", /역삼1동/);
+  await view.cleanup();
+});
+
+function stubGeolocation(latitude: number, longitude: number): void {
+  Object.defineProperty(navigator, "geolocation", {
+    configurable: true,
+    value: {
+      getCurrentPosition(success: PositionCallback) {
+        success({
+          coords: { latitude, longitude, altitude: null, accuracy: 18 },
+        } as GeolocationPosition);
+      },
+    },
+  });
+}
+
+test("a forecast that resolves after the user leaves does not paint over the chooser", async () => {
+  stubGeolocation(37.5006, 127.0364);
+  let release: (() => void) | null = null;
+  const view = await mountExperience(async () => {
+    await new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    return Response.json(forecastPayload());
+  });
+
+  const locationButton = [...view.container.querySelectorAll("button")]
+    .find((button) => button.textContent?.includes("내 위치로 보기"));
+  await act(async () => {
+    locationButton?.click();
+    await Promise.resolve();
+  });
+  assert.ok(view.container.querySelector(".local-loading"), "the loading screen is showing");
+
+  // Leave while the request is still in flight.
+  const header = view.container.querySelector<HTMLButtonElement>(".local-site-header button");
+  await act(async () => {
+    header?.click();
+    await Promise.resolve();
+  });
+  assert.ok(view.container.querySelector("#location-heading"), "back on the chooser");
+
+  await act(async () => {
+    release?.();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  });
+
+  assert.equal(
+    view.container.querySelector("#tomorrow-heading"),
+    null,
+    "the abandoned response must not replace the view the user chose",
+  );
+  assert.ok(view.container.querySelector("#location-heading"), "still the chooser");
+  await view.cleanup();
+});
+
+test("Back returns to a device forecast whose URL is identical to the chooser's", async () => {
+  stubGeolocation(37.5006, 127.0364);
+  const view = await mountExperience(async () => Response.json(forecastPayload()));
+
+  const locationButton = [...view.container.querySelectorAll("button")]
+    .find((button) => button.textContent?.includes("내 위치로 보기"));
+  await act(async () => {
+    locationButton?.click();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  });
+  assert.ok(view.container.querySelector("#tomorrow-heading"), "forecast showing");
+
+  const reset = [...view.container.querySelectorAll(".local-dashboard-topline button")][0];
+  await act(async () => {
+    (reset as HTMLButtonElement).click();
+    await Promise.resolve();
+  });
+  assert.ok(view.container.querySelector("#location-heading"), "chooser showing");
+
+  // A device fix carries no query string, so only the pushed history state can
+  // tell this entry apart from the chooser's.
+  await act(async () => {
+    window.history.back();
+    await new Promise((resolve) => setTimeout(resolve, 120));
+  });
+
+  assert.ok(
+    view.container.querySelector("#tomorrow-heading"),
+    "Back reached the forecast rather than another chooser",
+  );
+  await view.cleanup();
+});
+
+test("a coordinate that fails is never saved for the next visit", async () => {
+  stubGeolocation(48.8566, 2.3522);
+  const view = await mountExperience(async () =>
+    Response.json({ error: "invalid_location" }, { status: 400 }),
+  );
+
+  const locationButton = [...view.container.querySelectorAll("button")]
+    .find((button) => button.textContent?.includes("내 위치로 보기"));
+  await act(async () => {
+    locationButton?.click();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  });
+
+  assert.match(view.container.textContent ?? "", /서비스 지역 밖/);
+  // Saving before the request resolved made a rejected coordinate reproduce its
+  // own dead-end error on every later visit.
+  assert.equal(window.localStorage.getItem("seoulsky.last-location.v1"), null);
+  await view.cleanup();
+});
+
+test("a transient failure offers a retry and keeps the saved location", async () => {
+  window.localStorage.setItem(
+    "seoulsky.last-location.v1",
+    JSON.stringify({
+      name: "역삼1동",
+      latitude: 37.5006,
+      longitude: 127.0364,
+      elevationM: null,
+      selection: { kind: "device", accuracyM: 18 },
+    }),
+  );
+  let attempts = 0;
+  const view = await mountExperience(async () => {
+    attempts += 1;
+    return attempts === 1
+      ? Response.json({ error: "forecast_unavailable" }, { status: 503 })
+      : Response.json(forecastPayload());
+  });
+
+  const retry = [...view.container.querySelectorAll("button")]
+    .find((button) => button.textContent === "다시 시도");
+  assert.ok(retry, "a retryable failure offers a retry");
+  assert.ok(
+    window.localStorage.getItem("seoulsky.last-location.v1"),
+    "a provider being briefly down says nothing about the location",
+  );
+
+  await act(async () => {
+    retry?.click();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  });
+  assert.ok(view.container.querySelector("#tomorrow-heading"), "the retry recovered");
+  await view.cleanup();
+});
+
+test("an out-of-area failure offers no retry", async () => {
+  stubGeolocation(48.8566, 2.3522);
+  const view = await mountExperience(async () =>
+    Response.json({ error: "invalid_location" }, { status: 400 }),
+  );
+  const locationButton = [...view.container.querySelectorAll("button")]
+    .find((button) => button.textContent?.includes("내 위치로 보기"));
+  await act(async () => {
+    locationButton?.click();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  });
+
+  assert.equal(
+    [...view.container.querySelectorAll("button")].find((b) => b.textContent === "다시 시도"),
+    undefined,
+    "the same coordinate can never become valid",
+  );
+  await view.cleanup();
+});
+
+test("dismissing someone else's link leaves this device's saved location alone", async () => {
+  window.localStorage.setItem(
+    "seoulsky.last-location.v1",
+    JSON.stringify({
+      name: "역삼1동",
+      latitude: 37.5006,
+      longitude: 127.0364,
+      elevationM: null,
+      selection: { kind: "device", accuracyM: 18 },
+    }),
+  );
+  dom.reconfigure({
+    url: "http://localhost/sky?lat=36.34420&lon=127.42270&name=%EB%8C%80%EC%A0%84%20%EB%8F%99%EA%B5%AC&area=h",
+  });
+  const view = await mountExperience(async () => Response.json(forecastPayload()));
+
+  const reset = [...view.container.querySelectorAll(".local-dashboard-topline button")][0];
+  await act(async () => {
+    (reset as HTMLButtonElement).click();
+    await Promise.resolve();
+  });
+
+  assert.match(
+    window.localStorage.getItem("seoulsky.last-location.v1") ?? "",
+    /역삼1동/,
+    "the user's own place survives dismissing a shared one",
+  );
+  await view.cleanup();
+});
+
+test("a link stripped of its coordinates lands on the chooser, not an error", async () => {
+  dom.reconfigure({ url: "http://localhost/sky?name=%EC%84%9C%EC%9A%B8" });
+  let requested = 0;
+  const view = await mountExperience(async () => {
+    requested += 1;
+    return Response.json(forecastPayload());
+  });
+
+  // Number(null) is 0, which would have requested a forecast for (0, 0).
+  assert.equal(requested, 0, "no forecast is requested for a malformed link");
+  assert.ok(view.container.querySelector("#location-heading"), "the chooser is shown");
+  await view.cleanup();
+});
+
+test("a provider with no seven-day record is not ranked against ones that have it", async () => {
+  window.localStorage.setItem(
+    "seoulsky.last-location.v1",
+    JSON.stringify({
+      name: "역삼1동",
+      latitude: 37.5006,
+      longitude: 127.0364,
+      elevationM: null,
+      selection: { kind: "device", accuracyM: 18 },
+    }),
+  );
+  const view = await mountExperience(async () => Response.json(forecastPayload({
+    evidence: {
+      status: "active",
+      statusLabel: "가중치 반영 중",
+      station: { name: "서울", distanceKm: 3.2 },
+      comparisonSampleCount: 40,
+      emptyMessage: null,
+      emptyDetail: null,
+      scores: [
+        // No recent record, but the best 30-day score — this must not win a
+        // ranking presented under a 최근 7일 heading.
+        { id: "kma", name: "기상청", last7DaysBrier: null, windowBrier: 0.12, windowSampleCount: 30, misses: 1, falseAlarms: 1, rainyAmountMae: null, rainyAmountSampleCount: 0 },
+        { id: "open-meteo", name: "Open-Meteo", last7DaysBrier: 0.2, windowBrier: 0.3, windowSampleCount: 40, misses: 4, falseAlarms: 2, rainyAmountMae: 1.5, rainyAmountSampleCount: 9 },
+      ],
+      benchmark: null,
+    },
+  })));
+
+  const rows = [...view.container.querySelectorAll(".local-score-table:not(.is-raw) .local-score-row")]
+    .slice(1)
+    .map((row) => [...row.children].map((cell) => cell.textContent));
+
+  assert.deepEqual(rows[0]?.[0], "Open-Meteo", "the only provider with a 7-day record leads");
+  assert.equal(rows[0]?.[1], "가장 잘 맞음");
+  assert.equal(rows[1]?.[0], "기상청");
+  assert.equal(rows[1]?.[1], "최근 7일 기록 없음", "and the other is not given a rank");
   await view.cleanup();
 });

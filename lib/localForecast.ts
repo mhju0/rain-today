@@ -45,6 +45,21 @@ export interface LocalForecastResponse {
   location: ForecastLocation;
   targetDate: string | null;
   captureCohort: CaptureCohort;
+  /**
+   * Observed conditions now, taken from the first provider in registry order
+   * that is serving any. Availability is not gated on here: a stale last-good
+   * snapshot still carries real observed weather, and dropping it would leave
+   * the page emptier than the data warrants. Null when nobody has current
+   * weather — the page shows an honest gap rather than reusing the target-date
+   * blend, which describes tomorrow and not now.
+   */
+  current: {
+    temperature: number;
+    apparentTemperature: number | null;
+    condition: WeatherCondition;
+    observedAt: string;
+    sourceName: string;
+  } | null;
   recommendation: {
     precipitationProbability: number | null;
     precipitationAmountMm: number | null;
@@ -286,11 +301,21 @@ export async function readLocalForecast(
     temperatureMin: null,
     condition: "unknown" as const,
   };
+  const currentSource = snapshots.find((snapshot) => snapshot.current !== null);
   return {
     generatedAt: now.toISOString(),
     location: input.location,
     targetDate,
     captureCohort: cohort,
+    current: currentSource?.current
+      ? {
+          temperature: currentSource.current.temperature,
+          apparentTemperature: currentSource.current.apparentTemperature,
+          condition: currentSource.current.condition,
+          observedAt: currentSource.current.time,
+          sourceName: currentSource.status.name,
+        }
+      : null,
     recommendation: {
       precipitationProbability: recommendation.precipitationProbability,
       precipitationAmountMm: recommendation.precipitationAmountMm,

@@ -57,6 +57,13 @@ export function locationToKmaGrid(latitude: number, longitude: number): { nx: nu
   };
 }
 
+/**
+ * Stand-in name for a coordinate that arrived without one — a device fix. The
+ * forecast route treats it as a request to resolve a real 시·구·동 name, so a
+ * user can confirm the forecast belongs to where they are standing.
+ */
+export const DEVICE_LOCATION_PLACEHOLDER = "현재 위치";
+
 /** Validate and normalize one coordinate target for the South Korea launch. */
 export function createForecastLocation(input: ForecastLocationInput): ForecastLocation {
   if (!Number.isFinite(input.latitude) || !Number.isFinite(input.longitude)) {
@@ -67,7 +74,7 @@ export function createForecastLocation(input: ForecastLocationInput): ForecastLo
   }
 
   return {
-    name: input.name.trim() || "현재 위치",
+    name: input.name.trim() || DEVICE_LOCATION_PLACEHOLDER,
     latitude: input.latitude,
     longitude: input.longitude,
     countryCode: "KR",

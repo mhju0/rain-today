@@ -70,6 +70,7 @@ function response(overrides: Partial<LocalForecastResponse> = {}): LocalForecast
     },
     targetDate: "2026-08-15",
     captureCohort: "06",
+    current: null,
     recommendation: {
       precipitationProbability: 68,
       precipitationAmountMm: 5,
@@ -174,4 +175,69 @@ test("scores are omitted rather than faked when no profile exists", () => {
   assert.deepEqual(view.evidence.scores, []);
   assert.equal(view.evidence.benchmark, null);
   assert.equal(view.evidence.comparisonSampleCount, 0);
+});
+
+test("observed conditions reach the client unchanged", () => {
+  const view = toLocalForecastView(
+    response({
+      current: {
+        temperature: 24.4,
+        apparentTemperature: 26.1,
+        condition: "overcast",
+        observedAt: "2026-08-14T09:00:00+09:00",
+        sourceName: "Open-Meteo",
+      },
+    }),
+  );
+
+  assert.deepEqual(view.current, {
+    temperature: 24.4,
+    apparentTemperature: 26.1,
+    condition: "overcast",
+    observedAt: "2026-08-14T09:00:00+09:00",
+    sourceName: "Open-Meteo",
+  });
+});
+
+test("a missing observation stays null rather than borrowing tomorrow's blend", () => {
+  const view = toLocalForecastView(response({ current: null }));
+
+  assert.equal(view.current, null);
+  // The target-date recommendation is still present, so a client that fell back
+  // to it would render tomorrow's sky as if it were happening outside now.
+  assert.notEqual(view.recommendation.condition, undefined);
+});
+
+test("the sample-size explanation appears only where sample size is the reason", () => {
+  const detailFor = (reason: LocalForecastEvidence["reason"]) =>
+    toLocalForecastView(
+      response({ performance: { status: "unavailable", reason, station: null, profile: null } }),
+    ).evidence.emptyDetail;
+
+  assert.match(detailFor("insufficient-evidence") ?? "", /30개/);
+  assert.match(detailFor("benchmark-insufficient") ?? "", /30개/);
+  // Jeju has no eligible station, so no amount of waiting produces 30 samples.
+  assert.doesNotMatch(detailFor("no-eligible-station") ?? "", /30개/);
+  assert.doesNotMatch(detailFor("database-not-configured") ?? "", /30개/);
+});
+
+test("the unconfigured-database message asks nothing of the visitor", () => {
+  const view = toLocalForecastView(
+    response({
+      performance: {
+        status: "unavailable",
+        reason: "database-not-configured",
+        station: null,
+        profile: null,
+      },
+    }),
+  );
+
+  assert.doesNotMatch(view.evidence.emptyMessage ?? "", /연결|데이터베이스/);
+  assert.match(view.evidence.emptyMessage ?? "", /똑같은 비중/);
+});
+
+test("the capture cohort is resolved to display copy, not a bare code", () => {
+  assert.equal(toLocalForecastView(response({ captureCohort: "06" })).cohortLabel, "오전 6시 발표 기준");
+  assert.equal(toLocalForecastView(response({ captureCohort: "18" })).cohortLabel, "오후 6시 발표 기준");
 });
