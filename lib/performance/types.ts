@@ -115,3 +115,27 @@ export interface RecentPerformanceProfile {
   effectiveWeights: Record<string, number>;
   prospectiveBenchmark: ProspectiveBenchmark;
 }
+
+/**
+ * One provider's archived day-ahead precipitation forecast for a completed date.
+ *
+ * Retrospective archives publish an amount but no probability, so this carries no
+ * probability field rather than inventing one. See `seed.ts`.
+ */
+export interface SeedProviderForecast {
+  provider: PrecipProviderId;
+  amountMm: number | null;
+}
+
+/**
+ * One retrospective day-ahead forecast/observation pair rebuilt from public
+ * archives. Deliberately NOT a ForecastCapture: it was never frozen at capture
+ * time, carries no cohort, and must never enter the prospective benchmark.
+ */
+export interface SeedComparison {
+  stationId: string;
+  targetDate: string;
+  providers: SeedProviderForecast[];
+  observedMm: number;
+  builtAt: string;
+}
