@@ -370,7 +370,7 @@ export function LocationChooser({ onChoose, autoFocus = false }: {
     <section className="local-chooser" aria-labelledby="location-heading">
       <div className="local-chooser-copy">
         <p className="local-eyebrow">KOREA · LOCAL RAIN FORECAST</p>
-        <h1 id="location-heading">내일 비,<br />여기서는 어떨까요?</h1>
+        <h1 id="location-heading">오늘과 내일 비,<br />여기서는 어떨까요?</h1>
         <p>
           여러 날씨 서비스를 한곳에서 비교하고, 가까운 관측소에서 최근 실제로
           얼마나 맞았는지에 따라 예보의 영향을 조정합니다.
@@ -1012,7 +1012,7 @@ export default function LocalForecastExperience() {
   const announcement = state.kind === "loading"
     ? `${state.label}의 예보를 불러오는 중입니다.`
     : state.kind === "ready"
-      ? `${state.forecast.locationName}의 내일 예보를 표시했습니다.`
+      ? `${state.forecast.locationName}의 ${state.forecast.today ? "오늘" : "내일"} 예보를 표시했습니다.`
       : state.kind === "error"
         ? state.message
         : "";
@@ -1051,7 +1051,7 @@ export default function LocalForecastExperience() {
       {state.kind === "loading" && (
         <div className="local-loading">
           <span />
-          <p>{state.label}의 내일 예보를 비교하고 있어요.</p>
+          <p>{state.label}의 예보를 비교하고 있어요.</p>
         </div>
       )}
 

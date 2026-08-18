@@ -908,3 +908,29 @@ test("a resolved place name keeps the provenance label", async () => {
   assert.match(place, /현재 기기 위치/, "with a real name, how we got it is useful");
   await view.cleanup();
 });
+
+test("the announcement names the day actually on screen", async () => {
+  const seed = JSON.stringify({
+    name: "역삼1동", latitude: 37.5006, longitude: 127.0364,
+    elevationM: null, selection: { kind: "device", accuracyM: 18 },
+  });
+
+  window.localStorage.setItem("seoulsky.last-location.v1", seed);
+  const withToday = await mountExperience(async () => Response.json(forecastPayload()));
+  assert.match(
+    withToday.container.querySelector("[aria-live=polite]")?.textContent ?? "",
+    /오늘 예보를 표시했습니다/,
+    "saying 내일 while today is on screen misleads a screen-reader user",
+  );
+  await withToday.cleanup();
+
+  window.localStorage.setItem("seoulsky.last-location.v1", seed);
+  const withoutToday = await mountExperience(async () =>
+    Response.json(forecastPayload({ today: null })),
+  );
+  assert.match(
+    withoutToday.container.querySelector("[aria-live=polite]")?.textContent ?? "",
+    /내일 예보를 표시했습니다/,
+  );
+  await withoutToday.cleanup();
+});
