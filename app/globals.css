@@ -579,6 +579,33 @@ html {
   --local-muted: #9ba9b1;
   --local-line: rgb(210 224 226 / 0.14);
   --local-accent: #9ed9d2;
+
+  /* ---- type scale ----
+     Replaces 22 measured sizes, most of them accidental near-duplicates
+     (16 / 15.52 / 15.36 / 15.04 / 14.72px all existed side by side). Eight
+     steps, each with one job. */
+  --t-label: 0.78rem;   /* eyebrows, units, table headers, footer */
+  --t-body: 0.94rem;    /* secondary prose, table cells, notes */
+  --t-value: 1.06rem;   /* data values, action copy */
+  --t-lead: 1.34rem;    /* hero condition, 지금 temperature, empty-state lead */
+  --t-figure: clamp(2.1rem, 3.2vw, 2.9rem);   /* outlook + tomorrow numerals */
+  --t-heading: clamp(2.3rem, 4.2vw, 4.2rem);  /* section h2 */
+  --t-display: clamp(2.4rem, 4vw, 4.6rem);    /* dashboard h1 */
+  --t-numeral: clamp(8rem, 17vw, 13.5rem);    /* the one hero numeral */
+
+  /* ---- spacing scale ----
+     One 8px-derived ladder. Section rhythm was 90/64/144/0/144/144/40px. */
+  --s-1: 0.5rem;
+  --s-2: 0.75rem;
+  --s-3: 1rem;
+  --s-4: 1.5rem;
+  --s-5: 2rem;
+  --s-6: 3rem;
+  --s-band: 5.5rem;     /* padding-block shared by every full section */
+
+  /* Line length in `em`, not `ch`: ch is the width of "0", about half a
+     Hangul glyph, so a ch-based measure is roughly half what it claims. */
+  --measure: 26em;
   position: relative;
   min-height: 100svh;
   /* `clip` instead of `hidden`: hidden makes this element a scroll container,
@@ -736,7 +763,7 @@ html {
 
 .local-eyebrow {
   color: var(--local-accent);
-  font-size: 0.66rem;
+  font-size: var(--t-label);
   font-weight: 650;
   letter-spacing: 0.2em;
   line-height: 1.4;
@@ -1038,7 +1065,7 @@ html {
 }
 
 .local-now strong {
-  font-size: 1.32rem;
+  font-size: var(--t-lead);
   font-weight: 400;
   letter-spacing: -0.03em;
 }
@@ -1068,7 +1095,7 @@ html {
 
 .local-precision-summary span {
   color: var(--local-muted);
-  font-size: 0.62rem;
+  font-size: var(--t-label);
   letter-spacing: 0.08em;
 }
 
@@ -1080,7 +1107,7 @@ html {
 
 .local-forecast-hero {
   min-height: min(41rem, calc(100svh - 10.5rem));
-  padding: clamp(4rem, 10vh, 7rem) 0;
+  padding: var(--s-band) 0;
   display: grid;
   grid-template-columns: minmax(15rem, 0.85fr) minmax(18rem, 1fr) minmax(12rem, 0.65fr);
   gap: clamp(2rem, 5vw, 5rem);
@@ -1091,7 +1118,7 @@ html {
 .local-forecast-intro h1 {
   margin-top: 1.2rem;
   max-width: 9ch;
-  font-size: clamp(2.4rem, 4vw, 4.6rem);
+  font-size: var(--t-display);
   font-weight: 380;
   line-height: 1.02;
 }
@@ -1101,7 +1128,7 @@ html {
 .local-hero-condition {
   margin-top: 0.9rem;
   color: var(--local-accent);
-  font-size: 1.34rem;
+  font-size: var(--t-lead);
   font-weight: 450;
   letter-spacing: -0.02em;
 }
@@ -1110,7 +1137,7 @@ html {
   max-width: 18rem;
   margin-top: 0.9rem;
   color: #cbd5d7;
-  font-size: 1.02rem;
+  font-size: var(--t-value);
   line-height: 1.65;
 }
 
@@ -1121,7 +1148,7 @@ html {
   max-width: 44ch;
   margin-top: 2rem;
   color: var(--local-muted);
-  font-size: 0.78rem;
+  font-size: var(--t-body);
   line-height: 1.7;
 }
 
@@ -1134,7 +1161,7 @@ html {
 }
 
 .local-rain-number span {
-  font-size: clamp(8rem, 17vw, 13.5rem);
+  font-size: var(--t-numeral);
   font-weight: 240;
   letter-spacing: -0.09em;
   line-height: 0.8;
@@ -1162,7 +1189,7 @@ html {
 .local-forecast-facts span,
 .local-evidence-meta span {
   color: var(--local-muted);
-  font-size: 0.68rem;
+  font-size: var(--t-label);
   letter-spacing: 0.08em;
 }
 
@@ -1174,7 +1201,7 @@ html {
 .local-influence-section,
 .local-evidence-section,
 .local-outlook-section {
-  padding: clamp(5rem, 11vw, 9rem) 0;
+  padding: var(--s-band) 0;
   border-bottom: 1px solid var(--local-line);
 }
 
@@ -1210,7 +1237,7 @@ html {
 }
 
 .local-outlook-day strong {
-  font-size: clamp(1.5rem, 2.5vw, 2.35rem);
+  font-size: var(--t-figure);
   font-weight: 360;
   letter-spacing: -0.045em;
 }
@@ -1232,7 +1259,7 @@ html {
 .local-section-heading h2 {
   margin-top: 1rem;
   max-width: 14ch;
-  font-size: clamp(2.3rem, 4.7vw, 4.8rem);
+  font-size: var(--t-heading);
   font-weight: 360;
   line-height: 1.04;
 }
@@ -1264,7 +1291,7 @@ html {
   max-width: 46ch;
   margin-top: 2.5rem;
   color: #cbd5d7;
-  font-size: 0.96rem;
+  font-size: var(--t-body);
   line-height: 1.75;
 }
 
@@ -1281,7 +1308,7 @@ html {
 }
 
 .local-influence-row.is-equal b {
-  font-size: 1.14rem;
+  font-size: var(--t-value);
   font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
@@ -1337,14 +1364,14 @@ html {
 .local-benchmark-line b {
   max-width: 46ch;
   color: var(--local-ink);
-  font-size: 1.02rem;
+  font-size: var(--t-value);
   font-weight: 450;
   line-height: 1.6;
 }
 
 .local-benchmark-line > span {
   color: var(--local-muted);
-  font-size: 0.75rem;
+  font-size: var(--t-body);
   line-height: 1.65;
   font-variant-numeric: tabular-nums;
 }
@@ -1355,7 +1382,7 @@ html {
   padding: 0.68rem 0.85rem;
   border: 1px solid var(--local-line);
   color: var(--local-muted);
-  font-size: 0.69rem;
+  font-size: var(--t-label);
   letter-spacing: 0.08em;
 }
 
@@ -1405,7 +1432,7 @@ html {
   align-items: center;
   border-bottom: 1px solid var(--local-line);
   color: #c7d0d3;
-  font-size: 0.82rem;
+  font-size: var(--t-body);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1452,7 +1479,7 @@ html {
 .local-score-header {
   min-height: 3rem;
   color: var(--local-muted);
-  font-size: 0.65rem;
+  font-size: var(--t-label);
   letter-spacing: 0.08em;
 }
 
@@ -1485,7 +1512,7 @@ html {
 .local-method-note {
   max-width: 50rem;
   margin-top: 2rem;
-  font-size: 0.75rem;
+  font-size: var(--t-body);
 }
 
 .local-footer {
@@ -1500,6 +1527,11 @@ html {
 }
 
 @media (max-width: 900px) {
+  /* One number governs the vertical rhythm at every width. */
+  .local-forecast-page {
+    --s-band: 3.5rem;
+  }
+
   .local-chooser {
     grid-template-columns: 1fr;
     align-content: center;
@@ -1702,6 +1734,17 @@ html {
 
   .local-outlook-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 1.25rem;
+  }
+
+  /* Separation comes from the column gap, not from padding that would push
+     the first card's text off the container's left edge. */
+  .local-outlook-day {
+    padding-inline: 0;
+  }
+
+  .local-outlook-day + .local-outlook-day {
+    border-left: 0;
   }
 
   .local-outlook-day:nth-child(odd) {
@@ -1821,7 +1864,7 @@ html {
 /* Tomorrow, after today. Secondary by scale but still its own block — the
    recent-performance weighting only applies to this day, so it needs a home. */
 .local-tomorrow {
-  padding: clamp(2.5rem, 5vw, 4rem) 0;
+  padding: var(--s-band) 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 1.5rem 2.5rem;
@@ -1831,7 +1874,7 @@ html {
 
 .local-tomorrow-head h2 {
   margin-top: 0.5rem;
-  font-size: clamp(1.5rem, 2.6vw, 2.1rem);
+  font-size: var(--t-heading);
   font-weight: 380;
   letter-spacing: -0.035em;
 }
@@ -1844,7 +1887,7 @@ html {
 }
 
 .local-tomorrow-figure strong {
-  font-size: clamp(2.6rem, 6vw, 3.6rem);
+  font-size: var(--t-figure);
   font-weight: 260;
   letter-spacing: -0.05em;
 }
@@ -1863,7 +1906,7 @@ html {
   grid-column: 1 / -1;
   max-width: 46ch;
   color: var(--local-muted);
-  font-size: 0.82rem;
+  font-size: var(--t-body);
   line-height: 1.7;
 }
 
@@ -1890,23 +1933,157 @@ html {
   }
 }
 
-/* The metadata tier carried every unit and qualifier at 9.9–10.9px computed.
-   Colour contrast was already fine; the size was not, and Hangul needs more
-   size than Latin at the same nominal value. */
-.local-eyebrow,
-.local-precision-summary span,
-.local-forecast-facts span,
-.local-evidence-meta span,
-.local-outlook-day span,
-.local-outlook-day small,
-.local-dashboard-topline small,
-.local-footer p,
-.local-score-header {
-  font-size: 0.78rem;
-}
 
-.local-method-note,
-.local-hero-note,
-.local-tomorrow-note {
-  font-size: 0.86rem;
+/* ============================================================
+   COLUMN GRID — one set of lines for the whole dashboard.
+
+   Before this, text began at 27 different x positions because every section
+   invented its own track list. Twelve columns give four working lines:
+   L1 (col 1), L2 (col 5), L3 (col 9) and R (the right edge of col 12), and
+   every 3-up on the page is 4/4/4, so unrelated sections share start columns.
+
+   Scoped to >=901px on purpose. Below that the dashboard is `display: flex`
+   with explicit `order` so the rain number leads on a phone; placing grid
+   columns at those widths would fight that layout.
+   ============================================================ */
+@media (min-width: 901px) {
+  .local-dashboard {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    column-gap: 1.25rem;
+    /* Sections carry their own 88px band, so the container adds nothing. */
+    row-gap: 0;
+    align-content: start;
+  }
+
+  /* Sections span the full width and re-expose the same lines to their own
+     children. The fallback repeats the identical track list, which resolves
+     to the same positions precisely because these all span 1 / -1. */
+  .local-dashboard > * {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: subgrid;
+    /* Subgrid inherits the parent's lines but NOT its gaps. Any section that
+       declares its own gap (the hero's was 80px) would shift every column it
+       passes down, so the gutter is pinned here. */
+    column-gap: 1.25rem;
+    /* One value owns the vertical gap inside a section. Children must not add
+       their own margin-top on top of it. */
+    row-gap: var(--s-6);
+  }
+
+  .local-dashboard > * > * { margin-top: 0; }
+
+  @supports not (grid-template-columns: subgrid) {
+    .local-dashboard > * {
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      column-gap: 1.25rem;
+    }
+  }
+
+  /* Intermediate wrappers have to pass the lines down too, or their rows
+     resolve against their own box instead of the page grid. */
+  .local-outlook-grid,
+  .local-influence-grid,
+  .local-score-table,
+  .local-influence-row,
+  .local-score-row,
+  .local-section-heading,
+  .local-evidence-meta {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: subgrid;
+    column-gap: 1.25rem;
+  }
+
+  @supports not (grid-template-columns: subgrid) {
+    .local-outlook-grid,
+    .local-influence-grid,
+    .local-score-table,
+    .local-influence-row,
+    .local-score-row,
+    .local-section-heading,
+    .local-evidence-meta {
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      column-gap: 1.25rem;
+    }
+  }
+
+  /* ---- the three rails ---- */
+  .local-topline-place,
+  .local-section-heading > div,
+  .local-footer p:first-child { grid-column: 1 / 7; }
+
+  /* Three rails, no overlap: an overlapping span silently drops the item onto
+     the next row, which is what put the numeral below the action copy. */
+  .local-forecast-intro,
+  .local-tomorrow-head { grid-column: 1 / 5; }
+
+  /* All three hero columns start on the same line. With `align-items: center`
+     inside a 41rem min-height each floated to its own height, which read as an
+     accidental gap under the action copy. */
+  .local-forecast-hero { align-items: start; min-height: 0; }
+  .local-rain-number { grid-column: 5 / 9; justify-content: flex-start; }
+  .local-tomorrow-figure { grid-column: 5 / 9; }
+
+  .local-tomorrow-note { grid-column: 1 / 5; }
+
+  .local-forecast-facts,
+  .local-section-heading > p,
+  .local-footer p:last-child { grid-column: 9 / -1; }
+
+  /* Captions start on L3 and run to R rather than sitting ragged inside it.
+     Their right edge was landing wherever the text happened to end. */
+  .local-section-heading > p,
+  .local-footer p:last-child {
+    justify-self: stretch;
+    text-align: left;
+    max-width: none;
+  }
+
+  .local-now { grid-column: 7 / 11; justify-self: end; margin: 0; }
+  .local-dashboard-topline > button { grid-column: 11 / -1; justify-self: end; }
+
+  /* The pill must not stretch into a 380px bar. */
+  .local-status-pill { grid-column: 11 / -1; justify-self: end; align-self: end; }
+
+  /* Prose blocks: one measure, one starting line. */
+  .local-hero-note,
+  .local-tomorrow-note,
+  .local-influence-note,
+  .local-method-note,
+  .local-empty-evidence,
+  .local-benchmark-line,
+  .local-score-detail { grid-column: 1 / 9; max-width: var(--measure); }
+
+  /* 3-up strips share exactly the same lines. */
+  .local-precision-summary > div,
+  .local-evidence-meta > div,
+  .local-precision-summary > div + div,
+  .local-evidence-meta > div + div { padding-inline: 0; border-left: 0; }
+  .local-precision-summary > div:nth-child(1),
+  .local-evidence-meta > div:nth-child(1) { grid-column: 1 / 5; }
+  .local-precision-summary > div:nth-child(2),
+  .local-evidence-meta > div:nth-child(2) { grid-column: 5 / 9; }
+  .local-precision-summary > div:nth-child(3),
+  .local-evidence-meta > div:nth-child(3) { grid-column: 9 / -1; }
+
+  /* Score rows: label rail, then two data columns that end on R. */
+  .local-score-row > *:nth-child(1) { grid-column: 1 / 6; }
+  .local-score-row > *:nth-child(2) { grid-column: 6 / 10; }
+  .local-score-row > *:nth-child(3) { grid-column: 10 / -1; }
+
+  /* Influence rows: name rail, bar spanning the middle, percentage on R. */
+  .local-influence-row > div:first-child { grid-column: 1 / 5; }
+  .local-weight-track { grid-column: 5 / 12; }
+  .local-influence-row > b { grid-column: 12 / -1; justify-self: end; }
+  .local-influence-row.is-equal > strong { grid-column: 1 / 5; }
+  .local-influence-row.is-equal > b { grid-column: 9 / -1; justify-self: end; }
+
+  /* Outlook: each card occupies two columns, so all six start on grid lines.
+     Horizontal padding is removed — the column gap already separates them,
+     and padding would push the first card's text off the L1 rail. */
+  .local-outlook-grid { row-gap: 0; }
+  .local-outlook-day { grid-column: span 2; padding-inline: 0; }
+  .local-outlook-day + .local-outlook-day { border-left: 0; }
 }
