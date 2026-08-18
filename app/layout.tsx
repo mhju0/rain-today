@@ -12,9 +12,31 @@ const notoSansKr = Noto_Sans_KR({
   subsets: ["latin"],
 });
 
+const SITE_URL = "https://seoulsky.vercel.app";
+const TITLE = "SeoulSky — 최근 지역 성능을 반영한 전국 강수 예보";
+const DESCRIPTION =
+  "내 위치의 오늘·내일 강수 예보와 날씨 서비스별 최근 지역 관측 성능을 비교하세요.";
+
 export const metadata: Metadata = {
-  title: "SeoulSky — 최근 지역 성능을 반영한 전국 강수 예보",
-  description: "내 위치의 오늘·내일 강수 예보와 날씨 서비스별 최근 지역 관측 성능을 비교하세요.",
+  // Required for the Open Graph image URL to resolve absolutely; without it a
+  // shared link previews with no image at all.
+  metadataBase: new URL(SITE_URL),
+  title: TITLE,
+  description: DESCRIPTION,
+  applicationName: "SeoulSky",
+  openGraph: {
+    type: "website",
+    siteName: "SeoulSky",
+    locale: "ko_KR",
+    url: SITE_URL,
+    title: TITLE,
+    description: DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: TITLE,
+    description: DESCRIPTION,
+  },
 };
 
 export const viewport: Viewport = {
