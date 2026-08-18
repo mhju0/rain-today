@@ -5,7 +5,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Local performance](https://github.com/mhju0/raintoday/actions/workflows/local-performance.yml/badge.svg)](https://github.com/mhju0/raintoday/actions/workflows/local-performance.yml)
 
-오늘비 ("rain today") is a South Korea local rain forecast. It leads with today's rain probability at the user's chosen coordinate, carries tomorrow alongside it, and — when sufficient prospective evidence exists — adjusts each provider's influence on the next-day figure using the Recent Performance Profile from its KMA Station Match.
+오늘비 ("rain today") is a South Korea local rain forecast. It leads with when rain is expected to arrive at the user's chosen coordinate and how likely it is today, carries tomorrow alongside them, and — when sufficient prospective evidence exists — adjusts each provider's influence on the next-day figure using the Recent Performance Profile from its KMA Station Match.
 
 **Live demo:** [raintoday.vercel.app/sky](https://raintoday.vercel.app/sky)
 
@@ -15,9 +15,9 @@ The interface is Korean, for Korean users. The captions below describe what each
 
 *Nothing is requested until the visitor asks. The app never prompts for location automatically or infers it from an IP address.*
 
-![Today's rain probability, with tomorrow beneath it](public/screenshots/forecast.webp)
+![When the rain arrives, with today's probability beside it](public/screenshots/forecast.webp)
 
-*Today leads, because that is the question someone opens a weather app with. Current conditions sit beside the resolved place name; tomorrow keeps its own block, since it is the only horizon the performance weighting applies to.*
+*The heading answers when, not whether — the probability alone cannot tell someone leaving at 09:00 from someone leaving at 21:00. The strip is one provider's hourly series and says so, because the figure beside it is a blend of several and the two must not read as the same claim. A time block nobody published shows a dash, never 0%.*
 
 ![Six-day outlook and the provider comparison](public/screenshots/outlook.webp)
 
@@ -25,7 +25,7 @@ The interface is Korean, for Korean users. The captions below describe what each
 
 <img src="public/screenshots/mobile.webp" alt="The same forecast on a phone" width="320">
 
-*On a phone the answer leads and the location bar stays pinned through the full scroll.*
+*On a phone the strip sits above the detail rows: the answer is the arrival time, so it comes before the millimetres. The location bar stays pinned through the full scroll.*
 
 ## Product contract
 
