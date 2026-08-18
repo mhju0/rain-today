@@ -53,6 +53,26 @@ Learned influence applies only to tomorrow, the lead time the Capture Cohorts me
 
 This supports the claim “weighted by recently observed local performance.” It does not yet support a claim that 오늘비 is more accurate overall; that requires accumulated prospective results.
 
+### Seed evidence before live evidence exists
+
+Prospective evidence takes about a month per station to mature, which would leave a first-time visitor on equal weights. To avoid that, a station can be seeded with **retrospective** evidence rebuilt from public archives: what each provider's underlying model forecast a day ahead, joined to the KMA ASOS observation for that date.
+
+Seed evidence is a separate class from a Forecast Capture, and stays separate:
+
+- It is scored on forecast **amount** and rain/no-rain outcome, because archives publish no probability. It never enters the Brier path.
+- It is stored in its own table, carries no cohort and no frozen blend, and therefore can never reach the Prospective Benchmark.
+- Its influence is capped at half the distance from equal weighting, because it rests on model proxies rather than each provider's own published forecast.
+- It applies **only** while live evidence is immature. It never overrides a benchmark suspension, and mature live evidence supersedes it entirely.
+- A provider with no honest archive proxy — currently WeatherAPI — is not seeded at all and keeps a neutral share rather than being demoted for lacking one.
+
+The page says which of the two is driving the blend, and in seed mode shows the wet-day miss rate rather than a Brier table.
+
+Backfill is a one-shot offline job, not something a visitor waits on:
+
+```bash
+npm run performance:seed -- --start=2025-06-01 --end=2025-08-31
+```
+
 ## User flow
 
 The primary route is `/sky`:
@@ -98,6 +118,7 @@ Important boundaries:
 - `lib/performance/capture.ts` freezes one station/cohort prediction; `lib/performance/batch.ts` orchestrates the nationwide bounded run.
 - `lib/localForecast.ts` combines exact-coordinate forecasts with nearby-station evidence without persisting user coordinates.
 - `lib/performance/influence.ts` derives Effective Influence and the blend it produces, for both the capture and serving paths.
+- `lib/performance/seed.ts` rebuilds retrospective day-ahead evidence from public archives; `lib/performance/seedScore.ts` scores it; `lib/performance/backfill.ts` orchestrates the one-shot offline run.
 - `lib/localForecastView.ts` projects that response onto the flat contract `/api/local-forecast` returns, so the page never reads the domain model directly.
 - `lib/forecast/blocks.ts` folds a now-anchored hourly series into time-of-day blocks, shared by the `/sky` hero strip and the cinematic forecast section. A block with no published probability stays null rather than 0%.
 - `app/api/local-forecast` and `app/api/locations/search` are rate-limited HTTP adapters.
@@ -114,6 +135,7 @@ Important boundaries:
 | [`docs/weather-sources.md`](docs/weather-sources.md) | Provider contracts, configuration, cache behavior, failure modes, and attribution |
 | [`docs/adr/`](docs/adr/) | Decision records: reliability state, Korean location selection, service-area boundary, and the two scoring pipelines |
 | [`docs/research/`](docs/research/) | Source evidence, including the SGIS boundary package's provenance and update procedure |
+| [`lib/performance/README.md`](lib/performance/README.md) | The nationwide pipeline: live captures, retrospective seed evidence, and the mode gate |
 | [`lib/reliability/README.md`](lib/reliability/README.md) | The single-station precipitation-scoring pipeline |
 
 ## Stack
@@ -185,10 +207,12 @@ Manual product checks should cover:
 - Initial launch covers South Korea and precipitation only.
 - Exact-coordinate admission uses the official SGIS 시도 boundary geometry, so offshore and cross-border coordinates are rejected. The geometry is simplified to a 10 m tolerance, so a decision within roughly 25 m of the coastline can differ from the unsimplified source. Manual place search remains country-filtered to Korea.
 - ASOS is the first observation network. AWS eligibility remains a later audited expansion.
-- Initial shadow-validation policy defaults are: station distance at most 100 km; elevation difference at most 400 m; rain at 0.1 mm; miss/false-alarm decisions at 50%; at least 30 comparable captures with both wet and dry evidence; influence ramping through 60 captures; provider influence bounded to 5–60%; and an `exp(-4 × Brier)` score transform. These values, including the one-wet-day minimum, require validation against shadow data before marketing local coverage or performance guarantees.
+- Initial shadow-validation policy defaults are: station distance at most 100 km; elevation difference at most 400 m; rain at 0.1 mm; miss/false-alarm decisions at 50%; at least 30 comparable captures with both wet and dry evidence; influence ramping through 60 captures; provider influence bounded to 5–60%; and an `exp(-12 × Brier)` score transform. These values, including the one-wet-day minimum, require validation against shadow data before marketing local coverage or performance guarantees.
 - A location may have no eligible observation station even when forecasts are available.
 - Provider availability and forecast horizon vary; missing values are omitted, never treated as zero.
-- Prospective evidence needs time to accumulate, so new stations begin with equal influence.
+- Prospective evidence needs time to accumulate. A station begins on retrospective seed evidence where a backfill has been run, and on equal influence otherwise.
+- Seed evidence uses each provider's underlying model as a proxy (ECMWF for MET Norway, GFS for Pirate Weather, KMA's own model for KMA), not the provider's published product. It is capped, labelled as retrospective, and replaced by live evidence as soon as that matures.
+- The offline backfill reads the station catalog from KMA apihub `stn_inf`; without that subscription it falls back to the committed catalog in `lib/performance/stationCatalog.ts`, which must be regenerated with `npm run performance:catalog` before nationwide seeding.
 - Weather information is not suitable for safety-critical decisions.
 
 ## License

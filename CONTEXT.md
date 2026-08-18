@@ -40,6 +40,10 @@ _Avoid_: Current forecast, historical API response
 A Forecast Capture joined to the later station-day observation for its target date.
 _Avoid_: Accuracy sample when the observation is missing
 
+**Seed Comparison**:
+One retrospective day-ahead provider forecast, rebuilt from a public archive and joined to the station-day observation for its target date. Carries an amount but no probability, no Capture Cohort, and no frozen blend, so it is never a Forecast Capture and never enters the Prospective Benchmark.
+_Avoid_: Backfilled capture, historical forecast, synthetic sample
+
 **Recent Performance Profile**:
 The cohort-specific provider metrics, evidence state, effective weights, and prospective benchmark for one Observation Station.
 _Avoid_: Accuracy ranking, trained model
