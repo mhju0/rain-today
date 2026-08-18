@@ -69,7 +69,7 @@ const weatherApiBody = JSON.stringify({
 });
 
 beforeEach(() => {
-  process.env.MET_NO_USER_AGENT = "SeoulSky test contact@example.com";
+  process.env.MET_NO_USER_AGENT = "raintoday test contact@example.com";
   process.env.WEATHERAPI_KEY = "MOCK-WEATHER-API-KEY";
   clearCache();
 });

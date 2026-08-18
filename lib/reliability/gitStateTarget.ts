@@ -19,7 +19,7 @@ const STATE_DIRECTORY = path.join("data", "reliability");
 const STATE_PATHS = RELIABILITY_STATE_FILES.map((file) => path.join(STATE_DIRECTORY, file));
 /** Root file the state branch carries to keep Vercel from deploying state commits. */
 const DEPLOYMENT_GUARD_FILE = "vercel.json";
-const TEMPORARY_PREFIX = "seoulsky-reliability-git-";
+const TEMPORARY_PREFIX = "raintoday-reliability-git-";
 
 export interface GitCommandResult {
   stderr: string;
@@ -219,9 +219,9 @@ export class GitStateTarget {
         await this.git(
           [
             "-c",
-            "user.name=SeoulSky Reliability",
+            "user.name=raintoday Reliability",
             "-c",
-            "user.email=reliability@seoulsky.local",
+            "user.email=reliability@raintoday.local",
             "-c",
             "commit.gpgsign=false",
             "commit",
@@ -282,7 +282,7 @@ export class GitStateTarget {
       throw error;
     }
 
-    const fetchRef = `refs/seoulsky/reliability-state/${process.pid}-${this.fetchSequence++}-${Date.now()}-${Math.random()
+    const fetchRef = `refs/raintoday/reliability-state/${process.pid}-${this.fetchSequence++}-${Date.now()}-${Math.random()
       .toString(16)
       .slice(2)}`;
     let operationError: unknown;
@@ -306,7 +306,7 @@ export class GitStateTarget {
   }
 
   private async fetchRecoveryRevision(ref: string): Promise<string> {
-    const fetchRef = `refs/seoulsky/recovery/${process.pid}-${this.fetchSequence++}-${Date.now()}-${Math.random()
+    const fetchRef = `refs/raintoday/recovery/${process.pid}-${this.fetchSequence++}-${Date.now()}-${Math.random()
       .toString(16)
       .slice(2)}`;
     let operationError: unknown;

@@ -10,7 +10,7 @@ const execFileAsync = promisify(execFile);
 const script = path.resolve("scripts/precip-reliability.ts");
 
 test("the scheduled CLI rejects repeated --recover options before any Git operation", async () => {
-  const cwd = await mkdtemp(path.join(tmpdir(), "seoulsky-reliability-cli-"));
+  const cwd = await mkdtemp(path.join(tmpdir(), "raintoday-reliability-cli-"));
   try {
     await assert.rejects(
       () =>

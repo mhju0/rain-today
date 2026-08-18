@@ -939,7 +939,7 @@ export default function LocalForecastExperience() {
       if (push && typeof window !== "undefined") {
         const search = shareableSearch(input);
         window.history.pushState(
-          { seoulskyView: "forecast", location: input },
+          { raintodayView: "forecast", location: input },
           "",
           search ?? window.location.pathname,
         );
@@ -981,7 +981,7 @@ export default function LocalForecastExperience() {
       showingStoredLocation.current = false;
     }
     if (push && typeof window !== "undefined") {
-      window.history.pushState({ seoulskyView: "chooser" }, "", window.location.pathname);
+      window.history.pushState({ raintodayView: "chooser" }, "", window.location.pathname);
     }
     setReturningToChooser(true);
     setState({ kind: "idle" });
@@ -998,7 +998,7 @@ export default function LocalForecastExperience() {
       // Stamp the entry the user landed on, so going Back to it later restores
       // this forecast instead of falling through to the chooser.
       window.history.replaceState(
-        { seoulskyView: "forecast", location: restored },
+        { raintodayView: "forecast", location: restored },
         "",
         window.location.href,
       );
@@ -1007,19 +1007,19 @@ export default function LocalForecastExperience() {
 
     const onPopState = (event: PopStateEvent) => {
       const entry = event.state as
-        | { seoulskyView?: string; location?: ChosenForecastLocation }
+        | { raintodayView?: string; location?: ChosenForecastLocation }
         | null;
       // A device fix carries no query string, so its history entry is
       // indistinguishable from the chooser's by URL alone. The pushed state is
       // what tells them apart.
-      if (entry?.seoulskyView === "chooser") {
+      if (entry?.raintodayView === "chooser") {
         generation.current += 1;
         setReturningToChooser(true);
         setState({ kind: "idle" });
         return;
       }
       const target = locationFromSearch(window.location.search)
-        ?? (entry?.seoulskyView === "forecast" ? entry.location ?? null : null);
+        ?? (entry?.raintodayView === "forecast" ? entry.location ?? null : null);
       if (target) {
         chooseRef.current?.(target, false);
       } else {

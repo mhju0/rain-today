@@ -30,7 +30,7 @@ interface RepositoryFixture {
 }
 
 async function createRepositoryFixture(): Promise<RepositoryFixture> {
-  const root = await mkdtemp(path.join(tmpdir(), "seoulsky-git-state-target-test-"));
+  const root = await mkdtemp(path.join(tmpdir(), "raintoday-git-state-target-test-"));
   const bareRepository = path.join(root, "remote.git");
   const workingRepository = path.join(root, "working");
   const temporaryDirectory = path.join(root, "temporary");
@@ -196,7 +196,7 @@ test("first publication creates an explicit root commit from a null revision", a
         "--format=%an <%ae>",
         "refs/heads/reliability-state",
       ),
-      "SeoulSky Reliability <reliability@seoulsky.local>",
+      "raintoday Reliability <reliability@raintoday.local>",
     );
   });
 });
@@ -250,7 +250,7 @@ test("explicit recovery reads a remote ref that is absent from the local checkou
       snapshot: state,
     });
     assert.equal(
-      await git(workingRepository, "for-each-ref", "--format=%(refname)", "refs/seoulsky/recovery"),
+      await git(workingRepository, "for-each-ref", "--format=%(refname)", "refs/raintoday/recovery"),
       "",
     );
   });
@@ -296,7 +296,7 @@ test("explicit recovery fetches a full remote commit SHA missing from the local 
       snapshot: snapshot(2),
     });
     assert.equal(
-      await git(workingRepository, "for-each-ref", "--format=%(refname)", "refs/seoulsky/recovery"),
+      await git(workingRepository, "for-each-ref", "--format=%(refname)", "refs/raintoday/recovery"),
       "",
     );
   });
@@ -836,7 +836,7 @@ test("worktree registration is cleaned when add succeeds then reports failure", 
     assert.deepEqual(await readdir(fixture.temporaryDirectory), []);
     assert.doesNotMatch(
       await git(fixture.workingRepository, "worktree", "list", "--porcelain"),
-      /seoulsky-reliability-git-/,
+      /raintoday-reliability-git-/,
     );
   });
 });

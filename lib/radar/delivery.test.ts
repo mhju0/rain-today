@@ -674,7 +674,7 @@ test("radar timeline route forwards the request signal to RadarDelivery", async 
     bounds: null,
   };
 
-  const request = new Request("https://seoulsky.test/api/radar/frames", {
+  const request = new Request("https://raintoday.test/api/radar/frames", {
     signal: controller.signal,
   });
   const response = await deliverRadarTimeline(request, {
@@ -724,7 +724,7 @@ test("radar frame route maps delivery results to stable HTTP responses", async (
     const controller = new AbortController();
     let receivedKey: string | undefined;
     let receivedSignal: AbortSignal | undefined;
-    const request = new Request("https://seoulsky.test/api/radar/frame?t=202606261105", {
+    const request = new Request("https://raintoday.test/api/radar/frame?t=202606261105", {
       signal: controller.signal,
     });
     const response = await deliverRadarFrame(request, {

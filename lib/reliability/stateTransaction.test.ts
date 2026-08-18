@@ -131,7 +131,7 @@ class MemoryReliabilityStateTarget implements ReliabilityStateTarget {
 async function withCandidateParent(
   run: (candidateParent: string) => Promise<void>,
 ): Promise<void> {
-  const candidateParent = await mkdtemp(path.join(tmpdir(), "seoulsky-state-transaction-test-"));
+  const candidateParent = await mkdtemp(path.join(tmpdir(), "raintoday-state-transaction-test-"));
   try {
     await run(candidateParent);
   } finally {

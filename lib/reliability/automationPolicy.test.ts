@@ -48,7 +48,7 @@ async function runWorkflowShell(
   command: string,
   recoveryRef: string,
 ): Promise<{ args: string[]; calls: number }> {
-  const root = await mkdtemp(path.join(tmpdir(), "seoulsky-workflow-policy-"));
+  const root = await mkdtemp(path.join(tmpdir(), "raintoday-workflow-policy-"));
   try {
     const bin = path.join(root, "bin");
     const argsFile = path.join(root, "npm-args");

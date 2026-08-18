@@ -48,7 +48,7 @@ test("reliability publication rejects reordered canonical files", () => {
 });
 
 test("reliability snapshot round-trips canonical bytes and records", async () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "seoulsky-reliability-"));
+  const dir = mkdtempSync(path.join(tmpdir(), "raintoday-reliability-"));
   const snapshot = {
     forecasts: [
       {
@@ -111,7 +111,7 @@ test("reliability snapshot round-trips canonical bytes and records", async () =>
 
 test("reliability persistence keeps forecast writes idempotent", async () => {
   const previous = process.env.RELIABILITY_DATA_DIR;
-  const dir = mkdtempSync(path.join(tmpdir(), "seoulsky-reliability-"));
+  const dir = mkdtempSync(path.join(tmpdir(), "raintoday-reliability-"));
   process.env.RELIABILITY_DATA_DIR = dir;
   const record = {
     date: "2026-07-15",
@@ -132,7 +132,7 @@ test("reliability persistence keeps forecast writes idempotent", async () => {
 });
 
 test("file persistence refuses to replace learned weights with an older checkpoint", async () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "seoulsky-reliability-"));
+  const dir = mkdtempSync(path.join(tmpdir(), "raintoday-reliability-"));
   const store = createFileReliabilityStore(dir);
   const current = {
     updatedAt: "2026-07-10T00:00:00.000Z",
@@ -157,7 +157,7 @@ test("file persistence refuses to replace learned weights with an older checkpoi
 });
 
 test("batch persistence fails closed on an existing malformed weight checkpoint", async () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "seoulsky-reliability-"));
+  const dir = mkdtempSync(path.join(tmpdir(), "raintoday-reliability-"));
   const store = createFileReliabilityStore(dir);
   writeFileSync(path.join(dir, "source-weights.json"), "{ malformed", "utf8");
   try {
@@ -168,7 +168,7 @@ test("batch persistence fails closed on an existing malformed weight checkpoint"
 });
 
 test("snapshot replacement propagates non-missing weight unlink failures", async () => {
-  const dir = mkdtempSync(path.join(tmpdir(), "seoulsky-reliability-"));
+  const dir = mkdtempSync(path.join(tmpdir(), "raintoday-reliability-"));
   mkdirSync(path.join(dir, "source-weights.json"));
   try {
     await assert.rejects(

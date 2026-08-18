@@ -21,7 +21,7 @@ import {
   parseWeightsState,
 } from "./weightsState.ts";
 
-const CANDIDATE_PREFIX = "seoulsky-reliability-candidate-";
+const CANDIDATE_PREFIX = "raintoday-reliability-candidate-";
 const PROVIDER_IDS = new Set([
   "open-meteo",
   "met-norway",
