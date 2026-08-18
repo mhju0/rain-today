@@ -59,9 +59,10 @@ The primary route is `/sky`:
 
 1. choose precise browser location or search for a Korean place;
 2. see tomorrow's recommended rain probability and practical umbrella guidance;
-3. inspect each provider's current probability and influence;
-4. inspect the Station Match, distance, evidence depth, recent Brier scores, misses, and false alarms;
-5. review the longer precipitation outlook.
+3. see when rain is expected to arrive, as a time-of-day strip from a single named provider;
+4. inspect each provider's current probability and influence;
+5. inspect the Station Match, distance, evidence depth, recent Brier scores, misses, and false alarms;
+6. review the longer precipitation outlook.
 
 The restrained atmospheric background preserves the original cinematic character without presenting Seoul imagery as nationwide location evidence.
 
@@ -98,6 +99,7 @@ Important boundaries:
 - `lib/localForecast.ts` combines exact-coordinate forecasts with nearby-station evidence without persisting user coordinates.
 - `lib/performance/influence.ts` derives Effective Influence and the blend it produces, for both the capture and serving paths.
 - `lib/localForecastView.ts` projects that response onto the flat contract `/api/local-forecast` returns, so the page never reads the domain model directly.
+- `lib/forecast/blocks.ts` folds a now-anchored hourly series into time-of-day blocks, shared by the `/sky` hero strip and the cinematic forecast section. A block with no published probability stays null rather than 0%.
 - `app/api/local-forecast` and `app/api/locations/search` are rate-limited HTTP adapters.
 
 `/` redirects to `/sky`, as do the retired `/atmosphere` and `/diagnostics` routes. The Seoul cinematic scene survives as the background of `/sky`, and `/api/sky` and `/api/weather` still serve it.

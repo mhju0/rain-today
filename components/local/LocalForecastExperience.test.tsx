@@ -1055,3 +1055,108 @@ test("a location saved before the rename is still restored", async () => {
   assert.ok(view.container.querySelector("#forecast-heading"));
   await view.cleanup();
 });
+
+const SEED_LOCATION = JSON.stringify({
+  name: "역삼1동", latitude: 37.5006, longitude: 127.0364,
+  elevationM: null, selection: { kind: "device", accuracyM: 18 },
+});
+
+function timeline(overrides: Record<string, unknown> = {}) {
+  return {
+    sourceName: "Open-Meteo",
+    onsetLabel: "오후",
+    blocks: [
+      { label: "지금", rangeLabel: "9–12시", precipMax: 10, condition: "cloudy" },
+      { label: "오후", rangeLabel: "12–15시", precipMax: 75, condition: "rain" },
+      { label: "저녁", rangeLabel: "18–21시", precipMax: 40, condition: "rain" },
+    ],
+    ...overrides,
+  };
+}
+
+test("the hero leads with when the rain starts, not just whether", async () => {
+  window.localStorage.setItem("raintoday.last-location.v1", SEED_LOCATION);
+  const view = await mountExperience(async () =>
+    Response.json(forecastPayload({ timeline: timeline() })),
+  );
+
+  // "오늘 비 올 확률" answers a question the number already answers; the series
+  // knows something the number cannot say.
+  assert.equal(view.container.querySelector("#forecast-heading")?.textContent, "오후부터 비 소식");
+  assert.equal(view.container.querySelectorAll(".local-timeline-block").length, 3);
+  await view.cleanup();
+});
+
+test("the strip says whose forecast it is, because it is not the blend", async () => {
+  window.localStorage.setItem("raintoday.last-location.v1", SEED_LOCATION);
+  const view = await mountExperience(async () =>
+    Response.json(forecastPayload({ timeline: timeline({ sourceName: "기상청" }) })),
+  );
+
+  assert.match(
+    view.container.querySelector(".local-timeline-source")?.textContent ?? "",
+    /기상청/,
+    "attributing the strip to the blend would overstate what the bars are",
+  );
+  await view.cleanup();
+});
+
+test("only the wettest block is emphasised, and only once rain is actually likely", async () => {
+  window.localStorage.setItem("raintoday.last-location.v1", SEED_LOCATION);
+  const dry = await mountExperience(async () =>
+    Response.json(forecastPayload({
+      timeline: timeline({
+        onsetLabel: null,
+        blocks: [
+          { label: "지금", rangeLabel: "9–12시", precipMax: 5, condition: "cloudy" },
+          { label: "오후", rangeLabel: "12–15시", precipMax: 22, condition: "cloudy" },
+        ],
+      }),
+    })),
+  );
+  // Accenting the least-dry hour of a dry day reads as a rain warning.
+  assert.equal(dry.container.querySelectorAll(".local-timeline-block.is-peak").length, 0);
+  assert.equal(dry.container.querySelector("#forecast-heading")?.textContent, "오늘 비 올 확률");
+  await dry.cleanup();
+
+  window.localStorage.setItem("raintoday.last-location.v1", SEED_LOCATION);
+  const wet = await mountExperience(async () =>
+    Response.json(forecastPayload({ timeline: timeline() })),
+  );
+  const peaks = wet.container.querySelectorAll(".local-timeline-block.is-peak");
+  assert.equal(peaks.length, 1);
+  assert.match(peaks[0].textContent ?? "", /75%/);
+  await wet.cleanup();
+});
+
+test("a block nobody forecast is drawn empty rather than as a confident 0%", async () => {
+  window.localStorage.setItem("raintoday.last-location.v1", SEED_LOCATION);
+  const view = await mountExperience(async () =>
+    Response.json(forecastPayload({
+      timeline: timeline({
+        blocks: [
+          { label: "지금", rangeLabel: "9–12시", precipMax: null, condition: "cloudy" },
+          { label: "오후", rangeLabel: "12–15시", precipMax: 75, condition: "rain" },
+        ],
+      }),
+    })),
+  );
+
+  const first = view.container.querySelector(".local-timeline-block");
+  assert.ok(first?.classList.contains("is-empty"));
+  assert.match(first?.textContent ?? "", /—/);
+  assert.equal(first?.querySelector("i"), null, "an empty block must draw no bar at all");
+  await view.cleanup();
+});
+
+test("no hourly series leaves the hero on the probability, with no strip", async () => {
+  window.localStorage.setItem("raintoday.last-location.v1", SEED_LOCATION);
+  const view = await mountExperience(async () =>
+    Response.json(forecastPayload({ timeline: null })),
+  );
+
+  assert.equal(view.container.querySelector(".local-timeline"), null);
+  assert.equal(view.container.querySelector("#forecast-heading")?.textContent, "오늘 비 올 확률");
+  await view.cleanup();
+});
+

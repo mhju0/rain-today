@@ -37,6 +37,7 @@ Each forecast provider exposes one Provider Snapshot read. Its availability, cac
 ## Fusion rules
 
 - `/api/local-forecast` requests every forecast provider at the validated Forecast Location and targets the next KST calendar day.
+- The hero's time-of-day precipitation strip is **not** blended. It comes from the first provider in registry order that publishes an hourly series, and the page names that provider alongside it. Hourly series differ between providers in issue time, resolution and what counts as precipitation, so averaging them would produce a curve none of them issued. The headline probability beside it remains the multi-provider blend.
 - Its Recent Performance Profile comes from the ASOS Station Match that passes the configured distance and elevation gates. The API returns the station name and distance rather than presenting station evidence as exact-coordinate truth.
 - Probability performance uses all completed wet and dry days in a 30-day lookback with a 14-day half-life. Rainy-day amount MAE is separate.
 - Learned influence requires comparable sample, wet-day, and dry-day evidence; then it ramps and remains bounded by provider floors and caps.

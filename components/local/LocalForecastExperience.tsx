@@ -728,6 +728,17 @@ function ForecastDashboard({ forecast, selection, onReset }: {
   };
   const probability = lead.precipitationProbability;
   const dayWord = leadIsToday ? "오늘" : "내일";
+  const timeline = forecast.timeline;
+  // Lead with when the rain arrives when the series says it does; otherwise the
+  // heading stays on the probability rather than inventing an arrival time.
+  const heroHeading = timeline?.onsetLabel
+    ? `${timeline.onsetLabel}부터 비 소식`
+    : `${dayWord} 비 올 확률`;
+  // Emphasis is tied to the same threshold as onset, so a dry day never gets a
+  // highlighted "peak" that is really just its least-dry hour.
+  const peakProbability = timeline?.onsetLabel
+    ? Math.max(...timeline.blocks.map((block) => block.precipMax ?? -1))
+    : null;
 
   // The chooser this replaced is gone from the DOM, so without this the whole
   // swap leaves focus on <body> and a keyboard user restarts from the top.
@@ -764,7 +775,7 @@ function ForecastDashboard({ forecast, selection, onReset }: {
           <p className="local-eyebrow">
             {formatDate(lead.date)} · {leadIsToday ? "TODAY" : "TOMORROW"}
           </p>
-          <h1 id="forecast-heading" ref={headingRef} tabIndex={-1}>{dayWord} 비 올 확률</h1>
+          <h1 id="forecast-heading" ref={headingRef} tabIndex={-1}>{heroHeading}</h1>
           <p className="local-hero-condition">{CONDITION_LABELS_KO[lead.condition]}</p>
           <p className="local-action-copy">
             {rainAction(probability, lead.precipitationAmountMm)}
@@ -775,6 +786,35 @@ function ForecastDashboard({ forecast, selection, onReset }: {
           <span>{probability === null ? "—" : Math.round(probability)}</span>
           {probability !== null && <small>%</small>}
         </div>
+
+{timeline && (
+          <div className="local-timeline">
+            <div className="local-timeline-blocks">
+              {timeline.blocks.map((block) => {
+                const empty = block.precipMax === null;
+                const peak = !empty && block.precipMax === peakProbability;
+                return (
+                  <div
+                    className={`local-timeline-block${peak ? " is-peak" : ""}${empty ? " is-empty" : ""}`}
+                    key={block.rangeLabel}
+                  >
+                    <div className="local-timeline-track">
+                      {!empty && <i style={{ height: `${Math.round(block.precipMax as number)}%` }} />}
+                    </div>
+                    <span className="local-timeline-pct">
+                      {empty ? "—" : `${Math.round(block.precipMax as number)}%`}
+                    </span>
+                    <strong>{block.label}</strong>
+                    <small>{block.rangeLabel}</small>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="local-timeline-source">
+              시간대 강수 확률 · {timeline.sourceName} 단독 예보
+            </p>
+          </div>
+        )}
 
         <div className="local-forecast-facts">
           <div><span>예상 강수량</span><strong>{lead.precipitationAmountMm === null ? "—" : `${lead.precipitationAmountMm.toFixed(1)} mm`}</strong></div>

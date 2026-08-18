@@ -591,7 +591,7 @@ html {
   --t-figure: clamp(2.1rem, 3.2vw, 2.9rem);   /* outlook + tomorrow numerals */
   --t-heading: clamp(2.3rem, 4.2vw, 4.2rem);  /* section h2 */
   --t-display: clamp(2.4rem, 4vw, 4.6rem);    /* dashboard h1 */
-  --t-numeral: clamp(8rem, 17vw, 13.5rem);    /* the one hero numeral */
+  --t-numeral: clamp(3.2rem, 7vw, 5.4rem);    /* hero probability, read beside the timeline */
 
   /* ---- spacing scale ----
      One 8px-derived ladder. Section rhythm was 90/64/144/0/144/144/40px. */
@@ -1111,9 +1111,11 @@ html {
   min-height: min(41rem, calc(100svh - 10.5rem));
   padding: var(--s-band) 0;
   display: grid;
-  grid-template-columns: minmax(15rem, 0.85fr) minmax(18rem, 1fr) minmax(12rem, 0.65fr);
-  gap: clamp(2rem, 5vw, 5rem);
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: clamp(1.5rem, 4vw, 3.5rem) clamp(2rem, 5vw, 4rem);
+  /* End-aligned, not centred: the probability is now a short read sitting
+     beside a tall intro block, and centring left it floating mid-column. */
+  align-items: end;
   border-bottom: 1px solid var(--local-line);
 }
 
@@ -1157,35 +1159,120 @@ html {
 .local-rain-number {
   display: flex;
   align-items: flex-start;
-  justify-content: center;
+  justify-content: flex-end;
   color: #edf5ef;
   font-variant-numeric: tabular-nums;
 }
 
 .local-rain-number span {
   font-size: var(--t-numeral);
-  font-weight: 240;
-  letter-spacing: -0.09em;
-  line-height: 0.8;
+  font-weight: 260;
+  letter-spacing: -0.05em;
+  line-height: 0.86;
 }
 
 .local-rain-number small {
-  margin: 0.65rem 0 0 0.7rem;
+  margin: 0.2rem 0 0 0.4rem;
   color: var(--local-accent);
-  font-size: clamp(1.2rem, 2vw, 1.9rem);
+  font-size: clamp(0.9rem, 1.4vw, 1.15rem);
   font-weight: 450;
 }
 
+/* ---- Timeline: when the rain arrives, not just whether ---------------------
+   These bars are one provider's hourly series, while the headline probability
+   blends several, so the strip carries its own attribution rather than letting
+   the two read as the same claim. */
+.local-timeline {
+  grid-column: 1 / -1;
+}
+
+.local-timeline-blocks {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: clamp(0.4rem, 1.4vw, 0.9rem);
+}
+
+.local-timeline-block {
+  display: grid;
+  grid-template-rows: 1fr auto auto auto;
+  gap: 0.45rem;
+  text-align: center;
+}
+
+.local-timeline-pct {
+  color: var(--local-muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.local-timeline-track {
+  display: flex;
+  align-items: flex-end;
+  height: clamp(3.2rem, 6vw, 4.6rem);
+  border-bottom: 1px solid var(--local-line);
+}
+
+/* min-height keeps a 1% hour visible as a sliver instead of vanishing, which
+   would be indistinguishable from an hour nobody forecast. */
+.local-timeline-track i {
+  display: block;
+  width: 100%;
+  min-height: 2px;
+  border-radius: 3px 3px 0 0;
+  background: rgb(210 224 226 / 0.2);
+}
+
+.local-timeline-block.is-peak .local-timeline-track i {
+  background: var(--local-accent);
+}
+
+.local-timeline-block.is-peak .local-timeline-pct {
+  color: var(--local-accent);
+}
+
+/* An hour with no published probability is drawn as an outline, so absence of
+   data never renders as a confident 0%. */
+.local-timeline-block.is-empty .local-timeline-pct {
+  color: rgb(210 224 226 / 0.35);
+}
+
+.local-timeline-block strong {
+  font-size: 0.85rem;
+  font-weight: 560;
+}
+
+.local-timeline-block small {
+  color: var(--local-muted);
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.local-timeline-source {
+  margin-top: var(--s-3);
+  color: var(--local-muted);
+  font-size: var(--t-label);
+  letter-spacing: 0.04em;
+}
+
 .local-forecast-facts {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   border-top: 1px solid var(--local-line);
 }
 
 .local-forecast-facts div {
-  padding: 1.25rem 0;
+  padding: 1.25rem 1rem 1.25rem 0;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
   border-bottom: 1px solid var(--local-line);
+}
+
+.local-forecast-facts div + div {
+  padding-left: 1rem;
+  border-left: 1px solid var(--local-line);
 }
 
 .local-forecast-facts span,
@@ -1547,23 +1634,14 @@ html {
     max-width: 35rem;
   }
 
-  .local-forecast-hero {
-    grid-template-columns: 1fr 1fr;
+  /* Range labels stay: two consecutive blocks can share a period name
+     (00–05 spans two of them), and the range is what tells them apart. */
+  .local-timeline-block strong {
+    font-size: 0.76rem;
   }
 
-  .local-forecast-facts {
-    grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  .local-forecast-facts div {
-    padding-right: 1rem;
-  }
-
-  .local-forecast-facts div + div {
-    padding-left: 1rem;
-    border-left: 1px solid var(--local-line);
+  .local-timeline-block small {
+    font-size: 0.62rem;
   }
 
   .local-outlook-grid {
@@ -1697,7 +1775,7 @@ html {
   }
 
   .local-rain-number span {
-    font-size: clamp(8rem, 48vw, 12rem);
+    font-size: clamp(3.6rem, 19vw, 5.5rem);
   }
 
   .local-forecast-facts {
@@ -2033,6 +2111,16 @@ html {
   .local-forecast-facts,
   .local-section-heading > p,
   .local-footer p:last-child { grid-column: 9 / -1; }
+
+  /* Explicit rows. The strip sits above the detail rows in the DOM because a
+     phone stacks in source order and the strip is the answer there; on this
+     grid, auto-placement would read that as a full-width row 2 and push the
+     detail rail down to row 3, leaving two thirds of row 1 empty. */
+  .local-forecast-hero > .local-forecast-intro,
+  .local-forecast-hero > .local-rain-number,
+  .local-forecast-hero > .local-forecast-facts { grid-row: 1; }
+  .local-forecast-hero > .local-timeline { grid-row: 2; }
+  .local-forecast-hero > .local-hero-note { grid-row: 3; }
 
   /* Captions start on L3 and run to R rather than sitting ragged inside it.
      Their right edge was landing wherever the text happened to end. */
