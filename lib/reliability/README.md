@@ -1,6 +1,6 @@
 # Precipitation source reliability
 
-SeoulSky can learn bounded per-provider precipitation weights from completed Seoul forecasts. The scheduled job is separate from request handling; it never fabricates missing forecasts or observations, and it does not make the core site depend on the learning state.
+오늘비 can learn bounded per-provider precipitation weights from completed Seoul forecasts. The scheduled job is separate from request handling; it never fabricates missing forecasts or observations, and it does not make the core site depend on the learning state.
 
 ## Daily pipeline
 
