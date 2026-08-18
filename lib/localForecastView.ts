@@ -86,8 +86,9 @@ export interface LocalForecastView {
   cohortLabel: string;
   recommendation: LocalForecastResponse["recommendation"];
   outlook: LocalForecastResponse["outlook"];
-  /** Whether learned influence is being applied, in one word for the client. */
-  blendMode: "learned" | "equal";
+  /** Which evidence is driving influence, in one word for the client. `seed` is
+   *  retrospective archive evidence at capped influence, not measured local skill. */
+  blendMode: "learned" | "equal" | "seed";
   comparedProviderCount: number;
   /** Time-of-day precipitation shape for the hero. Null when no provider publishes hourly. */
   timeline: LocalForecastTimelineView | null;
@@ -106,6 +107,9 @@ const EMPTY_EVIDENCE_COPY: Record<LocalForecastEvidence["reason"], string> = {
   "insufficient-evidence": "충분한 예보와 관측이 쌓일 때까지 동일 가중치를 사용합니다.",
   "benchmark-insufficient": "적응형 방식과 동일 가중 방식을 공정하게 비교할 표본이 더 필요합니다.",
   "benchmark-regression": "적응형 예보가 동일 가중 기준보다 나빠져 가중치 반영을 잠시 멈췄습니다.",
+  // Seed evidence IS being applied, so this must not read like a "still waiting"
+  // message. It says where the estimate came from and that it is provisional.
+  "seed-evidence": "이 지역의 실시간 비교가 쌓이기 전이라, 과거 예보 기록으로 추정한 적중률을 일부만 반영했습니다.",
   "no-eligible-station": "이 위치를 대표할 만한 가까운 관측소가 아직 없습니다.",
   // Addressed to the visitor, not the operator. "Connect the database" told a
   // member of the public to perform an action only the operator can take.
@@ -123,6 +127,7 @@ const EMPTY_EVIDENCE_DETAIL: Partial<Record<LocalForecastEvidence["reason"], str
   "benchmark-insufficient": "최소 30개의 비교 가능한 익일 예보와 비 온 날·안 온 날 근거가 모두 필요합니다.",
   "no-eligible-station": "가까운 관측소가 생기면 이 지역의 비교가 시작됩니다.",
   "benchmark-regression": "다시 나아지면 자동으로 가중치 반영으로 돌아갑니다.",
+  "seed-evidence": "이 지역에서 실제 비교가 쌓이면 과거 추정을 대체합니다.",
 };
 
 const COHORT_LABELS: Record<LocalForecastResponse["captureCohort"], string> = {
@@ -191,7 +196,12 @@ export function toLocalForecastView(response: LocalForecastResponse): LocalForec
     cohortLabel: COHORT_LABELS[response.captureCohort],
     recommendation: response.recommendation,
     outlook: response.outlook,
-    blendMode: response.performance.status === "active" ? "learned" : "equal",
+    blendMode:
+      response.performance.reason === "seed-evidence"
+        ? "seed"
+        : response.performance.status === "active"
+          ? "learned"
+          : "equal",
     comparedProviderCount: response.providers.filter((provider) => provider.available).length,
     timeline,
     influence: Object.entries(response.effectiveInfluence)

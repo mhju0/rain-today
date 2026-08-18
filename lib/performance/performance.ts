@@ -1,3 +1,4 @@
+import { buildSeedProfile, seedEffectiveWeights } from "./seedScore.ts";
 import type {
   CapturedProviderForecast,
   ForecastCapture,
@@ -7,6 +8,7 @@ import type {
   PrecipObservation,
   PrecipProviderId,
   ProviderRecentPerformance,
+  SeedComparison,
 } from "./types.ts";
 
 export const DEFAULT_PERFORMANCE_POLICY: PerformancePolicy = {
@@ -45,6 +47,8 @@ interface ProfileInput {
   observations: readonly PrecipObservation[];
   asOf: Date;
   policy?: PerformancePolicy;
+  /** Retrospective evidence for this station, used only before live maturity. */
+  seedComparisons?: readonly SeedComparison[];
 }
 
 function koreanDate(date: Date): string {
@@ -324,6 +328,16 @@ export function buildRecentPerformanceProfile(input: ProfileInput): RecentPerfor
     policy.weightCap,
   );
 
+  // Seed evidence fills the gap BEFORE live evidence matures. It deliberately
+  // cannot rescue a suspension: a benchmark regression is a live verdict that the
+  // adaptive blend is currently worse than equal, and retrospective archive
+  // evidence is not grounds to overrule it.
+  const seedProfile = buildSeedProfile({
+    comparisons: input.seedComparisons ?? [],
+    providers: providerIds,
+    policy,
+  });
+
   let mode: RecentPerformanceProfile["mode"] = "equal-fallback";
   let reason: RecentPerformanceProfile["reason"] = "insufficient-evidence";
   let effectiveWeights = equal;
@@ -333,6 +347,10 @@ export function buildRecentPerformanceProfile(input: ProfileInput): RecentPerfor
   } else if (evidenceReady && currentBenchmark.status === "regression") {
     mode = "suspended";
     reason = "benchmark-regression";
+  } else if (!evidenceReady && seedProfile.ready) {
+    mode = "seed";
+    reason = "seed-evidence";
+    effectiveWeights = seedEffectiveWeights(seedProfile.weights, providerIds);
   } else if (evidenceReady) {
     mode = rampProgress < 1 ? "ramping" : "learned";
     reason = rampProgress < 1 ? "ramping" : "learned";
@@ -360,6 +378,7 @@ export function buildRecentPerformanceProfile(input: ProfileInput): RecentPerfor
     providers,
     effectiveWeights,
     prospectiveBenchmark: currentBenchmark,
+    seed: seedProfile.providers,
   };
 }
 

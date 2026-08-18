@@ -55,6 +55,7 @@ function profile(providers: ProviderRecentPerformance[]): RecentPerformanceProfi
       kmaBrier: 0.22,
       status: "passing",
     },
+    seed: [],
   };
 }
 

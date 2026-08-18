@@ -57,6 +57,7 @@ const profile: RecentPerformanceProfile = {
     kmaBrier: 0.22,
     status: "passing",
   },
+  seed: [],
 };
 
 test("local forecast targets the user's coordinate and applies only recent local influence", async () => {

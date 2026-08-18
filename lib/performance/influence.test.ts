@@ -39,6 +39,7 @@ function profile(
       kmaBrier: null,
       status: "insufficient",
     },
+    seed: [],
   };
 }
 

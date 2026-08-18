@@ -97,23 +97,44 @@ export interface ProspectiveBenchmark {
   status: "passing" | "regression" | "insufficient";
 }
 
+/** One provider's retrospective skill over the Seed Comparisons at a station. */
+export interface SeedProviderPerformance {
+  provider: PrecipProviderId;
+  /** Seed days on which the provider supplied an amount. */
+  sampleCount: number;
+  /** Of those, the informative days; a correct-dry day carries no skill. */
+  scoredCount: number;
+  wetDays: number;
+  dryDays: number;
+  misses: number;
+  falseAlarms: number;
+  /** Mean amount-and-outcome skill in [0,1], or null with nothing informative. */
+  meanSkill: number | null;
+  eligible: boolean;
+}
+
 export interface RecentPerformanceProfile {
   stationId: string;
   cohort: CaptureCohort;
   generatedAt: string;
   windowStart: string;
   windowEnd: string;
-  mode: "equal-fallback" | "ramping" | "learned" | "suspended";
+  /** `seed` applies retrospective archive evidence at capped influence, only
+   *  while live prospective evidence is still immature. */
+  mode: "equal-fallback" | "ramping" | "learned" | "suspended" | "seed";
   reason:
     | "insufficient-evidence"
     | "benchmark-insufficient"
     | "benchmark-regression"
     | "ramping"
-    | "learned";
+    | "learned"
+    | "seed-evidence";
   rampProgress: number;
   providers: ProviderRecentPerformance[];
   effectiveWeights: Record<string, number>;
   prospectiveBenchmark: ProspectiveBenchmark;
+  /** Retrospective seed evidence, when any was supplied. Never benchmarked. */
+  seed: SeedProviderPerformance[];
 }
 
 /**

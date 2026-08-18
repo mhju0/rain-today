@@ -10,6 +10,7 @@ import type {
   ForecastCapture,
   PrecipObservation,
   PrecipProviderId,
+  SeedComparison,
 } from "./types.ts";
 
 const DAY_MS = 86_400_000;
@@ -260,4 +261,148 @@ test("serving-time blend renormalizes over probabilities that are actually prese
     71.42857142857143,
   );
   assert.equal(blendPrecipProbability([], {}), null);
+});
+
+/** Seed history where open-meteo tracks the observation and kma always says dry. */
+function seedHistory(days: number): SeedComparison[] {
+  return Array.from({ length: days }, (_, index) => {
+    const wet = index % 2 === 0;
+    const observedMm = wet ? 10 : 0;
+    return {
+      stationId: "108",
+      targetDate: new Date(Date.parse("2025-06-01T00:00:00.000Z") + index * DAY_MS)
+        .toISOString()
+        .slice(0, 10),
+      providers: [
+        { provider: "open-meteo" as PrecipProviderId, amountMm: observedMm },
+        { provider: "kma" as PrecipProviderId, amountMm: 0 },
+      ],
+      observedMm,
+      builtAt: "2026-08-18T00:00:00.000Z",
+    };
+  });
+}
+
+test("seed evidence weights a station that has no live evidence yet", () => {
+  const data = series({ days: 3, probability: () => 50 });
+
+  const profile = buildRecentPerformanceProfile({
+    stationId: "108",
+    cohort: "06",
+    ...data,
+    asOf: AS_OF,
+    seedComparisons: seedHistory(40),
+  });
+
+  assert.equal(profile.mode, "seed");
+  assert.equal(profile.reason, "seed-evidence");
+  assert.ok(
+    profile.effectiveWeights["open-meteo"] > profile.effectiveWeights.kma,
+    "the archive-accurate provider must lead",
+  );
+});
+
+test("seed influence stays capped below the raw seed weight", () => {
+  const data = series({ days: 3, probability: () => 50 });
+
+  const profile = buildRecentPerformanceProfile({
+    stationId: "108",
+    cohort: "06",
+    ...data,
+    asOf: AS_OF,
+    seedComparisons: seedHistory(40),
+  });
+
+  assert.ok(
+    profile.effectiveWeights["open-meteo"] < DEFAULT_PERFORMANCE_POLICY.weightCap,
+    "seed evidence must never reach the full learned cap",
+  );
+});
+
+test("seed evidence never rescues a benchmark regression", () => {
+  const data = series({
+    days: 40,
+    probability: (provider, daysAgo, wet) => (wet ? 90 : 10),
+    // The frozen adaptive blend was prospectively WORSE than equal.
+    frozen: (daysAgo, wet) => ({ adaptive: wet ? 10 : 90, equal: wet ? 90 : 10 }),
+  });
+
+  const profile = buildRecentPerformanceProfile({
+    stationId: "108",
+    cohort: "06",
+    ...data,
+    asOf: AS_OF,
+    seedComparisons: seedHistory(40),
+  });
+
+  assert.equal(profile.mode, "suspended");
+  assert.equal(profile.reason, "benchmark-regression");
+  assert.deepEqual(
+    profile.effectiveWeights,
+    { "open-meteo": 0.5, kma: 0.5 },
+    "a live verdict that the blend is worse must not be overridden by archives",
+  );
+});
+
+test("mature live evidence supersedes the seed entirely", () => {
+  const data = series({
+    days: 60,
+    probability: (provider, daysAgo, wet) =>
+      provider === "open-meteo" ? (wet ? 90 : 10) : (wet ? 10 : 90),
+  });
+
+  const withSeed = buildRecentPerformanceProfile({
+    stationId: "108",
+    cohort: "06",
+    ...data,
+    asOf: AS_OF,
+    seedComparisons: seedHistory(60),
+  });
+  const withoutSeed = buildRecentPerformanceProfile({
+    stationId: "108",
+    cohort: "06",
+    ...data,
+    asOf: AS_OF,
+  });
+
+  assert.equal(withSeed.mode, "learned");
+  assert.deepEqual(
+    withSeed.effectiveWeights,
+    withoutSeed.effectiveWeights,
+    "live weights must be unchanged by the presence of seed evidence",
+  );
+});
+
+test("seed evidence never enters the prospective benchmark", () => {
+  const data = series({ days: 3, probability: () => 50 });
+
+  const profile = buildRecentPerformanceProfile({
+    stationId: "108",
+    cohort: "06",
+    ...data,
+    asOf: AS_OF,
+    seedComparisons: seedHistory(60),
+  });
+
+  assert.equal(
+    profile.prospectiveBenchmark.sampleCount,
+    3,
+    "the benchmark counts frozen captures only",
+  );
+  assert.equal(profile.prospectiveBenchmark.status, "insufficient");
+});
+
+test("no seed evidence leaves the profile exactly as before", () => {
+  const data = series({ days: 3, probability: () => 50 });
+
+  const profile = buildRecentPerformanceProfile({
+    stationId: "108",
+    cohort: "06",
+    ...data,
+    asOf: AS_OF,
+  });
+
+  assert.equal(profile.mode, "equal-fallback");
+  assert.equal(profile.reason, "insufficient-evidence");
+  assert.deepEqual(profile.seed, []);
 });

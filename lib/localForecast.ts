@@ -33,6 +33,7 @@ export interface LocalForecastEvidence {
     | "insufficient-evidence"
     | "benchmark-insufficient"
     | "benchmark-regression"
+    | "seed-evidence"
     | "no-eligible-station"
     | "database-not-configured"
     | "database-unavailable";
@@ -235,21 +236,31 @@ export async function readPerformanceEvidenceFromStore(
       cohort,
       DEFAULT_PERFORMANCE_POLICY.fullInfluenceSamples,
     );
+    const seedComparisons = await store.loadSeedComparisons(
+      stationMatch.station.id,
+      DEFAULT_PERFORMANCE_POLICY.fullInfluenceSamples,
+    );
     const profile = buildRecentPerformanceProfile({
       stationId: stationMatch.station.id,
       cohort,
       captures: comparisons.map((comparison) => comparison.capture),
       observations: comparisons.map((comparison) => comparison.observation),
       asOf: now,
+      seedComparisons,
     });
-    const active = profile.mode === "learned" || profile.mode === "ramping";
+    const active =
+      profile.mode === "learned" || profile.mode === "ramping" || profile.mode === "seed";
     const inactiveReason =
       profile.reason === "benchmark-insufficient" || profile.reason === "benchmark-regression"
         ? profile.reason
         : "insufficient-evidence";
     return {
       status: active ? "active" : "collecting",
-      reason: active ? "eligible-station" : inactiveReason,
+      reason: profile.mode === "seed"
+        ? "seed-evidence"
+        : active
+          ? "eligible-station"
+          : inactiveReason,
       station: {
         id: stationMatch.station.id,
         name: stationMatch.station.name,

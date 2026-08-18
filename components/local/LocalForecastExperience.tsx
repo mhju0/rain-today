@@ -711,6 +711,11 @@ function ForecastDashboard({ forecast, selection, onReset }: {
   const locationDescription = describeForecastLocationSelection(selection);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const learned = forecast.blendMode === "learned";
+  // Seed influence is real influence, so the bars are shown — but it comes from
+  // past archives, not from measured skill at this station, and must not be
+  // described as "최근 관측 성능".
+  const seeded = forecast.blendMode === "seed";
+  const weighted = learned || seeded;
   // Lead with today — it is what someone opening a weather app is asking. Fall
   // back to tomorrow only when no provider still publishes a daily entry for
   // today, so the hero is never empty.
@@ -824,7 +829,13 @@ function ForecastDashboard({ forecast, selection, onReset }: {
             {/* The learned profile scores next-day forecasts only, so today's
                 number is always a plain average — claiming otherwise would
                 assert an accuracy nothing has measured. */}
-            <strong>{!leadIsToday && learned ? "최근 관측 성능 반영" : "서비스 동일 비중 평균"}</strong>
+            <strong>
+              {!leadIsToday && weighted
+                ? seeded
+                  ? "과거 기록 기반 추정 반영"
+                  : "최근 관측 성능 반영"
+                : "서비스 동일 비중 평균"}
+            </strong>
           </div>
         </div>
 
@@ -850,9 +861,11 @@ function ForecastDashboard({ forecast, selection, onReset }: {
             </small>
           </p>
           <p className="local-tomorrow-note">
-            {learned
-              ? "내일 예보에만 최근 이 지역의 관측 성능을 반영합니다."
-              : "아직 이 지역의 성능 기록이 없어 서비스를 동일 비중으로 평균했습니다."}
+            {seeded
+              ? "이 지역의 관측이 쌓이기 전이라, 과거 예보 기록으로 추정한 성능을 반영합니다."
+              : learned
+                ? "내일 예보에만 최근 이 지역의 관측 성능을 반영합니다."
+                : "아직 이 지역의 성능 기록이 없어 서비스를 동일 비중으로 평균했습니다."}
           </p>
         </section>
       )}
@@ -905,7 +918,7 @@ function ForecastDashboard({ forecast, selection, onReset }: {
           <p>{forecast.comparedProviderCount}개 서비스의 익일 강수 확률을 비교했습니다.</p>
         </div>
 
-        {learned ? (
+        {weighted ? (
           <div className="local-influence-grid">
             {forecast.influence.map((provider) => (
               <div className="local-influence-row" key={provider.id}>
