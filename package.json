@@ -17,7 +17,9 @@
     "reliability:daily": "node --env-file-if-exists=.env.local --env-file-if-exists=.env scripts/precip-reliability.ts",
     "reliability:state": "node scripts/reliability-state.ts",
     "location:matrix": "node --env-file-if-exists=.env.local --env-file-if-exists=.env scripts/location-matrix.ts",
-    "service-area:generate": "node scripts/generate-service-area.ts"
+    "service-area:generate": "node scripts/generate-service-area.ts",
+    "performance:seed": "node --env-file-if-exists=.env.local --env-file-if-exists=.env scripts/seed-backfill.ts",
+    "performance:catalog": "node --env-file-if-exists=.env.local --env-file-if-exists=.env scripts/generate-station-catalog.ts"
   },
   "dependencies": {
     "framer-motion": "^13.1.0",
