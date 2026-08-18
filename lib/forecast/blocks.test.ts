@@ -113,6 +113,15 @@ test("buildForecastBlocks: ties/nulls fall back to the block's midpoint hour", (
   assert.equal(allNull[1].condition, "fog"); // midpoint entries[4]
 });
 
+// --- reach: a full 24-hour series folds into eight blocks -------------------
+
+test("buildForecastBlocks: a full 24-hour series yields eight blocks", () => {
+  const blocks = buildForecastBlocks(seq(0, 24));
+  assert.equal(blocks.length, 8);
+  assert.equal(blocks[0].rangeLabel, "0–3시");
+  assert.equal(blocks[7].rangeLabel, "21–0시"); // wall clock wraps at midnight
+});
+
 // --- short / empty data: build only what the series supports ----------------
 
 test("buildForecastBlocks: short series yields fewer blocks, never an invented one", () => {

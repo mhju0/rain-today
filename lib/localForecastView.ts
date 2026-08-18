@@ -187,7 +187,7 @@ export function toLocalForecastView(response: LocalForecastResponse): LocalForec
   const seedRows = response.performance.reason === "seed-evidence"
     ? (profile?.seed ?? []).filter((provider) => provider.eligible)
     : [];
-  // buildForecastBlocks folds the "now"-anchored series into up to five 3-hour
+  // buildForecastBlocks folds the "now"-anchored series into up to eight 3-hour
   // blocks and leaves precipMax null where no hour carried a probability, so a
   // gap in the series stays a gap here rather than becoming a confident 0%.
   const blocks = response.hourly ? buildForecastBlocks(response.hourly.entries) : [];

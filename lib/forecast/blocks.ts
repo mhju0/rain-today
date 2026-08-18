@@ -3,9 +3,10 @@ import type { HourlyForecast, WeatherCondition } from "../types.ts";
 /**
  * Pure bucketing for the Forecast section's glanceable time-of-day strip. The
  * hourly series (already "now"-anchored — entries[0] is the current hour) is
- * folded into up to five consecutive 3-hour windows — entries [0–2], [3–5],
- * [6–8], [9–11], [12–14] — so the next ~15 hours read as five wide blocks
- * instead of a 24-column scroll.
+ * folded into up to eight consecutive 3-hour windows — entries [0–2], [3–5],
+ * … [21–23] — so the next ~24 hours read as eight wide blocks instead of a
+ * 24-column scroll. Eight is what the providers actually reach: they cap the
+ * series at 24 entries, so this consumes the series rather than truncating it.
  *
  * Everything here is Asia/Seoul and honours the "never fabricate" rule: a block
  * is built only when the data supports it (short series → fewer blocks, never an
@@ -86,13 +87,13 @@ function buildBlock(entries: HourlyForecast[], index: number): ForecastBlock {
 }
 
 /**
- * Fold the hourly series into up to five consecutive 3-hour blocks. Builds only
+ * Fold the hourly series into up to eight consecutive 3-hour blocks. Builds only
  * as many blocks as the data supports (a partial final window is kept; no block
  * is invented), so a short series simply yields fewer blocks.
  */
 export function buildForecastBlocks(hourly: HourlyForecast[]): ForecastBlock[] {
   const blocks: ForecastBlock[] = [];
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 8; i++) {
     const entries = hourly.slice(i * 3, i * 3 + 3);
     if (entries.length === 0) break;
     blocks.push(buildBlock(entries, i));

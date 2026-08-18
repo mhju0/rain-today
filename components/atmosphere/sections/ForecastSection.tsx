@@ -15,7 +15,7 @@ import { SectionHeading, SkySection } from "./SectionParts";
  * series (incl. Open-Meteo precip probability), so this reads from context with no
  * extra fetch. Two full-width strips sharing one bordered-grid treatment (the
  * same idiom as 현재 날씨 above, so the sections align edge-to-edge): the next
- * ~15 hours folded into five wide, no-scroll blocks (지금 → 새벽/아침/…) by
+ * ~24 hours folded into eight wide, no-scroll blocks (지금 → 새벽/아침/…) by
  * {@link buildForecastBlocks}, and the 7-day row as seven equal cards, each
  * carrying 강수확률 (POP) alongside the condition + temperatures.
  */
@@ -73,7 +73,7 @@ export default function ForecastSection() {
           {blocks.length > 0 ? (
             <div className="scroll-thin overflow-x-auto border-y border-white/18">
               <ol
-                className="grid min-w-[42rem] grid-cols-5"
+                className="grid min-w-[64rem] grid-cols-8"
                 aria-label="시간대별 예보 — 기온 및 강수확률"
               >
                 {blocks.map((b, i) => {
