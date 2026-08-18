@@ -685,9 +685,16 @@ html {
   width: min(100% - 2.5rem, 1180px);
   margin: 0 auto;
   min-height: 5.5rem;
-  display: flex;
-  align-items: center;
+  /* A row that reads as one line aligns on one baseline. `align-items: center`
+     centred each cluster's BOX instead, so clusters of different heights landed
+     on different baselines — the wordmark sat ~10px above the status text.
+     Grid is required, not flex: `align-content` is ignored on a single-line
+     flex container, so flex cannot both centre the row and share a baseline. */
+  display: grid;
+  grid-auto-flow: column;
   justify-content: space-between;
+  align-content: center;
+  align-items: baseline;
   border-bottom: 1px solid var(--local-line);
 }
 
@@ -696,7 +703,15 @@ html {
      hover — as a bare 18px text run it read as a logo and behaved as a reset. */
   min-height: 2.75rem;
   padding: 0 0.6rem 0 0;
-  display: flex;
+  /* Grid, not flex, so the row can be centred inside the 44px touch target.
+     As a flex container the single baseline-aligned line sat at the TOP of the
+     taller box, leaving the wordmark ~10px above the status text the header
+     centres on the right. `align-content` is ignored on a single-line flex
+     container, so flex had no way to express this. */
+  display: grid;
+  grid-auto-flow: column;
+  justify-content: start;
+  align-content: center;
   align-items: baseline;
   gap: 0.85rem;
   cursor: pointer;
@@ -740,11 +755,16 @@ html {
 
 .local-live-mark {
   display: flex;
-  align-items: center;
+  /* Baseline, so this cluster reports its TEXT baseline to the header row. */
+  align-items: baseline;
   gap: 0.55rem;
 }
 
+/* Opted out of baseline alignment: as a text-less flex item the dot would
+   otherwise supply the cluster's baseline, and the header would align to the
+   bottom of a dot rather than to the words beside it. */
 .local-live-mark i {
+  align-self: center;
   width: 0.38rem;
   height: 0.38rem;
   border-radius: 50%;
@@ -1018,9 +1038,13 @@ html {
 
 .local-dashboard-topline {
   min-height: 5rem;
-  display: flex;
-  align-items: center;
+  /* Same rule as the site header: place, observation and control read as one
+     line, so they share a baseline rather than three centred boxes. */
+  display: grid;
+  grid-auto-flow: column;
   justify-content: space-between;
+  align-content: center;
+  align-items: baseline;
   border-bottom: 1px solid var(--local-line);
 }
 
@@ -1948,7 +1972,12 @@ html {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 1.5rem 2.5rem;
+  /* The heading cluster is two stacked lines, so plain `baseline` would align
+     its eyebrow with the figure. `last baseline` aligns the line that actually
+     reads across — the heading and the number. `end` stays as the fallback:
+     an unsupported value would be dropped and inherit `stretch`, not `end`. */
   align-items: end;
+  align-items: last baseline;
   border-bottom: 1px solid var(--local-line);
 }
 
