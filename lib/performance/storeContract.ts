@@ -7,6 +7,7 @@ import type {
   ObservationStation,
   PrecipObservation,
   PrecipProviderId,
+  SeedComparison,
 } from "./types.ts";
 
 /**
@@ -53,6 +54,23 @@ function capture(
       equalProbability: 50,
       influence: Object.fromEntries(entries.map(([provider]) => [provider, 1 / entries.length])),
     },
+  };
+}
+
+function seedComparison(
+  stationId: string,
+  targetDate: string,
+  observedMm: number,
+): SeedComparison {
+  return {
+    stationId,
+    targetDate,
+    providers: [
+      { provider: "kma", amountMm: 0.4 },
+      { provider: "met-norway", amountMm: null },
+    ],
+    observedMm,
+    builtAt: "2026-08-18T00:00:00.000Z",
   };
 }
 
@@ -190,6 +208,69 @@ export function runPerformanceStoreContract(
       const stations = await store.listStations();
 
       assert.equal(stations[0].activeFrom, "2026-01-01");
+    });
+  });
+
+  test(`${adapterName} stores seed evidence idempotently by station and date`, async () => {
+    await withStore(async (store) => {
+      await store.syncStations([station("108")], "2026-03-01");
+      const rows = [seedComparison("108", "2025-08-01", 1.3), seedComparison("108", "2025-08-02", 0)];
+      assert.equal(await store.saveSeedComparisons(rows), 2);
+      assert.equal(await store.saveSeedComparisons(rows), 0, "a re-run must not duplicate");
+      assert.equal((await store.loadSeedComparisons("108", 10)).length, 2);
+    });
+  });
+
+  test(`${adapterName} returns seed evidence oldest first within the bound`, async () => {
+    await withStore(async (store) => {
+      await store.syncStations([station("108")], "2026-03-01");
+      await store.saveSeedComparisons([
+        seedComparison("108", "2025-08-01", 0),
+        seedComparison("108", "2025-08-02", 1),
+        seedComparison("108", "2025-08-03", 2),
+      ]);
+
+      const bounded = await store.loadSeedComparisons("108", 2);
+      assert.deepEqual(
+        bounded.map((row) => row.targetDate),
+        ["2025-08-02", "2025-08-03"],
+        "the bound keeps the most recent, returned chronologically",
+      );
+    });
+  });
+
+  test(`${adapterName} never returns another station's seed evidence`, async () => {
+    await withStore(async (store) => {
+      await store.syncStations([station("108"), station("159")], "2026-03-01");
+      await store.saveSeedComparisons([
+        seedComparison("108", "2025-08-01", 1),
+        seedComparison("159", "2025-08-01", 9),
+      ]);
+
+      const rows = await store.loadSeedComparisons("108", 10);
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].observedMm, 1);
+    });
+  });
+
+  test(`${adapterName} keeps seed evidence out of the prospective comparison path`, async () => {
+    await withStore(async (store) => {
+      await store.syncStations([station("108")], "2026-03-01");
+      await store.saveSeedComparisons([seedComparison("108", "2025-08-01", 1.3)]);
+      await store.saveObservation(observation("108", "2025-08-01", 1.3));
+
+      assert.deepEqual(
+        await store.loadCompletedComparisons("108", COHORT, 10),
+        [],
+        "seed evidence must never surface as a frozen Forecast Capture",
+      );
+    });
+  });
+
+  test(`${adapterName} rejects an unusable seed limit`, async () => {
+    await withStore(async (store) => {
+      await assert.rejects(() => store.loadSeedComparisons("108", 0), RangeError);
+      await assert.rejects(() => store.loadSeedComparisons("108", 1.5), RangeError);
     });
   });
 

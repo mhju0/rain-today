@@ -5,6 +5,7 @@ import type {
   ForecastCapture,
   ObservationStation,
   PrecipObservation,
+  SeedComparison,
 } from "./types.ts";
 import {
   assertSafeStationCatalogSync,
@@ -39,6 +40,14 @@ interface StationRow {
 
 interface StationIdRow {
   id: string;
+}
+
+interface SeedComparisonRow {
+  station_id: string;
+  target_date: string;
+  providers: SeedComparison["providers"];
+  observed_mm: number;
+  built_at: string;
 }
 
 export interface CompletedComparisonsQuery {
@@ -174,6 +183,23 @@ export class PostgresPerformanceStore implements PerformanceStore {
       create index if not exists performance_observations_station_date
       on performance_observations (station_id, date)
     `;
+    // Retrospective seed evidence. Deliberately a separate table from
+    // performance_captures: it has no cohort and no frozen blend, so it cannot be
+    // read back as a prospective Capture even by a mistaken join.
+    await this.#sql`
+      create table if not exists performance_seed_comparisons (
+        station_id text not null references performance_stations(id),
+        target_date date not null,
+        providers jsonb not null,
+        observed_mm double precision not null check (observed_mm >= 0),
+        built_at timestamptz not null,
+        primary key (station_id, target_date)
+      )
+    `;
+    await this.#sql`
+      create index if not exists performance_seed_station_date
+      on performance_seed_comparisons (station_id, target_date desc)
+    `;
   }
 
   async syncStations(
@@ -293,6 +319,48 @@ export class PostgresPerformanceStore implements PerformanceStore {
         source: row.source,
       },
     }));
+  }
+
+  async saveSeedComparisons(comparisons: readonly SeedComparison[]): Promise<number> {
+    if (comparisons.length === 0) return 0;
+    let inserted = 0;
+    await this.#sql.begin(async (sql) => {
+      for (const comparison of comparisons) {
+        const rows = await sql`
+          insert into performance_seed_comparisons (
+            station_id, target_date, providers, observed_mm, built_at
+          ) values (
+            ${comparison.stationId}, ${comparison.targetDate},
+            ${sql.json(comparison.providers as unknown as postgres.JSONValue)},
+            ${comparison.observedMm}, ${comparison.builtAt}
+          )
+          on conflict (station_id, target_date) do nothing
+          returning station_id
+        `;
+        if (rows.length > 0) inserted += 1;
+      }
+    });
+    return inserted;
+  }
+
+  async loadSeedComparisons(stationId: string, limit: number): Promise<SeedComparison[]> {
+    if (!Number.isSafeInteger(limit) || limit <= 0) throw new RangeError("invalid comparison limit");
+    const rows = await this.#sql<SeedComparisonRow[]>`
+      select station_id, target_date::text, providers, observed_mm, built_at::text
+      from performance_seed_comparisons
+      where station_id = ${stationId}
+      order by target_date desc
+      limit ${limit}
+    `;
+    return rows
+      .map((row) => ({
+        stationId: row.station_id,
+        targetDate: row.target_date,
+        providers: row.providers,
+        observedMm: row.observed_mm,
+        builtAt: isoTimestamp(row.built_at),
+      }))
+      .sort((a, b) => a.targetDate.localeCompare(b.targetDate));
   }
 
   async close(): Promise<void> {

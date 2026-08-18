@@ -5,6 +5,7 @@ import type {
   ObservationStation,
   PrecipObservation,
   PrecipProviderId,
+  SeedComparison,
 } from "./types.ts";
 
 export type CaptureWriteResult = "inserted" | "existing";
@@ -42,7 +43,15 @@ export function assertSafeStationCatalogSync(
   }
 }
 
-/** Durable boundary for prospective forecast evidence. User coordinates never cross it. */
+/**
+ * Durable boundary for forecast evidence. User coordinates never cross it.
+ *
+ * Two evidence classes live behind it and are kept in separate stores on purpose:
+ * prospective Forecast Captures, frozen at capture time and eligible for the
+ * benchmark, and retrospective Seed Comparisons rebuilt from public archives.
+ * Seed evidence carries no probability and no cohort, so it can never be read
+ * back as a Capture or reach the prospective benchmark.
+ */
 export interface PerformanceStore {
   initialize(): Promise<void>;
   syncStations(stations: readonly ObservationStation[], catalogDate: string): Promise<void>;
@@ -54,6 +63,10 @@ export interface PerformanceStore {
     cohort: CaptureCohort,
     limit: number,
   ): Promise<CompletedComparison[]>;
+  /** Insert retrospective seed evidence. Returns the number newly stored. */
+  saveSeedComparisons(comparisons: readonly SeedComparison[]): Promise<number>;
+  /** Most recent seed evidence for one station, oldest first, bounded by `limit`. */
+  loadSeedComparisons(stationId: string, limit: number): Promise<SeedComparison[]>;
   close(): Promise<void>;
 }
 
@@ -64,6 +77,7 @@ export class InMemoryPerformanceStore implements PerformanceStore {
   readonly #stations = new Map<string, ObservationStation>();
   readonly #captures = new Map<string, ForecastCapture>();
   readonly #observations = new Map<string, PrecipObservation>();
+  readonly #seedComparisons = new Map<string, SeedComparison>();
 
   async initialize(): Promise<void> {}
 
@@ -160,6 +174,27 @@ export class InMemoryPerformanceStore implements PerformanceStore {
     }
     return Array.from(selected.values())
       .sort((a, b) => a.capture.targetDate.localeCompare(b.capture.targetDate))
+      .map(clone);
+  }
+
+  async saveSeedComparisons(comparisons: readonly SeedComparison[]): Promise<number> {
+    let inserted = 0;
+    for (const comparison of comparisons) {
+      const key = `${comparison.stationId}:${comparison.targetDate}`;
+      if (this.#seedComparisons.has(key)) continue;
+      this.#seedComparisons.set(key, clone(comparison));
+      inserted += 1;
+    }
+    return inserted;
+  }
+
+  async loadSeedComparisons(stationId: string, limit: number): Promise<SeedComparison[]> {
+    if (!Number.isSafeInteger(limit) || limit <= 0) throw new RangeError("invalid comparison limit");
+    return Array.from(this.#seedComparisons.values())
+      .filter((comparison) => comparison.stationId === stationId)
+      .sort((a, b) => b.targetDate.localeCompare(a.targetDate))
+      .slice(0, limit)
+      .sort((a, b) => a.targetDate.localeCompare(b.targetDate))
       .map(clone);
   }
 
