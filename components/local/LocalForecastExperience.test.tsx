@@ -105,7 +105,7 @@ test("keyboard navigation selects one fully qualified duplicate candidate", asyn
   await settleDebounce();
   assert.deepEqual(
     [...view.container.querySelectorAll("[role=option]")].map((option) => option.textContent),
-    ["서울특별시 강남구 삼성1동행정구역 대표 위치", "대전광역시 동구 삼성동행정구역 대표 위치"],
+    ["서울특별시 강남구 삼성1동대표 위치", "대전광역시 동구 삼성동대표 위치"],
   );
 
   await act(async () => {
@@ -906,5 +906,131 @@ test("a resolved place name keeps the provenance label", async () => {
   const place = view.container.querySelector(".local-topline-place")?.textContent ?? "";
   assert.match(place, /서울특별시 강남구 역삼1동/);
   assert.match(place, /현재 기기 위치/, "with a real name, how we got it is useful");
+  await view.cleanup();
+});
+
+test("the announcement names the day actually on screen", async () => {
+  const seed = JSON.stringify({
+    name: "역삼1동", latitude: 37.5006, longitude: 127.0364,
+    elevationM: null, selection: { kind: "device", accuracyM: 18 },
+  });
+
+  window.localStorage.setItem("seoulsky.last-location.v1", seed);
+  const withToday = await mountExperience(async () => Response.json(forecastPayload()));
+  assert.match(
+    withToday.container.querySelector("[aria-live=polite]")?.textContent ?? "",
+    /오늘 예보를 표시했습니다/,
+    "saying 내일 while today is on screen misleads a screen-reader user",
+  );
+  await withToday.cleanup();
+
+  window.localStorage.setItem("seoulsky.last-location.v1", seed);
+  const withoutToday = await mountExperience(async () =>
+    Response.json(forecastPayload({ today: null })),
+  );
+  assert.match(
+    withoutToday.container.querySelector("[aria-live=polite]")?.textContent ?? "",
+    /내일 예보를 표시했습니다/,
+  );
+  await withoutToday.cleanup();
+});
+
+test("a collapsed row shows the 법정동 name instead of a jargon tag", async () => {
+  const view = await mountChooser(async () => Response.json({
+    results: [{
+      ...kakaoResult({
+        id: "1168058000",
+        name: "삼성1동",
+        label: "서울특별시 강남구 삼성1동",
+        latitude: 37.5143,
+        longitude: 127.0628,
+      }),
+      alternateName: "삼성동",
+    }],
+  }));
+
+  await changeInput(view.input, "삼성동");
+  await settleDebounce();
+
+  const option = view.container.querySelector("[role=option]")?.textContent ?? "";
+  assert.match(option, /서울특별시 강남구 삼성1동/);
+  // Both names on one row: the two used to be separate candidates with
+  // identical coordinates, so the choice between them changed nothing.
+  assert.match(option, /법정동 삼성동/);
+  assert.doesNotMatch(option, /행정구역|법정구역/);
+  await view.cleanup();
+});
+
+test("the location button reports that it is working", async () => {
+  let settle: ((position: GeolocationPosition) => void) | null = null;
+  Object.defineProperty(navigator, "geolocation", {
+    configurable: true,
+    value: {
+      getCurrentPosition(success: PositionCallback) {
+        settle = success;
+      },
+    },
+  });
+  const view = await mountExperience(async () => Response.json(forecastPayload()));
+
+  const button = [...view.container.querySelectorAll("button")]
+    .find((b) => b.textContent?.includes("내 위치로 보기")) as HTMLButtonElement;
+  await act(async () => {
+    button.click();
+    await Promise.resolve();
+  });
+
+  const busy = [...view.container.querySelectorAll("button")]
+    .find((b) => b.textContent?.includes("위치 확인 중")) as HTMLButtonElement | undefined;
+  assert.ok(busy, "a high-accuracy fix can take 12s; the button must not look idle");
+  assert.equal(busy?.disabled, true);
+
+  await act(async () => {
+    settle?.({
+      coords: { latitude: 37.5006, longitude: 127.0364, altitude: null, accuracy: 18 },
+    } as GeolocationPosition);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  });
+  assert.ok(view.container.querySelector("#forecast-heading"));
+  await view.cleanup();
+});
+
+test("the chooser stays on screen while a forecast loads", async () => {
+  let release: (() => void) | null = null;
+  Object.defineProperty(navigator, "geolocation", {
+    configurable: true,
+    value: {
+      getCurrentPosition(success: PositionCallback) {
+        success({
+          coords: { latitude: 37.5006, longitude: 127.0364, altitude: null, accuracy: 18 },
+        } as GeolocationPosition);
+      },
+    },
+  });
+  const view = await mountExperience(async () => {
+    await new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    return Response.json(forecastPayload());
+  });
+
+  const button = [...view.container.querySelectorAll("button")]
+    .find((b) => b.textContent?.includes("내 위치로 보기")) as HTMLButtonElement;
+  await act(async () => {
+    button.click();
+    await Promise.resolve();
+  });
+
+  // Unmounting the whole page left a black screen with one line on it.
+  const chooser = view.container.querySelector(".local-chooser");
+  assert.ok(chooser, "the chooser is still mounted under the overlay");
+  assert.ok(chooser?.className.includes("is-busy"));
+  assert.ok(view.container.querySelector(".local-loading.is-overlay"));
+
+  await act(async () => {
+    release?.();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  });
+  assert.equal(view.container.querySelector(".local-chooser"), null, "replaced once ready");
   await view.cleanup();
 });

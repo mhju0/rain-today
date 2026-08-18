@@ -7,7 +7,7 @@ The application remains usable without weather-provider keys: Open-Meteo supplie
 | Source | Purpose | Configuration | Cache | Failure behavior |
 | --- | --- | --- | --- | --- |
 | Open-Meteo Forecast | Current, hourly, and seven-day baseline at the requested coordinate | None | 5 min per location | Expired cache, then route-level 503 |
-| Kakao Map Local REST | Korean administrative-area search, WGS84 resolution, and reverse geocoding of a device coordinate | `KAKAO_REST_API_KEY` | HTTP response cache 5 min | Search route returns 503 `search_not_configured` when unkeyed, so the client offers no retry; reverse geocoding degrades to the "현재 위치" placeholder |
+| Kakao Map Local REST | Korean administrative-area search (one row per place, 행정동 name leading and 법정동 alongside), WGS84 resolution, and reverse geocoding of a device coordinate | `KAKAO_REST_API_KEY` | HTTP response cache 5 min | Search route returns 503 `search_not_configured` when unkeyed, so the client offers no retry; reverse geocoding degrades to the "현재 위치" placeholder |
 | Open-Meteo Air Quality | Keyless PM, gases, aerosol, and UV baseline | None | 20 min | Air quality becomes `null` |
 | MET Norway | Provider comparison | `MET_NO_USER_AGENT` with contact | 15 min | Provider reports `needs-config` or `error` |
 | KMA short-term | Forecast comparison at the requested KMA grid | `KMA_SHORT_TERM_API_KEY` | 5 min per location | Source is omitted from the current blend |

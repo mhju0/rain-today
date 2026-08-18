@@ -56,6 +56,12 @@ export interface ForecastLocationSearchResult {
   longitude: number;
   elevationM: number | null;
   kind: "administrative-area" | "legal-area";
+  /**
+   * The 법정동 name for the same point, when it differs from the 행정동 one.
+   * Both used to be offered as separate rows carrying identical coordinates, so
+   * the user chose between options that produce the same forecast.
+   */
+  alternateName?: string;
   administrativeCode?: string;
   legalCode?: string;
   source: "kakao";
@@ -145,16 +151,19 @@ function toResults(document: KakaoAddressDocument): ForecastLocationSearchResult
   };
 
   const results: ForecastLocationSearchResult[] = [];
-  if (administrativeCode) {
-    const result = buildResult("administrative-area", administrativeCode, administrativeNeighborhood);
-    if (result) results.push(result);
-  }
-  if (
-    legalCode &&
-    (!administrativeCode || legalNeighborhood !== administrativeNeighborhood)
-  ) {
-    const result = buildResult("legal-area", legalCode, legalNeighborhood);
-    if (result) results.push(result);
+  const administrative = administrativeCode
+    ? buildResult("administrative-area", administrativeCode, administrativeNeighborhood)
+    : null;
+  if (administrative) {
+    // One row per place. The 행정동 is the name a resident uses, so it leads and
+    // carries the 법정동 name alongside rather than spawning a twin row.
+    if (legalNeighborhood && legalNeighborhood !== administrativeNeighborhood) {
+      administrative.alternateName = legalNeighborhood;
+    }
+    results.push(administrative);
+  } else if (legalCode) {
+    const legal = buildResult("legal-area", legalCode, legalNeighborhood);
+    if (legal) results.push(legal);
   }
   return results;
 }
@@ -186,6 +195,17 @@ async function fetchKakaoDocuments(
   return documentsFrom(JSON.parse(new TextDecoder().decode(bytes)) as unknown);
 }
 
+/**
+ * Every full-hierarchy name this row answers to. A collapsed row stands for both
+ * the 행정동 and the 법정동 at one point, so a user who types either exact path
+ * must still rank it first.
+ */
+function matchLabels(result: ForecastLocationSearchResult): string[] {
+  if (!result.alternateName) return [result.label];
+  const segments = result.label.split(" ");
+  return [result.label, [...segments.slice(0, -1), result.alternateName].join(" ")];
+}
+
 function rankResults(
   results: ForecastLocationSearchResult[],
   normalizedQuery: string,
@@ -197,8 +217,8 @@ function rankResults(
   return results
     .map((result, index) => ({ result, index }))
     .sort((a, b) => {
-      const aExact = a.result.label === canonicalQuery ? 0 : 1;
-      const bExact = b.result.label === canonicalQuery ? 0 : 1;
+      const aExact = matchLabels(a.result).includes(canonicalQuery) ? 0 : 1;
+      const bExact = matchLabels(b.result).includes(canonicalQuery) ? 0 : 1;
       return aExact - bExact || a.index - b.index;
     })
     .map(({ result }) => result);
