@@ -751,8 +751,13 @@ html {
 
 .local-chooser-copy h1 {
   margin-top: 1.4rem;
-  max-width: 9ch;
-  font-size: clamp(3.6rem, 7.7vw, 7.6rem);
+  /* The copy carries its own <br>, so balancing fights it: the algorithm split
+     "여기서는 어떨까요?" across two more lines. `ch` is also the wrong unit here
+     — it is the width of "0", about half a Hangul glyph — so the width is set
+     in `em`, which tracks Hangul's roughly square advance. */
+  text-wrap: initial;
+  max-width: 12em;
+  font-size: clamp(3.4rem, 7vw, 7rem);
   font-weight: 360;
   line-height: 0.98;
 }
@@ -1501,7 +1506,7 @@ html {
   }
 
   .local-chooser-copy h1 {
-    max-width: 10ch;
+    max-width: 100%;
   }
 
   .local-location-actions {
@@ -1860,4 +1865,48 @@ html {
   color: var(--local-muted);
   font-size: 0.82rem;
   line-height: 1.7;
+}
+
+/* The chooser stays mounted under the loading overlay. Replacing the page with
+   a single line on black read as a crash rather than as progress. */
+.local-chooser.is-busy {
+  opacity: 0.25;
+  filter: blur(2px);
+  transition: opacity 220ms ease, filter 220ms ease;
+}
+
+.local-loading.is-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  background: color-mix(in srgb, var(--local-bg) 55%, transparent);
+  backdrop-filter: blur(3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .local-chooser.is-busy {
+    transition: none;
+    filter: none;
+  }
+}
+
+/* The metadata tier carried every unit and qualifier at 9.9–10.9px computed.
+   Colour contrast was already fine; the size was not, and Hangul needs more
+   size than Latin at the same nominal value. */
+.local-eyebrow,
+.local-precision-summary span,
+.local-forecast-facts span,
+.local-evidence-meta span,
+.local-outlook-day span,
+.local-outlook-day small,
+.local-dashboard-topline small,
+.local-footer p,
+.local-score-header {
+  font-size: 0.78rem;
+}
+
+.local-method-note,
+.local-hero-note,
+.local-tomorrow-note {
+  font-size: 0.86rem;
 }

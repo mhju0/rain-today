@@ -175,14 +175,16 @@ test("duplicate neighborhood leaves remain fully qualified selectable candidates
 
   const results = await searchKoreanLocations("삼성동", { apiKey: "test-key", fetchImpl });
 
+  // One row per place. The Gangnam document used to yield two candidates with
+  // identical coordinates, so the user chose between rows that produce the same
+  // forecast; the 법정동 name now rides along on the 행정동 row.
   assert.deepEqual(results.map((result) => result.label), [
     "서울특별시 강남구 삼성1동",
-    "서울특별시 강남구 삼성동",
     "대전광역시 동구 삼성동",
   ]);
+  assert.deepEqual(results.map((result) => result.alternateName), ["삼성동", undefined]);
   assert.deepEqual(results.map((result) => result.kind), [
     "administrative-area",
-    "legal-area",
     "administrative-area",
   ]);
 });
@@ -224,8 +226,11 @@ test("exact full hierarchy ranks ahead of a fuzzy provider candidate", async () 
     { apiKey: "test-key", fetchImpl },
   );
 
-  assert.equal(results[0]?.label, "서울특별시 강남구 삼성동");
-  assert.equal(results[0]?.kind, "legal-area");
+  // Typing the exact 법정동 path still ranks its place first, even though the
+  // row is now labelled with the 행정동 name and carries 삼성동 alongside.
+  assert.equal(results[0]?.label, "서울특별시 강남구 삼성1동");
+  assert.equal(results[0]?.alternateName, "삼성동");
+  assert.equal(results[0]?.kind, "administrative-area");
 });
 
 test("bare neighborhood search retries the administrative dong suffix", async () => {

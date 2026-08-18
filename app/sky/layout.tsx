@@ -27,7 +27,7 @@ export default function SkyLayout({ children }: { children: ReactNode }) {
             SEOULSKY · KOREA
           </p>
           <h1 style={{ fontSize: "clamp(1.8rem, 6vw, 3rem)", fontWeight: 300, margin: 0 }}>
-            오늘과 내일 비, 여기서는 어떨까요?
+            비, 여기서는 어떨까요?
           </h1>
           <p style={{ maxWidth: "40ch", lineHeight: 1.7, color: "#cbd5e1", margin: 0 }}>
             내 위치의 오늘·내일 강수 예보와 날씨 서비스별 최근 지역 관측 성능을 비교합니다.

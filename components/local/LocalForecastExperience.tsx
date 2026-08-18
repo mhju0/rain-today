@@ -219,9 +219,11 @@ function SearchMark() {
   );
 }
 
-export function LocationChooser({ onChoose, autoFocus = false }: {
+export function LocationChooser({ onChoose, autoFocus = false, busy = false }: {
   onChoose(input: ChosenForecastLocation): void;
   autoFocus?: boolean;
+  /** A forecast is loading over this view; dim it and take it out of the tab order. */
+  busy?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ForecastLocationSearchResult[]>([]);
@@ -231,6 +233,7 @@ export function LocationChooser({ onChoose, autoFocus = false }: {
   const [retryAvailable, setRetryAvailable] = useState(false);
   const [retryVersion, setRetryVersion] = useState(0);
   const [activeResultIndex, setActiveResultIndex] = useState(-1);
+  const [locating, setLocating] = useState(false);
   const listboxId = useId();
   const requestSequence = useRef(0);
   const activeRequest = useRef<AbortController | null>(null);
@@ -343,7 +346,10 @@ export function LocationChooser({ onChoose, autoFocus = false }: {
       setMessage("이 브라우저에서는 위치 기능을 사용할 수 없어요. 지역을 검색해 주세요.");
       return;
     }
-    setMessage("정확한 위치를 확인하고 있어요…");
+    // A high-accuracy fix can take the full 12s timeout. Without this the button
+    // itself gave no sign it had been pressed, and the only feedback was muted
+    // text under a different control.
+    setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (position) => onChoose({
         name: DEVICE_PLACEHOLDER_NAME,
@@ -361,16 +367,26 @@ export function LocationChooser({ onChoose, autoFocus = false }: {
               : null,
         },
       }),
-      () => setMessage("위치를 확인하지 못했어요. 권한을 확인하거나 지역을 검색해 주세요."),
+      () => {
+        setLocating(false);
+        setMessage("위치를 확인하지 못했어요. 권한을 확인하거나 지역을 검색해 주세요.");
+      },
       { enableHighAccuracy: true, timeout: 12_000, maximumAge: 0 },
     );
   };
 
   return (
-    <section className="local-chooser" aria-labelledby="location-heading">
+    <section
+      className={`local-chooser${busy ? " is-busy" : ""}`}
+      aria-labelledby="location-heading"
+      inert={busy || undefined}
+    >
       <div className="local-chooser-copy">
         <p className="local-eyebrow">KOREA · LOCAL RAIN FORECAST</p>
-        <h1 id="location-heading">오늘과 내일 비,<br />여기서는 어떨까요?</h1>
+        {/* Day-agnostic on purpose: the forecast now opens on today and carries
+            tomorrow beside it, so naming one day in the promise would be wrong
+            again the moment the other is on screen. */}
+        <h1 id="location-heading">비, 여기서는<br />어떨까요?</h1>
         <p>
           여러 날씨 서비스를 한곳에서 비교하고, 가까운 관측소에서 최근 실제로
           얼마나 맞았는지에 따라 예보의 영향을 조정합니다.
@@ -378,9 +394,15 @@ export function LocationChooser({ onChoose, autoFocus = false }: {
       </div>
 
       <div className="local-location-actions">
-        <button className="local-primary-button" type="button" onClick={useCurrentLocation}>
+        <button
+          className="local-primary-button"
+          type="button"
+          onClick={useCurrentLocation}
+          disabled={locating}
+          aria-busy={locating}
+        >
           <span className="local-button-icon"><LocationMark /></span>
-          내 위치로 보기
+          {locating ? "위치 확인 중…" : "내 위치로 보기"}
         </button>
 
         <div className="local-divider"><span>또는 지역 직접 찾기</span></div>
@@ -509,7 +531,7 @@ export function LocationChooser({ onChoose, autoFocus = false }: {
             >
               <span>{result.label}</span>
               <small>
-                {result.kind === "administrative-area" ? "행정구역" : "법정구역"} 대표 위치
+                {result.alternateName ? `법정동 ${result.alternateName}` : "대표 위치"}
               </small>
             </li>
           ))}
@@ -1039,17 +1061,20 @@ export default function LocalForecastExperience() {
         <span className="local-live-mark"><i /> KST · LIVE SOURCES</span>
       </header>
 
-      {state.kind === "idle" && (
+      {(state.kind === "idle" || state.kind === "loading") && (
         <LocationChooser
           autoFocus={returningToChooser}
           onChoose={(input) => void chooseLocation(input)}
+          busy={state.kind === "loading"}
         />
       )}
 
-      {/* No role here: the persistent region above already announces this
-          state, and two announcers read one change out twice. */}
+      {/* An overlay, not a replacement: unmounting the whole page left a black
+          screen with one line on it, which reads as a crash on a slow phone.
+          No role here — the persistent region above already announces this, and
+          two announcers read one change out twice. */}
       {state.kind === "loading" && (
-        <div className="local-loading">
+        <div className="local-loading is-overlay">
           <span />
           <p>{state.label}의 예보를 비교하고 있어요.</p>
         </div>
