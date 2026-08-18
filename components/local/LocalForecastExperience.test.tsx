@@ -426,7 +426,7 @@ test("a coordinate outside Korea is not reported as a temporary failure", async 
 
 test("the last location is restored on the next visit without any interaction", async () => {
   window.localStorage.setItem(
-    "seoulsky.last-location.v1",
+    "raintoday.last-location.v1",
     JSON.stringify({
       name: "현재 위치",
       latitude: 37.5006,
@@ -472,7 +472,7 @@ test("a device coordinate is never written into the address bar", async () => {
   assert.equal(window.location.search, "", "no coordinates in the query string");
   // Remembered, but no finer than the forecast grid can use: a raw fix would
   // pinpoint a dwelling, and anything on this origin can read the store.
-  const stored = JSON.parse(window.localStorage.getItem("seoulsky.last-location.v1") ?? "{}");
+  const stored = JSON.parse(window.localStorage.getItem("raintoday.last-location.v1") ?? "{}");
   assert.equal(stored.latitude, 37.501, "coarsened to ~110 m before it is written");
   assert.equal(stored.longitude, 127.036);
   await view.cleanup();
@@ -491,13 +491,13 @@ test("a shareable area link renders that place without touching stored state", a
   assert.ok(view.container.querySelector("#forecast-heading"), "the link alone produced a forecast");
   assert.match(body, /37\.5143/, "the linked coordinate was requested");
   // Someone else's link must not overwrite the place this device saved.
-  assert.equal(window.localStorage.getItem("seoulsky.last-location.v1"), null);
+  assert.equal(window.localStorage.getItem("raintoday.last-location.v1"), null);
   await view.cleanup();
 });
 
 test("equal weighting is stated in words instead of drawn as identical bars", async () => {
   window.localStorage.setItem(
-    "seoulsky.last-location.v1",
+    "raintoday.last-location.v1",
     JSON.stringify({
       name: "현재 위치",
       latitude: 37.5006,
@@ -523,7 +523,7 @@ test("equal weighting is stated in words instead of drawn as identical bars", as
 
 test("observed conditions and tomorrow's condition both reach the screen", async () => {
   window.localStorage.setItem(
-    "seoulsky.last-location.v1",
+    "raintoday.last-location.v1",
     JSON.stringify({
       name: "현재 위치",
       latitude: 37.5006,
@@ -544,7 +544,7 @@ test("observed conditions and tomorrow's condition both reach the screen", async
 
 test("one live region survives the swap and announces the arrival", async () => {
   window.localStorage.setItem(
-    "seoulsky.last-location.v1",
+    "raintoday.last-location.v1",
     JSON.stringify({
       name: "현재 위치",
       latitude: 37.5006,
@@ -663,13 +663,13 @@ test("a coordinate that fails is never saved for the next visit", async () => {
   assert.match(view.container.textContent ?? "", /서비스 지역 밖/);
   // Saving before the request resolved made a rejected coordinate reproduce its
   // own dead-end error on every later visit.
-  assert.equal(window.localStorage.getItem("seoulsky.last-location.v1"), null);
+  assert.equal(window.localStorage.getItem("raintoday.last-location.v1"), null);
   await view.cleanup();
 });
 
 test("a transient failure offers a retry and keeps the saved location", async () => {
   window.localStorage.setItem(
-    "seoulsky.last-location.v1",
+    "raintoday.last-location.v1",
     JSON.stringify({
       name: "역삼1동",
       latitude: 37.5006,
@@ -690,7 +690,7 @@ test("a transient failure offers a retry and keeps the saved location", async ()
     .find((button) => button.textContent === "다시 시도");
   assert.ok(retry, "a retryable failure offers a retry");
   assert.ok(
-    window.localStorage.getItem("seoulsky.last-location.v1"),
+    window.localStorage.getItem("raintoday.last-location.v1"),
     "a provider being briefly down says nothing about the location",
   );
 
@@ -724,7 +724,7 @@ test("an out-of-area failure offers no retry", async () => {
 
 test("dismissing someone else's link leaves this device's saved location alone", async () => {
   window.localStorage.setItem(
-    "seoulsky.last-location.v1",
+    "raintoday.last-location.v1",
     JSON.stringify({
       name: "역삼1동",
       latitude: 37.5006,
@@ -745,7 +745,7 @@ test("dismissing someone else's link leaves this device's saved location alone",
   });
 
   assert.match(
-    window.localStorage.getItem("seoulsky.last-location.v1") ?? "",
+    window.localStorage.getItem("raintoday.last-location.v1") ?? "",
     /역삼1동/,
     "the user's own place survives dismissing a shared one",
   );
@@ -768,7 +768,7 @@ test("a link stripped of its coordinates lands on the chooser, not an error", as
 
 test("a provider with no seven-day record is not ranked against ones that have it", async () => {
   window.localStorage.setItem(
-    "seoulsky.last-location.v1",
+    "raintoday.last-location.v1",
     JSON.stringify({
       name: "역삼1동",
       latitude: 37.5006,
@@ -808,7 +808,7 @@ test("a provider with no seven-day record is not ranked against ones that have i
 
 test("the headline number is today's, not tomorrow's", async () => {
   window.localStorage.setItem(
-    "seoulsky.last-location.v1",
+    "raintoday.last-location.v1",
     JSON.stringify({
       name: "역삼1동", latitude: 37.5006, longitude: 127.0364,
       elevationM: null, selection: { kind: "device", accuracyM: 18 },
@@ -829,7 +829,7 @@ test("the headline number is today's, not tomorrow's", async () => {
 
 test("today's number is never presented as performance-weighted", async () => {
   window.localStorage.setItem(
-    "seoulsky.last-location.v1",
+    "raintoday.last-location.v1",
     JSON.stringify({
       name: "역삼1동", latitude: 37.5006, longitude: 127.0364,
       elevationM: null, selection: { kind: "device", accuracyM: 18 },
@@ -854,7 +854,7 @@ test("today's number is never presented as performance-weighted", async () => {
 
 test("the hero falls back to tomorrow when today is no longer published", async () => {
   window.localStorage.setItem(
-    "seoulsky.last-location.v1",
+    "raintoday.last-location.v1",
     JSON.stringify({
       name: "역삼1동", latitude: 37.5006, longitude: 127.0364,
       elevationM: null, selection: { kind: "device", accuracyM: 18 },
@@ -874,7 +874,7 @@ test("the hero falls back to tomorrow when today is no longer published", async 
 
 test("an unnamed device fix shows its accuracy rather than repeating itself", async () => {
   window.localStorage.setItem(
-    "seoulsky.last-location.v1",
+    "raintoday.last-location.v1",
     JSON.stringify({
       name: "현재 위치", latitude: 37.5006, longitude: 127.0364,
       elevationM: null, selection: { kind: "device", accuracyM: 18 },
@@ -893,7 +893,7 @@ test("an unnamed device fix shows its accuracy rather than repeating itself", as
 
 test("a resolved place name keeps the provenance label", async () => {
   window.localStorage.setItem(
-    "seoulsky.last-location.v1",
+    "raintoday.last-location.v1",
     JSON.stringify({
       name: "현재 위치", latitude: 37.5006, longitude: 127.0364,
       elevationM: null, selection: { kind: "device", accuracyM: 18 },
@@ -915,7 +915,7 @@ test("the announcement names the day actually on screen", async () => {
     elevationM: null, selection: { kind: "device", accuracyM: 18 },
   });
 
-  window.localStorage.setItem("seoulsky.last-location.v1", seed);
+  window.localStorage.setItem("raintoday.last-location.v1", seed);
   const withToday = await mountExperience(async () => Response.json(forecastPayload()));
   assert.match(
     withToday.container.querySelector("[aria-live=polite]")?.textContent ?? "",
@@ -924,7 +924,7 @@ test("the announcement names the day actually on screen", async () => {
   );
   await withToday.cleanup();
 
-  window.localStorage.setItem("seoulsky.last-location.v1", seed);
+  window.localStorage.setItem("raintoday.last-location.v1", seed);
   const withoutToday = await mountExperience(async () =>
     Response.json(forecastPayload({ today: null })),
   );
@@ -1032,5 +1032,26 @@ test("the chooser stays on screen while a forecast loads", async () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
   });
   assert.equal(view.container.querySelector(".local-chooser"), null, "replaced once ready");
+  await view.cleanup();
+});
+
+test("a location saved before the rename is still restored", async () => {
+  // The storage key moved with the product name. Dropping the old one would
+  // have silently sent every returning visitor back to the empty chooser.
+  window.localStorage.setItem(
+    "seoulsky.last-location.v1",
+    JSON.stringify({
+      name: "역삼1동", latitude: 37.5006, longitude: 127.0364,
+      elevationM: null, selection: { kind: "device", accuracyM: 18 },
+    }),
+  );
+  let requests = 0;
+  const view = await mountExperience(async () => {
+    requests += 1;
+    return Response.json(forecastPayload());
+  });
+
+  assert.equal(requests, 1, "the pre-rename location was read");
+  assert.ok(view.container.querySelector("#forecast-heading"));
   await view.cleanup();
 });

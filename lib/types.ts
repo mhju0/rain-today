@@ -1,5 +1,5 @@
 /**
- * SeoulSky internal weather schema.
+ * 오늘비 (rain-today) internal weather schema.
  * Every provider response is normalized into these types.
  * Units: temperature °C, wind km/h, precipitation mm, probabilities/percentages 0–100.
  * All time strings are ISO 8601 with an explicit offset (Asia/Seoul or UTC).

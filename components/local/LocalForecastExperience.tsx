@@ -25,7 +25,9 @@ interface ChosenForecastLocation {
   selection: ForecastLocationSelection;
 }
 
-const STORED_LOCATION_KEY = "seoulsky.last-location.v1";
+const STORED_LOCATION_KEY = "raintoday.last-location.v1";
+/** Pre-rename key. Read once so a returning visitor keeps their place. */
+const LEGACY_LOCATION_KEY = "seoulsky.last-location.v1";
 /** What the server returns when a device coordinate could not be named. */
 const DEVICE_PLACEHOLDER_NAME = "현재 위치";
 
@@ -121,7 +123,8 @@ function locationFromSearch(search: string): ChosenForecastLocation | null {
 
 function readStoredLocation(): ChosenForecastLocation | null {
   try {
-    const raw = window.localStorage.getItem(STORED_LOCATION_KEY);
+    const raw = window.localStorage.getItem(STORED_LOCATION_KEY)
+      ?? window.localStorage.getItem(LEGACY_LOCATION_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<ChosenForecastLocation>;
     if (
@@ -175,6 +178,7 @@ function writeStoredLocation(input: ChosenForecastLocation): void {
 function clearStoredLocation(): void {
   try {
     window.localStorage.removeItem(STORED_LOCATION_KEY);
+    window.localStorage.removeItem(LEGACY_LOCATION_KEY);
   } catch {
     // Nothing to recover from — the next visit simply starts at the chooser.
   }
@@ -1055,7 +1059,7 @@ export default function LocalForecastExperience() {
           onClick={() => returnToChooser(true)}
           aria-label="처음으로 · 위치 다시 선택"
         >
-          <span className="local-wordmark">SEOULSKY</span>
+          <span className="local-wordmark">오늘비</span>
           <small>전국 로컬 예보</small>
         </button>
         <span className="local-live-mark"><i /> KST · LIVE SOURCES</span>

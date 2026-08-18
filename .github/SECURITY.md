@@ -8,7 +8,7 @@ forks, and third-party deployments are not supported.
 ## Report a vulnerability privately
 
 Use GitHub's [private vulnerability reporting
-form](https://github.com/mhju0/seoulsky/security/advisories/new). Do not open a
+form](https://github.com/mhju0/rain-today/security/advisories/new). Do not open a
 public issue or discussion for a suspected security problem.
 
 Please include, when available:

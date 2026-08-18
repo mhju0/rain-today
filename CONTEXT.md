@@ -1,6 +1,6 @@
-# SeoulSky
+# 오늘비
 
-SeoulSky presents a South Korea local rain forecast whose provider influence can adapt to recently observed performance at a nearby official station. The exact-coordinate forecast and station-based evidence are distinct concepts and must remain visibly distinct.
+오늘비 presents a South Korea local rain forecast whose provider influence can adapt to recently observed performance at a nearby official station. The exact-coordinate forecast and station-based evidence are distinct concepts and must remain visibly distinct.
 
 ## Language
 

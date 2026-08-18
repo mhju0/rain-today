@@ -724,9 +724,11 @@ html {
 }
 
 .local-wordmark {
-  font-size: 0.82rem;
-  font-weight: 680;
-  letter-spacing: 0.16em;
+  /* Korean wordmark: the old 0.16em tracking was set for Latin caps and pulls
+     Hangul apart. */
+  font-size: 0.95rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
 }
 
 .local-site-header small,
