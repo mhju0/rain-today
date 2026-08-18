@@ -5,9 +5,27 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Local performance](https://github.com/mhju0/seoulsky/actions/workflows/local-performance.yml/badge.svg)](https://github.com/mhju0/seoulsky/actions/workflows/local-performance.yml)
 
-SeoulSky is a South Korea local rain forecast. It compares next-day precipitation forecasts at the user's chosen coordinates and, when sufficient prospective evidence exists, adjusts each provider's influence using the Recent Performance Profile from its KMA Station Match.
+SeoulSky is a South Korea local rain forecast. It leads with today's rain probability at the user's chosen coordinate, carries tomorrow alongside it, and — when sufficient prospective evidence exists — adjusts each provider's influence on the next-day figure using the Recent Performance Profile from its KMA Station Match.
 
 **Live demo:** [seoulsky.vercel.app/sky](https://seoulsky.vercel.app/sky)
+
+The interface is Korean, for Korean users. The captions below describe what each screen shows.
+
+![The chooser: pick the device location, or search a Korean administrative area](public/screenshots/landing.webp)
+
+*Nothing is requested until the visitor asks. The app never prompts for location automatically or infers it from an IP address.*
+
+![Today's rain probability, with tomorrow beneath it](public/screenshots/forecast.webp)
+
+*Today leads, because that is the question someone opens a weather app with. Current conditions sit beside the resolved place name; tomorrow keeps its own block, since it is the only horizon the performance weighting applies to.*
+
+![Six-day outlook and the provider comparison](public/screenshots/outlook.webp)
+
+*Every provider that supplied a probability is shown with the figure it actually gave. When no local performance record exists yet, the page says so and averages them equally rather than drawing identical bars.*
+
+<img src="public/screenshots/mobile.webp" alt="The same forecast on a phone" width="320">
+
+*On a phone the answer leads and the location bar stays pinned through the full scroll.*
 
 ## Product contract
 
