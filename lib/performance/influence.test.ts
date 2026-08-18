@@ -114,3 +114,44 @@ test("blending nothing yields no probability rather than a fabricated zero", () 
   assert.equal(blend.amountMm, null);
   assert.deepEqual(blend.influence, {});
 });
+
+test("seed weights actually reach the blend, not just the evidence table", () => {
+  // The seed table and the influence bars are shown on the same screen. If the
+  // blend silently fell back to equal, the page would display a measured record
+  // beside weights that ignore it.
+  const seeded = profile("seed", { "open-meteo": 0.25, kma: 0.15, "weather-api": 0.2 });
+  const blend = blendPrecipitation(
+    [
+      { provider: "open-meteo", probability: 80, amountMm: 5 },
+      { provider: "kma", probability: 20, amountMm: 1 },
+      { provider: "weather-api", probability: 50, amountMm: 2 },
+    ],
+    seeded,
+  );
+
+  assert.ok(
+    blend.influence["open-meteo"] > blend.influence.kma,
+    "the better-scoring provider must carry more influence",
+  );
+  assert.ok(
+    Math.abs(blend.influence["open-meteo"] - 1 / 3) > 1e-9,
+    "influence must not collapse to an equal share",
+  );
+  assert.ok(
+    Math.abs(Object.values(blend.influence).reduce((a, b) => a + b, 0) - 1) < 1e-9,
+    "influence sums to 1",
+  );
+});
+
+test("a suspended benchmark still blends equally", () => {
+  const suspended = profile("suspended", { "open-meteo": 0.6, kma: 0.4 });
+  const blend = blendPrecipitation(
+    [
+      { provider: "open-meteo", probability: 80, amountMm: 5 },
+      { provider: "kma", probability: 20, amountMm: 1 },
+    ],
+    suspended,
+  );
+
+  assert.deepEqual(blend.influence, { "open-meteo": 0.5, kma: 0.5 });
+});

@@ -20,14 +20,17 @@ export interface PrecipitationBlend {
 }
 
 /**
- * Learned influence applies only while the profile is earning or holding it.
+ * Weighted influence applies only while the profile is earning or holding it.
+ * `seed` counts: its weights are already capped toward equal, and the page shows
+ * the retrospective record beside them — displaying that evidence while blending
+ * equally would claim a weighting that is not being applied.
  * Every other mode — including a suspended benchmark — is Equal Fallback.
  */
 function learnedWeights(
   profile: RecentPerformanceProfile | null,
 ): Readonly<Record<string, number>> | null {
   if (!profile) return null;
-  return profile.mode === "learned" || profile.mode === "ramping"
+  return profile.mode === "learned" || profile.mode === "ramping" || profile.mode === "seed"
     ? profile.effectiveWeights
     : null;
 }
