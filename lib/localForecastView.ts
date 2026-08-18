@@ -32,6 +32,20 @@ export interface LocalForecastProviderScore {
   rainyAmountSampleCount: number;
 }
 
+/**
+ * One provider's retrospective record, shown while seed evidence is driving the
+ * blend. Carries no Brier score: archives publish no probability to score one from.
+ */
+export interface LocalForecastSeedScore {
+  id: string;
+  name: string;
+  /** Days it actually rained, and how many of those the provider called dry. */
+  wetDays: number;
+  misses: number;
+  falseAlarms: number;
+  sampleCount: number;
+}
+
 export interface LocalForecastEvidenceView {
   status: LocalForecastEvidence["status"];
   statusLabel: string;
@@ -43,6 +57,8 @@ export interface LocalForecastEvidenceView {
   /** Second line for `emptyMessage`, only where one is actually true. */
   emptyDetail: string | null;
   scores: LocalForecastProviderScore[];
+  /** Populated only in seed mode, where `scores` has nothing to show. */
+  seedScores: LocalForecastSeedScore[];
   benchmark: { adaptiveBrier: number | null; equalBrier: number | null } | null;
 }
 
@@ -166,6 +182,11 @@ export function toLocalForecastView(response: LocalForecastResponse): LocalForec
   );
   const profile = response.performance.profile;
   const scoreRows = profile?.providers ?? [];
+  // Only shown while the seed is actually driving the blend; once live evidence
+  // matures the seed is superseded and must not linger beside it as if current.
+  const seedRows = response.performance.reason === "seed-evidence"
+    ? (profile?.seed ?? []).filter((provider) => provider.eligible)
+    : [];
   // buildForecastBlocks folds the "now"-anchored series into up to five 3-hour
   // blocks and leaves precipMax null where no hour carried a probability, so a
   // gap in the series stays a gap here rather than becoming a confident 0%.
@@ -226,10 +247,20 @@ export function toLocalForecastView(response: LocalForecastResponse): LocalForec
       comparisonSampleCount: scoreRows.length > 0
         ? Math.min(...scoreRows.map((provider) => provider.windowSampleCount))
         : 0,
-      emptyMessage: scoreRows.length > 0
+      seedScores: seedRows.map((provider) => ({
+        id: provider.provider,
+        name: displayName(provider.provider),
+        wetDays: provider.wetDays,
+        misses: provider.misses,
+        falseAlarms: provider.falseAlarms,
+        sampleCount: provider.sampleCount,
+      })),
+      // Seed rows are evidence too: showing the "still collecting" copy over a
+      // populated seed table would deny the numbers printed right beside it.
+      emptyMessage: scoreRows.length > 0 || seedRows.length > 0
         ? null
         : EMPTY_EVIDENCE_COPY[response.performance.reason],
-      emptyDetail: scoreRows.length > 0
+      emptyDetail: scoreRows.length > 0 || seedRows.length > 0
         ? null
         : EMPTY_EVIDENCE_DETAIL[response.performance.reason] ?? null,
       scores: scoreRows.map((provider) => ({

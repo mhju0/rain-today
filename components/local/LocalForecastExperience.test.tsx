@@ -215,6 +215,7 @@ test("device accuracy is displayed but not sent to the forecast API", async () =
         comparisonSampleCount: 0,
         emptyMessage: "지역 성능 데이터베이스를 연결하면 이곳에 실제 비교가 표시됩니다.",
         scores: [],
+        seedScores: [],
         benchmark: null,
       },
     });
@@ -322,6 +323,7 @@ function forecastPayload(overrides: Record<string, unknown> = {}) {
       emptyMessage: "이 지역의 최근 성능 기록이 아직 없어, 서비스를 똑같은 비중으로 평균했습니다.",
       emptyDetail: null,
       scores: [],
+      seedScores: [],
       benchmark: null,
     },
     ...overrides,
@@ -791,6 +793,7 @@ test("a provider with no seven-day record is not ranked against ones that have i
         { id: "kma", name: "기상청", last7DaysBrier: null, windowBrier: 0.12, windowSampleCount: 30, misses: 1, falseAlarms: 1, rainyAmountMae: null, rainyAmountSampleCount: 0 },
         { id: "open-meteo", name: "Open-Meteo", last7DaysBrier: 0.2, windowBrier: 0.3, windowSampleCount: 40, misses: 4, falseAlarms: 2, rainyAmountMae: 1.5, rainyAmountSampleCount: 9 },
       ],
+      seedScores: [],
       benchmark: null,
     },
   })));
@@ -1160,3 +1163,43 @@ test("no hourly series leaves the hero on the probability, with no strip", async
   await view.cleanup();
 });
 
+
+test("seed evidence shows the wet-day miss rate rather than claiming measured performance", async () => {
+  window.localStorage.setItem(
+    "raintoday.last-location.v1",
+    JSON.stringify({
+      name: "역삼1동", latitude: 37.5006, longitude: 127.0364,
+      elevationM: null, selection: { kind: "device", accuracyM: 18 },
+    }),
+  );
+  const view = await mountExperience(async () =>
+    Response.json(forecastPayload({
+      blendMode: "seed",
+      evidence: {
+        status: "active",
+        statusLabel: "과거 기록 반영 중",
+        station: { name: "서울", distanceKm: 3.2 },
+        comparisonSampleCount: 92,
+        emptyMessage: null,
+        emptyDetail: null,
+        scores: [],
+        seedScores: [
+          { id: "kma", name: "기상청", wetDays: 34, misses: 13, falseAlarms: 5, sampleCount: 92 },
+          { id: "open-meteo", name: "Open-Meteo", wetDays: 34, misses: 5, falseAlarms: 11, sampleCount: 92 },
+        ],
+        benchmark: null,
+      },
+    })),
+  );
+
+  const evidence = view.container.textContent ?? "";
+  assert.match(evidence, /비 온 34일 중 13일/, "the wet-day miss rate must be on screen");
+  // The whole point of a separate seed mode: this is a retrospective estimate,
+  // so the page must not claim it measured this station's recent performance.
+  assert.ok(!evidence.includes("최근 관측 성능 반영"), "seed must not read as measured skill");
+  assert.match(evidence, /과거 예보 기록으로 추정한 성능을 반영합니다/);
+  // The recency half-life is a live-capture rule; a flat archive sample must not
+  // borrow it, and the heading must not claim this is recent local measurement.
+  assert.ok(!evidence.includes("최근 예보일수록 크게 반영"));
+  assert.match(evidence, /기간 전체를 같은 비중으로 반영/);
+});

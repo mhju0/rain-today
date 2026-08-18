@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { LocalForecastEvidence, LocalForecastResponse } from "./localForecast.ts";
 import { toLocalForecastView } from "./localForecastView.ts";
-import type { ProviderRecentPerformance, RecentPerformanceProfile } from "./performance/types.ts";
+import type {
+  ProviderRecentPerformance,
+  RecentPerformanceProfile,
+  SeedProviderPerformance,
+} from "./performance/types.ts";
 import type { HourlyForecast } from "./types.ts";
 
 const REASONS: LocalForecastEvidence["reason"][] = [
@@ -311,4 +315,73 @@ test("hours with no published probability stay null instead of reading as 0%", (
   assert.equal(blocks[0].precipMax, null);
   assert.equal(blocks[1].precipMax, 65);
   assert.equal(view.timeline?.onsetLabel, blocks[1].label);
+});
+
+function seedScore(
+  provider: string,
+  wetDays: number,
+  misses: number,
+  eligible = true,
+): SeedProviderPerformance {
+  return {
+    provider: provider as SeedProviderPerformance["provider"],
+    sampleCount: 92,
+    scoredCount: 45,
+    wetDays,
+    dryDays: 92 - wetDays,
+    misses,
+    falseAlarms: 11,
+    meanSkill: 0.65,
+    eligible,
+  };
+}
+
+function seedResponse(seed: SeedProviderPerformance[]): LocalForecastResponse {
+  return response({
+    performance: {
+      status: "active",
+      reason: "seed-evidence",
+      station: { id: "108", name: "서울", distanceKm: 3.2 },
+      profile: {
+        ...profile([]),
+        mode: "seed",
+        reason: "seed-evidence",
+        seed,
+      },
+    },
+  });
+}
+
+test("seed mode is not described as measured local performance", () => {
+  const view = toLocalForecastView(seedResponse([seedScore("kma", 34, 13)]));
+  assert.equal(view.blendMode, "seed", "seed must not be reported as learned");
+});
+
+test("seed evidence surfaces the wet-day miss rate instead of an empty message", () => {
+  const view = toLocalForecastView(
+    seedResponse([seedScore("kma", 34, 13), seedScore("open-meteo", 34, 5)]),
+  );
+
+  assert.equal(view.evidence.seedScores.length, 2);
+  const kma = view.evidence.seedScores.find((score) => score.id === "kma");
+  assert.equal(kma?.wetDays, 34);
+  assert.equal(kma?.misses, 13);
+  assert.equal(
+    view.evidence.emptyMessage,
+    null,
+    "populated seed rows must not sit under a 'still collecting' message",
+  );
+});
+
+test("an immature seed provider is not shown as evidence", () => {
+  const view = toLocalForecastView(
+    seedResponse([seedScore("kma", 34, 13), seedScore("weather-api", 2, 1, false)]),
+  );
+  assert.deepEqual(view.evidence.seedScores.map((score) => score.id), ["kma"]);
+});
+
+test("live evidence never leaves stale seed rows beside it", () => {
+  const view = toLocalForecastView(response());
+  assert.equal(view.blendMode, "learned");
+  assert.deepEqual(view.evidence.seedScores, [], "the seed is superseded, not shown alongside");
 });

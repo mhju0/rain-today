@@ -21,7 +21,12 @@ export const DEFAULT_PERFORMANCE_POLICY: PerformancePolicy = {
   decisionThreshold: 50,
   weightFloor: 0.05,
   weightCap: 0.6,
-  scoreSharpness: 4,
+  // Exponential contrast between provider scores. Monotonic, so it can never
+  // reorder providers — it only widens a gap that the evidence already shows.
+  // Raised from 4: at 4 a real 3x difference in wet-day miss rate compressed to a
+  // 1.18x weight spread, which read as "every service is the same". The
+  // prospective benchmark still suspends the blend if sharpening makes it worse.
+  scoreSharpness: 12,
 };
 
 interface CompletedCapture {

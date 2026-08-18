@@ -561,6 +561,12 @@ function missedDays(score: LocalForecastView["evidence"]["scores"][number]): str
   return `${score.windowSampleCount}일 중 ${missed}일`;
 }
 
+/** The wet-day miss rate — where the real difference between services lives. */
+function seedMissLabel(score: LocalForecastView["evidence"]["seedScores"][number]): string {
+  if (score.wetDays <= 0) return "—";
+  return `비 온 ${score.wetDays}일 중 ${score.misses}일`;
+}
+
 function benchmarkVerdict(
   benchmark: NonNullable<LocalForecastView["evidence"]["benchmark"]>,
 ): string | null {
@@ -587,8 +593,13 @@ function PerformanceEvidence({ evidence, cohortLabel }: {
     emptyMessage,
     emptyDetail,
     scores,
+    seedScores,
     benchmark,
   } = evidence;
+  // Best-first by wet-day miss rate, matching the live table's "가장 잘 맞음" order.
+  const seedRanked = [...seedScores].sort(
+    (a, b) => a.misses / Math.max(1, a.wetDays) - b.misses / Math.max(1, b.wetDays),
+  );
   // Rank only the providers that actually have a seven-day record, and only
   // against each other. Falling back to the 30-day score let a provider with no
   // recent history be labelled "가장 잘 맞음" under a 최근 7일 heading.
@@ -609,7 +620,11 @@ function PerformanceEvidence({ evidence, cohortLabel }: {
       <div className="local-section-heading">
         <div>
           <p className="local-eyebrow">RECENT LOCAL PERFORMANCE</p>
-          <h2 id="evidence-heading">최근 이 지역에서<br />누가 더 잘 맞았나</h2>
+          <h2 id="evidence-heading">
+            {seedRanked.length > 0
+              ? <>과거 기록에서<br />누가 더 잘 맞았나</>
+              : <>최근 이 지역에서<br />누가 더 잘 맞았나</>}
+          </h2>
         </div>
         <span className={`local-status-pill is-${status}`}>{statusLabel}</span>
       </div>
@@ -621,17 +636,50 @@ function PerformanceEvidence({ evidence, cohortLabel }: {
         </div>
         <div>
           <span>채점 기간</span>
-          <strong>최근 30일 · 최근 예보일수록 크게 반영</strong>
+          {/* The recency half-life applies to live captures only. Seed evidence is
+              a flat retrospective sample, so claiming it here would be false. */}
+          <strong>
+            {seedRanked.length > 0
+              ? "과거 예보 기록 · 기간 전체를 같은 비중으로 반영"
+              : "최근 30일 · 최근 예보일수록 크게 반영"}
+          </strong>
         </div>
         <div>
           <span>비교한 예보</span>
           <strong>
-            {comparisonSampleCount > 0 ? `${comparisonSampleCount}회 · ${cohortLabel}` : "수집 전"}
+            {comparisonSampleCount > 0
+              ? seedRanked.length > 0
+                ? `${comparisonSampleCount}일`
+                : `${comparisonSampleCount}회 · ${cohortLabel}`
+              : "수집 전"}
           </strong>
         </div>
       </div>
 
-      {emptyMessage === null ? (
+      {emptyMessage === null && seedRanked.length > 0 ? (
+        <>
+          <div className="local-score-table" role="table" aria-label="서비스별 과거 강수 예보 기록">
+            <div className="local-score-row local-score-header" role="row">
+              <span role="columnheader">서비스</span>
+              <span role="columnheader">비를 놓친 날</span>
+              <span role="columnheader">헛예보</span>
+            </div>
+            {seedRanked.map((provider) => (
+              <div className="local-score-row" role="row" key={provider.id}>
+                <strong role="cell">{provider.name}</strong>
+                <span role="cell">{seedMissLabel(provider)}</span>
+                <span role="cell">{provider.falseAlarms}일</span>
+              </div>
+            ))}
+          </div>
+          <p className="local-method-note">
+            이 지역의 실시간 비교가 쌓이기 전이라, 과거 예보 기록으로 각 서비스를
+            채점했습니다. ‘비를 놓친 날’은 실제로 비가 온 날 중 그 서비스가 비를
+            예보하지 않은 날입니다. 확률이 아닌 예상 강수량으로만 채점했고, 이 지역에서
+            실제 관측이 쌓이면 이 추정을 대체합니다.
+          </p>
+        </>
+      ) : emptyMessage === null ? (
         <>
           <div className="local-score-table" role="table" aria-label="서비스별 최근 강수 예보 성능">
             <div className="local-score-row local-score-header" role="row">
