@@ -104,6 +104,7 @@ export function runPerformanceStoreContract(
 
   test(`${adapterName} reports whether a capture was newly inserted`, async () => {
     await withStore(async (store) => {
+      await store.syncStations([station("108")], "2026-03-01");
       const first = capture("108", "2026-03-02", { "open-meteo": 60 });
       assert.equal(await store.saveCapture(first), "inserted");
       assert.equal(await store.saveCapture(first), "existing");
@@ -112,6 +113,7 @@ export function runPerformanceStoreContract(
 
   test(`${adapterName} pairs a capture with its later observation only`, async () => {
     await withStore(async (store) => {
+      await store.syncStations([station("108")], "2026-03-01");
       await store.saveCapture(capture("108", "2026-03-02", { "open-meteo": 60 }));
       await store.saveCapture(capture("108", "2026-03-03", { "open-meteo": 40 }));
       await store.saveObservation(observation("108", "2026-03-02", 3.5));
@@ -126,6 +128,7 @@ export function runPerformanceStoreContract(
 
   test(`${adapterName} never returns another station's or cohort's evidence`, async () => {
     await withStore(async (store) => {
+      await store.syncStations([station("108"), station("112")], "2026-03-01");
       await store.saveCapture(capture("108", "2026-03-02", { "open-meteo": 60 }));
       await store.saveCapture({
         ...capture("112", "2026-03-02", { "open-meteo": 60 }),
@@ -150,6 +153,7 @@ export function runPerformanceStoreContract(
       // open-meteo reports every day; kma reports only on the two oldest days.
       // A naive newest-N read would return three open-meteo rows and no kma
       // evidence at all, retiring a provider that simply reports less often.
+      await store.syncStations([station("108")], "2026-03-01");
       const dates = ["2026-03-01", "2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05"];
       for (const date of dates) {
         await store.saveCapture(
