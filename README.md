@@ -1,13 +1,13 @@
-# 오늘비 · rain-today
+# 오늘비 · raintoday
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Local performance](https://github.com/mhju0/rain-today/actions/workflows/local-performance.yml/badge.svg)](https://github.com/mhju0/rain-today/actions/workflows/local-performance.yml)
+[![Local performance](https://github.com/mhju0/raintoday/actions/workflows/local-performance.yml/badge.svg)](https://github.com/mhju0/raintoday/actions/workflows/local-performance.yml)
 
 오늘비 ("rain today") is a South Korea local rain forecast. It leads with today's rain probability at the user's chosen coordinate, carries tomorrow alongside it, and — when sufficient prospective evidence exists — adjusts each provider's influence on the next-day figure using the Recent Performance Profile from its KMA Station Match.
 
-**Live demo:** [rain-today.vercel.app/sky](https://rain-today.vercel.app/sky)
+**Live demo:** [raintoday.vercel.app/sky](https://raintoday.vercel.app/sky)
 
 The interface is Korean, for Korean users. The captions below describe what each screen shows.
 

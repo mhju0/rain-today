@@ -4,7 +4,7 @@ import { normalizeClamped as performanceProjection } from "./performance/perform
 import { normalizeClamped as reliabilityProjection, W_CAP, W_FLOOR } from "./reliability/weights.ts";
 
 /**
- * rain-today runs two precipitation-scoring pipelines that share a vocabulary and
+ * raintoday runs two precipitation-scoring pipelines that share a vocabulary and
  * a bounded-weight contract but not an implementation: the nationwide
  * Recent Performance Profile in `lib/performance/`, and the single-station
  * reliability pipeline in `lib/reliability/`. Both project raw scores onto
