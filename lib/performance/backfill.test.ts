@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { chunkMonths, runSeedBackfill } from "./backfill.ts";
+import { chunkMonths, mergeStationCatalog, runSeedBackfill } from "./backfill.ts";
 import { InMemoryPerformanceStore } from "./store.ts";
 import type { ObservationStation, SeedComparison } from "./types.ts";
 
@@ -148,4 +148,39 @@ test("a station that yields no comparisons is not an error", async () => {
 
   assert.equal(result.comparisonsStored, 0);
   assert.deepEqual(result.failures, []);
+});
+
+test("a partial catalog never retires stations the live pipeline registered", () => {
+  const existing = [station("108"), station("112"), { ...station("119"), activeTo: "2026-01-01" }];
+  const merged = mergeStationCatalog(existing, [station("108")]);
+
+  assert.deepEqual(
+    merged.map((entry) => entry.id),
+    ["108", "112"],
+    "the other active station survives; the already-retired one is not revived",
+  );
+});
+
+test("a partial catalog can still introduce a station", () => {
+  const merged = mergeStationCatalog([station("108")], [station("159")]);
+  assert.deepEqual(merged.map((entry) => entry.id), ["108", "159"]);
+});
+
+test("merging a partial catalog passes the drop guard that a bare sync fails", async () => {
+  const full = Array.from({ length: 25 }, (_, index) => station(String(100 + index)));
+  const store = new InMemoryPerformanceStore();
+  await store.initialize();
+  await store.syncStations(full, "2026-08-01");
+
+  // What the CLI used to do: declare the fallback catalog as the whole truth.
+  await assert.rejects(
+    () => store.syncStations([station("108")], "2026-08-18"),
+    /retirement safety threshold/,
+  );
+
+  // What it does now.
+  const merged = mergeStationCatalog(await store.listStations(), [station("108")]);
+  await store.syncStations(merged, "2026-08-18");
+  const active = (await store.listStations()).filter((entry) => entry.activeTo === null);
+  assert.equal(active.length, 25);
 });

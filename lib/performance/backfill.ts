@@ -33,6 +33,25 @@ export function chunkMonths(startDate: string, endDate: string): [string, string
   return chunks;
 }
 
+/**
+ * Union a partial station list into the currently active catalog.
+ *
+ * The backfill only needs its target stations to EXIST; it is not an authority on
+ * which stations are active. Passing a partial list straight to `syncStations`
+ * would declare every other station retired — the catalog drop guard refuses that,
+ * so a fallback-catalog backfill would simply fail against a populated database.
+ */
+export function mergeStationCatalog(
+  existing: readonly ObservationStation[],
+  additions: readonly ObservationStation[],
+): ObservationStation[] {
+  const active = new Map(
+    existing.filter((station) => station.activeTo === null).map((station) => [station.id, station]),
+  );
+  for (const station of additions) active.set(station.id, station);
+  return Array.from(active.values()).sort((a, b) => Number(a.id) - Number(b.id));
+}
+
 export interface BackfillFailure {
   stationId: string;
   window: string;

@@ -11,7 +11,7 @@
  * Stations come from KMA apihub when the `stn_inf` subscription is available, and
  * from the committed fallback catalog otherwise.
  */
-import { runSeedBackfill } from "../lib/performance/backfill.ts";
+import { mergeStationCatalog, runSeedBackfill } from "../lib/performance/backfill.ts";
 import { fetchKmaAsosStations } from "../lib/performance/kma.ts";
 import { PostgresPerformanceStore } from "../lib/performance/postgres.ts";
 import {
@@ -41,12 +41,15 @@ if (!connectionUrl) {
   process.exit(1);
 }
 
+let catalogIsAuthoritative = true;
+
 async function resolveStations(): Promise<ObservationStation[]> {
   try {
     const stations = await fetchKmaAsosStations(new Date());
     console.log(`station catalog: ${stations.length} stations from apihub`);
     return stations;
   } catch (error) {
+    catalogIsAuthoritative = false;
     const reason = error instanceof Error ? error.message : "unknown error";
     console.warn(`apihub station catalog unavailable (${reason}); using the committed fallback`);
     if (isPlaceholderCatalog()) {
@@ -73,7 +76,12 @@ const store = new PostgresPerformanceStore(connectionUrl);
 try {
   await store.initialize();
   // Seed rows reference performance_stations, so the catalog must exist first.
-  await store.syncStations(stations, new Date().toISOString().slice(0, 10));
+  // Only the apihub catalog is authoritative about which stations are ACTIVE; a
+  // fallback list is merged in so it cannot retire what the live pipeline knows.
+  const catalog = catalogIsAuthoritative
+    ? stations
+    : mergeStationCatalog(await store.listStations(), stations);
+  await store.syncStations(catalog, new Date().toISOString().slice(0, 10));
 
   const result = await runSeedBackfill({
     stations,
