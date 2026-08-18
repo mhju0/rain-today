@@ -1,4 +1,6 @@
+import { buildForecastBlocks } from "./forecast/blocks.ts";
 import type { LocalForecastEvidence, LocalForecastResponse } from "./localForecast.ts";
+import type { WeatherCondition } from "./types.ts";
 
 /**
  * The wire contract for the local forecast page.
@@ -44,6 +46,35 @@ export interface LocalForecastEvidenceView {
   benchmark: { adaptiveBrier: number | null; equalBrier: number | null } | null;
 }
 
+/**
+ * The probability at which this page first tells someone to carry an umbrella.
+ * Held in step with the 40% band in the hero's advice copy so the timeline
+ * cannot mark rain beginning in a block the advice still calls dry.
+ */
+const RAIN_ONSET_PROBABILITY = 40;
+
+export interface LocalForecastTimelineBlock {
+  /** "지금" for the block covering now, otherwise its Korean period name. */
+  label: string;
+  /** Short KST range, e.g. "15–18시". */
+  rangeLabel: string;
+  /** Highest probability in the block. Null — never 0 — when no hour carries one. */
+  precipMax: number | null;
+  condition: WeatherCondition;
+}
+
+export interface LocalForecastTimelineView {
+  blocks: LocalForecastTimelineBlock[];
+  /**
+   * Whose series this is. These blocks come from one provider, while the
+   * headline probability is a blend of several, so the page has to attribute
+   * them rather than let them read as consensus.
+   */
+  sourceName: string;
+  /** Label of the first block to reach the umbrella threshold; null when none does. */
+  onsetLabel: string | null;
+}
+
 export interface LocalForecastView {
   generatedAt: string;
   locationName: string;
@@ -58,6 +89,8 @@ export interface LocalForecastView {
   /** Whether learned influence is being applied, in one word for the client. */
   blendMode: "learned" | "equal";
   comparedProviderCount: number;
+  /** Time-of-day precipitation shape for the hero. Null when no provider publishes hourly. */
+  timeline: LocalForecastTimelineView | null;
   influence: LocalForecastProviderInfluence[];
   evidence: LocalForecastEvidenceView;
 }
@@ -128,6 +161,26 @@ export function toLocalForecastView(response: LocalForecastResponse): LocalForec
   );
   const profile = response.performance.profile;
   const scoreRows = profile?.providers ?? [];
+  // buildForecastBlocks folds the "now"-anchored series into up to five 3-hour
+  // blocks and leaves precipMax null where no hour carried a probability, so a
+  // gap in the series stays a gap here rather than becoming a confident 0%.
+  const blocks = response.hourly ? buildForecastBlocks(response.hourly.entries) : [];
+  const timeline: LocalForecastTimelineView | null =
+    response.hourly && blocks.length > 0
+      ? {
+          blocks: blocks.map((block) => ({
+            label: block.label,
+            rangeLabel: block.rangeLabel,
+            precipMax: block.precipMax,
+            condition: block.condition,
+          })),
+          sourceName: response.hourly.sourceName,
+          onsetLabel:
+            blocks.find(
+              (block) => block.precipMax !== null && block.precipMax >= RAIN_ONSET_PROBABILITY,
+            )?.label ?? null,
+        }
+      : null;
 
   return {
     generatedAt: response.generatedAt,
@@ -140,6 +193,7 @@ export function toLocalForecastView(response: LocalForecastResponse): LocalForec
     outlook: response.outlook,
     blendMode: response.performance.status === "active" ? "learned" : "equal",
     comparedProviderCount: response.providers.filter((provider) => provider.available).length,
+    timeline,
     influence: Object.entries(response.effectiveInfluence)
       .sort((a, b) => b[1] - a[1])
       .map(([id, influence]) => ({

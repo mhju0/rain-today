@@ -14,7 +14,7 @@ import type {
   PrecipProviderId,
 } from "./performance/types.ts";
 import { providers as weatherProviders } from "./providers/registry.ts";
-import type { ProviderSnapshot, WeatherCondition } from "./types.ts";
+import type { HourlyForecast, ProviderSnapshot, WeatherCondition } from "./types.ts";
 
 const PRECIP_PROVIDERS = new Set<PrecipProviderId>([
   "open-meteo",
@@ -69,6 +69,19 @@ export interface LocalForecastResponse {
     observedAt: string;
     sourceName: string;
   } | null;
+  /**
+   * The next ~24 hours, from the first provider in registry order that
+   * publishes an hourly series. Every provider anchors its series on "now", so
+   * entries[0] always covers the current hour.
+   *
+   * Single-source on purpose. The headline probability is a blend across
+   * providers, but their hourly series are not mutually comparable — different
+   * issue times, resolutions and precipitation definitions — so averaging them
+   * would draw a curve no provider ever issued. `sourceName` exists so the page
+   * can say whose series it is rather than implying consensus. Null when nobody
+   * publishes one.
+   */
+  hourly: { entries: HourlyForecast[]; sourceName: string } | null;
   recommendation: {
     precipitationProbability: number | null;
     precipitationAmountMm: number | null;
@@ -311,6 +324,7 @@ export async function readLocalForecast(
     condition: "unknown" as const,
   };
   const currentSource = snapshots.find((snapshot) => snapshot.current !== null);
+  const hourlySource = snapshots.find((snapshot) => snapshot.hourly.length > 0);
   // Equal weighting on purpose — see the `today` field docs.
   const today = buildForecastDay(koreanDate(now), snapshots, null);
   return {
@@ -326,6 +340,9 @@ export async function readLocalForecast(
           observedAt: currentSource.current.time,
           sourceName: currentSource.status.name,
         }
+      : null,
+    hourly: hourlySource
+      ? { entries: hourlySource.hourly, sourceName: hourlySource.status.name }
       : null,
     recommendation: {
       precipitationProbability: recommendation.precipitationProbability,

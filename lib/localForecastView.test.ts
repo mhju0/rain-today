@@ -3,6 +3,7 @@ import test from "node:test";
 import type { LocalForecastEvidence, LocalForecastResponse } from "./localForecast.ts";
 import { toLocalForecastView } from "./localForecastView.ts";
 import type { ProviderRecentPerformance, RecentPerformanceProfile } from "./performance/types.ts";
+import type { HourlyForecast } from "./types.ts";
 
 const REASONS: LocalForecastEvidence["reason"][] = [
   "eligible-station",
@@ -71,6 +72,7 @@ function response(overrides: Partial<LocalForecastResponse> = {}): LocalForecast
     targetDate: "2026-08-15",
     captureCohort: "06",
     current: null,
+    hourly: null,
     today: null,
     recommendation: {
       precipitationProbability: 68,
@@ -241,4 +243,71 @@ test("the unconfigured-database message asks nothing of the visitor", () => {
 test("the capture cohort is resolved to display copy, not a bare code", () => {
   assert.equal(toLocalForecastView(response({ captureCohort: "06" })).cohortLabel, "오전 6시 발표 기준");
   assert.equal(toLocalForecastView(response({ captureCohort: "18" })).cohortLabel, "오후 6시 발표 기준");
+});
+
+/**
+ * Hours from 09:00 KST onward, one entry per hour, so buildForecastBlocks folds
+ * them into 3-hour blocks starting at 09–12시. `probabilities` is read
+ * positionally; null means the provider published no probability for that hour.
+ */
+function hours(probabilities: (number | null)[]): HourlyForecast[] {
+  return probabilities.map((precipitationProbability, index) => ({
+    time: `2026-08-14T${String(9 + index).padStart(2, "0")}:00:00+09:00`,
+    temperature: 24,
+    precipitationProbability,
+    windSpeed: 3,
+    humidity: 60,
+    condition: precipitationProbability !== null && precipitationProbability >= 40 ? "rain" : "cloudy",
+  }));
+}
+
+test("no provider publishing hourly leaves the timeline absent, not empty", () => {
+  assert.equal(toLocalForecastView(response({ hourly: null })).timeline, null);
+});
+
+test("the timeline names the one provider it came from", () => {
+  // The headline probability blends five providers but these blocks are one
+  // provider's, so the page needs the name to avoid implying consensus.
+  const view = toLocalForecastView(
+    response({ hourly: { entries: hours([10, 10, 10]), sourceName: "Open-Meteo" } }),
+  );
+  assert.equal(view.timeline?.sourceName, "Open-Meteo");
+  assert.equal(view.timeline?.blocks.length, 1);
+});
+
+test("rain onset is the first block that reaches the umbrella threshold", () => {
+  const view = toLocalForecastView(
+    response({
+      hourly: {
+        // 09–12 dry, 12–15 still under 40, 15–18 crosses it, 18–21 higher still.
+        entries: hours([5, 8, 10, 20, 30, 35, 44, 60, 80, 90, 88, 70]),
+        sourceName: "Open-Meteo",
+      },
+    }),
+  );
+  const blocks = view.timeline?.blocks ?? [];
+  assert.equal(blocks.length, 4);
+  assert.equal(blocks[2].precipMax, 80);
+  // The third block is the first to reach 40, so onset must be its label and
+  // not merely the wettest block's.
+  assert.equal(view.timeline?.onsetLabel, blocks[2].label);
+});
+
+test("a day that never reaches the threshold reports no onset", () => {
+  const view = toLocalForecastView(
+    response({ hourly: { entries: hours([5, 10, 39, 12, 8, 3]), sourceName: "Open-Meteo" } }),
+  );
+  assert.notEqual(view.timeline, null);
+  assert.equal(view.timeline?.onsetLabel, null);
+});
+
+test("hours with no published probability stay null instead of reading as 0%", () => {
+  const view = toLocalForecastView(
+    response({ hourly: { entries: hours([null, null, null, 55, 60, 65]), sourceName: "기상청" } }),
+  );
+  const blocks = view.timeline?.blocks ?? [];
+  // A 0 here would tell someone it is certainly not raining, which nobody said.
+  assert.equal(blocks[0].precipMax, null);
+  assert.equal(blocks[1].precipMax, 65);
+  assert.equal(view.timeline?.onsetLabel, blocks[1].label);
 });
