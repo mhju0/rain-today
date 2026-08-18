@@ -7,7 +7,9 @@
 
 오늘비 ("rain today") is a South Korea local rain forecast. It leads with today's rain probability at the user's chosen coordinate, carries tomorrow alongside it, and — when sufficient prospective evidence exists — adjusts each provider's influence on the next-day figure using the Recent Performance Profile from its KMA Station Match.
 
-**Live demo:** [rain-today.vercel.app/sky](https://rain-today.vercel.app/sky)
+**Live demo:** [seoulsky.vercel.app/sky](https://seoulsky.vercel.app/sky)
+
+<sub>The deployment still carries the pre-rename subdomain. Renaming a Vercel project does not move its <code>.vercel.app</code> domain, and <code>rain-today.vercel.app</code> is already taken by an unrelated service.</sub>
 
 The interface is Korean, for Korean users. The captions below describe what each screen shows.
 
