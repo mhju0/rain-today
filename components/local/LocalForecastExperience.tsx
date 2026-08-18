@@ -733,7 +733,7 @@ function ForecastDashboard({ forecast, selection, onReset }: {
   // heading stays on the probability rather than inventing an arrival time.
   const heroHeading = timeline?.onsetLabel
     ? `${timeline.onsetLabel}부터 비 소식`
-    : `${dayWord} 비 올 확률`;
+    : `${dayWord} 비가 올까요?`;
   // Emphasis is tied to the same threshold as onset, so a dry day never gets a
   // highlighted "peak" that is really just its least-dry hour.
   const peakProbability = timeline?.onsetLabel
@@ -838,7 +838,7 @@ function ForecastDashboard({ forecast, selection, onReset }: {
         <section className="local-tomorrow" aria-labelledby="tomorrow-heading">
           <div className="local-tomorrow-head">
             <p className="local-eyebrow">{formatDate(forecast.targetDate)} · TOMORROW</p>
-            <h2 id="tomorrow-heading">내일 비 올 확률</h2>
+            <h2 id="tomorrow-heading">내일 비가 올까요?</h2>
           </div>
           <p className="local-tomorrow-figure">
             <strong>{probabilityLabel(forecast.recommendation.precipitationProbability)}</strong>

@@ -816,7 +816,7 @@ test("the headline number is today's, not tomorrow's", async () => {
   );
   const view = await mountExperience(async () => Response.json(forecastPayload()));
 
-  assert.equal(view.container.querySelector("#forecast-heading")?.textContent, "오늘 비 올 확률");
+  assert.equal(view.container.querySelector("#forecast-heading")?.textContent, "오늘 비가 올까요?");
   // 85 is today; 41 is tomorrow. Someone opening a weather app is asking about today.
   assert.match(view.container.querySelector(".local-rain-number")?.textContent ?? "", /85/);
   assert.match(
@@ -862,7 +862,7 @@ test("the hero falls back to tomorrow when today is no longer published", async 
   );
   const view = await mountExperience(async () => Response.json(forecastPayload({ today: null })));
 
-  assert.equal(view.container.querySelector("#forecast-heading")?.textContent, "내일 비 올 확률");
+  assert.equal(view.container.querySelector("#forecast-heading")?.textContent, "내일 비가 올까요?");
   assert.match(view.container.querySelector(".local-rain-number")?.textContent ?? "", /41/);
   assert.equal(
     view.container.querySelector(".local-tomorrow"),
@@ -1080,7 +1080,7 @@ test("the hero leads with when the rain starts, not just whether", async () => {
     Response.json(forecastPayload({ timeline: timeline() })),
   );
 
-  // "오늘 비 올 확률" answers a question the number already answers; the series
+  // "오늘 비가 올까요?" answers a question the number already answers; the series
   // knows something the number cannot say.
   assert.equal(view.container.querySelector("#forecast-heading")?.textContent, "오후부터 비 소식");
   assert.equal(view.container.querySelectorAll(".local-timeline-block").length, 3);
@@ -1116,7 +1116,7 @@ test("only the wettest block is emphasised, and only once rain is actually likel
   );
   // Accenting the least-dry hour of a dry day reads as a rain warning.
   assert.equal(dry.container.querySelectorAll(".local-timeline-block.is-peak").length, 0);
-  assert.equal(dry.container.querySelector("#forecast-heading")?.textContent, "오늘 비 올 확률");
+  assert.equal(dry.container.querySelector("#forecast-heading")?.textContent, "오늘 비가 올까요?");
   await dry.cleanup();
 
   window.localStorage.setItem("raintoday.last-location.v1", SEED_LOCATION);
@@ -1156,7 +1156,7 @@ test("no hourly series leaves the hero on the probability, with no strip", async
   );
 
   assert.equal(view.container.querySelector(".local-timeline"), null);
-  assert.equal(view.container.querySelector("#forecast-heading")?.textContent, "오늘 비 올 확률");
+  assert.equal(view.container.querySelector("#forecast-heading")?.textContent, "오늘 비가 올까요?");
   await view.cleanup();
 });
 
