@@ -1,4 +1,5 @@
 import { buildSeedProfile, seedEffectiveWeights } from "./seedScore.ts";
+import { PERFORMANCE_PROVIDERS } from "./store.ts";
 import type {
   CapturedProviderForecast,
   ForecastCapture,
@@ -294,10 +295,16 @@ function prospectiveBenchmark(
 export function buildRecentPerformanceProfile(input: ProfileInput): RecentPerformanceProfile {
   const policy = input.policy ?? DEFAULT_PERFORMANCE_POLICY;
   const completed = completedCaptures(input, policy);
+  // The union of live and seed providers. Deriving this from completed captures
+  // alone made the seed unreachable in exactly the case it exists for: a station
+  // with zero live captures has no provider ids, so nothing could be scored.
   const providerIds = Array.from(
-    new Set(
-      completed.flatMap((entry) => entry.capture.providers.map((forecast) => forecast.provider)),
-    ),
+    new Set([
+      ...completed.flatMap((entry) => entry.capture.providers.map((forecast) => forecast.provider)),
+      ...(input.seedComparisons ?? []).flatMap((comparison) =>
+        comparison.providers.map((forecast) => forecast.provider),
+      ),
+    ]),
   ).sort();
   const providers = providerIds.flatMap((provider) => {
     const metrics = providerMetrics(provider, completed, policy);
@@ -337,9 +344,15 @@ export function buildRecentPerformanceProfile(input: ProfileInput): RecentPerfor
   // cannot rescue a suspension: a benchmark regression is a live verdict that the
   // adaptive blend is currently worse than equal, and retrospective archive
   // evidence is not grounds to overrule it.
+  // Span every known provider, not just the seeded ones: a provider that answers
+  // at serving time but has no archive proxy must keep a neutral share rather than
+  // be dropped from the blend for having no weight entry.
+  const seedProviderIds = Array.from(
+    new Set<PrecipProviderId>([...PERFORMANCE_PROVIDERS, ...providerIds]),
+  ).sort();
   const seedProfile = buildSeedProfile({
     comparisons: input.seedComparisons ?? [],
-    providers: providerIds,
+    providers: seedProviderIds,
     policy,
   });
 
@@ -355,7 +368,8 @@ export function buildRecentPerformanceProfile(input: ProfileInput): RecentPerfor
   } else if (!evidenceReady && seedProfile.ready) {
     mode = "seed";
     reason = "seed-evidence";
-    effectiveWeights = seedEffectiveWeights(seedProfile.weights, providerIds);
+    effectiveWeights = seedEffectiveWeights(seedProfile.weights, seedProviderIds);
+
   } else if (evidenceReady) {
     mode = rampProgress < 1 ? "ramping" : "learned";
     reason = rampProgress < 1 ? "ramping" : "learned";

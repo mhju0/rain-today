@@ -406,3 +406,47 @@ test("no seed evidence leaves the profile exactly as before", () => {
   assert.equal(profile.reason, "insufficient-evidence");
   assert.deepEqual(profile.seed, []);
 });
+
+test("a station with no live captures at all still gets seed weights", () => {
+  // The real cold start: nothing has ever been captured here. Deriving the
+  // provider set from captures alone left this case on equal weights forever.
+  const profile = buildRecentPerformanceProfile({
+    stationId: "108",
+    cohort: "06",
+    captures: [],
+    observations: [],
+    asOf: AS_OF,
+    seedComparisons: seedHistory(40),
+  });
+
+  assert.equal(profile.mode, "seed");
+  assert.equal(profile.reason, "seed-evidence");
+  assert.ok(
+    profile.effectiveWeights["open-meteo"] > profile.effectiveWeights.kma,
+    "the seed must actually rank providers with no live history present",
+  );
+  assert.ok(
+    Math.abs(Object.values(profile.effectiveWeights).reduce((a, b) => a + b, 0) - 1) < 1e-9,
+    "weights sum to 1",
+  );
+});
+
+test("a provider with no archive proxy keeps a neutral share in seed mode", () => {
+  const profile = buildRecentPerformanceProfile({
+    stationId: "108",
+    cohort: "06",
+    captures: [],
+    observations: [],
+    asOf: AS_OF,
+    seedComparisons: seedHistory(40),
+  });
+
+  // weather-api is deliberately unseeded. It must still be weighted, or it would
+  // be silently dropped from the serving blend for lacking an archive.
+  const unseeded = profile.effectiveWeights["weather-api"];
+  assert.ok(unseeded !== undefined && unseeded > 0, "an unseeded provider must still be blended");
+  assert.ok(
+    unseeded > profile.effectiveWeights.kma,
+    "no opinion must outrank a measured poor record",
+  );
+});
