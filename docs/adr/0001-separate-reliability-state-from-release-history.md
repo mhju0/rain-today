@@ -4,7 +4,7 @@ status: accepted
 
 # Separate reliability state from release history
 
-SeoulSky publishes each validated Reliability Snapshot to a dedicated reliability-state branch instead of main. This preserves Git's atomic history and existing repository credentials while preventing daily learning updates from becoming application releases; Vercel deployment is explicitly disabled for the state branch.
+오늘비 publishes each validated Reliability Snapshot to a dedicated reliability-state branch instead of main. This preserves Git's atomic history and existing repository credentials while preventing daily learning updates from becoming application releases; Vercel deployment is explicitly disabled for the state branch.
 
 ## Considered options
 

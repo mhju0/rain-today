@@ -24,7 +24,7 @@ export default function SkyLayout({ children }: { children: ReactNode }) {
           }}
         >
           <p style={{ fontSize: "0.7rem", letterSpacing: "0.24em", color: "#94a3b8" }}>
-            SEOULSKY · KOREA
+            오늘비 · KOREA
           </p>
           <h1 style={{ fontSize: "clamp(1.8rem, 6vw, 3rem)", fontWeight: 300, margin: 0 }}>
             비, 여기서는 어떨까요?

@@ -20,7 +20,7 @@
 | Archive size | 269,032,521 bytes (53 entries, 425,976,896 bytes uncompressed) |
 | Archive SHA-256 | `f1cf0f9de453ac7eaacb273f39cee52851183372b9ddfda428a967c3a670b2c6` |
 | Boundary vintage | 2025년 2분기 기준; every `BASE_DATE` attribute is `20250630` |
-| Statistics vintage | 2024년 (not used by SeoulSky) |
+| Statistics vintage | 2024년 (not used by 오늘비) |
 | Catalogue `stdrDe` | `06/30/2025` |
 | Last modified | 2026-07-23; next scheduled registration 2027-02-01 |
 | Update cycle | 반기 (semiannual) |

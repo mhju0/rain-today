@@ -4,7 +4,7 @@ status: accepted
 
 # Keep device locations distinct from searchable Korean areas
 
-SeoulSky offers two location paths: browser geolocation produces a Device Location Selection, while typed `시/도`, `시/군/구`, or `읍/면/동` text produces selectable, fully qualified Location Candidates. A candidate may identify an administrative or legal area, but its coordinate is always an Area Representative rather than the user's position. Street addresses, POIs, automatic reverse geocoding, saved locations, and blended search providers are outside the initial surface.
+오늘비 offers two location paths: browser geolocation produces a Device Location Selection, while typed `시/도`, `시/군/구`, or `읍/면/동` text produces selectable, fully qualified Location Candidates. A candidate may identify an administrative or legal area, but its coordinate is always an Area Representative rather than the user's position. Street addresses, POIs, automatic reverse geocoding, saved locations, and blended search providers are outside the initial surface.
 
 ## Considered options
 

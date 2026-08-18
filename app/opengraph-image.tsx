@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "SeoulSky — Korea local rain forecast";
+export const alt = "오늘비 (rain-today) — Korea local rain forecast";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -26,7 +26,7 @@ export default function OpengraphImage() {
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-          <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: 6 }}>SEOULSKY</div>
+          <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: 6 }}>RAIN TODAY</div>
           <div style={{ fontSize: 20, color: "#9ba9b1", letterSpacing: 3 }}>KST · LIVE SOURCES</div>
         </div>
 

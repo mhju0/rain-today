@@ -1,13 +1,13 @@
-# SeoulSky
+# 오늘비 · rain-today
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Local performance](https://github.com/mhju0/seoulsky/actions/workflows/local-performance.yml/badge.svg)](https://github.com/mhju0/seoulsky/actions/workflows/local-performance.yml)
+[![Local performance](https://github.com/mhju0/rain-today/actions/workflows/local-performance.yml/badge.svg)](https://github.com/mhju0/rain-today/actions/workflows/local-performance.yml)
 
-SeoulSky is a South Korea local rain forecast. It leads with today's rain probability at the user's chosen coordinate, carries tomorrow alongside it, and — when sufficient prospective evidence exists — adjusts each provider's influence on the next-day figure using the Recent Performance Profile from its KMA Station Match.
+오늘비 ("rain today") is a South Korea local rain forecast. It leads with today's rain probability at the user's chosen coordinate, carries tomorrow alongside it, and — when sufficient prospective evidence exists — adjusts each provider's influence on the next-day figure using the Recent Performance Profile from its KMA Station Match.
 
-**Live demo:** [seoulsky.vercel.app/sky](https://seoulsky.vercel.app/sky)
+**Live demo:** [rain-today.vercel.app/sky](https://rain-today.vercel.app/sky)
 
 The interface is Korean, for Korean users. The captions below describe what each screen shows.
 
@@ -51,7 +51,7 @@ Learned influence requires at least 30 comparable captures per provider plus bot
 
 Learned influence applies only to tomorrow, the lead time the Capture Cohorts measure. Days 2–7 remain an equal-provider outlook until those horizons have their own prospective evidence.
 
-This supports the claim “weighted by recently observed local performance.” It does not yet support a claim that SeoulSky is more accurate overall; that requires accumulated prospective results.
+This supports the claim “weighted by recently observed local performance.” It does not yet support a claim that 오늘비 is more accurate overall; that requires accumulated prospective results.
 
 ## User flow
 
@@ -102,7 +102,7 @@ Important boundaries:
 
 `/` redirects to `/sky`, as do the retired `/atmosphere` and `/diagnostics` routes. The Seoul cinematic scene survives as the background of `/sky`, and `/api/sky` and `/api/weather` still serve it.
 
-SeoulSky runs a **second, older scoring pipeline** alongside the one above. `lib/reliability/` scores a single station (서울 108) with an online update, persists to the `reliability-state` branch, and feeds the live `/api/sky` snapshot; `lib/performance/` scores every eligible station in batch and feeds `/api/local-forecast`. They share a vocabulary and a bounded-weight contract but not an implementation, and are deliberately not merged — see [ADR 0004](docs/adr/0004-two-precipitation-scoring-pipelines.md).
+오늘비 runs a **second, older scoring pipeline** alongside the one above. `lib/reliability/` scores a single station (서울 108) with an online update, persists to the `reliability-state` branch, and feeds the live `/api/sky` snapshot; `lib/performance/` scores every eligible station in batch and feeds `/api/local-forecast`. They share a vocabulary and a bounded-weight contract but not an implementation, and are deliberately not merged — see [ADR 0004](docs/adr/0004-two-precipitation-scoring-pipelines.md).
 
 ## Documents
 

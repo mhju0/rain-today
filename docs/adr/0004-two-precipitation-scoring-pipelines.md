@@ -4,7 +4,7 @@ status: accepted
 
 # Keep the two precipitation-scoring pipelines separate for now
 
-SeoulSky runs two pipelines that score provider precipitation accuracy and turn the result into bounded provider weights. `lib/reliability/` scores one station (서울 108) with an online Hedge update, persists to the `reliability-state` branch, and feeds the live Sky snapshot. `lib/performance/` scores every eligible station with batch Brier scoring split by Capture Cohort, persists to PostgreSQL, adds a Prospective Benchmark and Benchmark Suspension, and feeds the local forecast. They run on the same daily cron, neither reads the other, and a user can see two independently learned precipitation blends in one product.
+오늘비 runs two pipelines that score provider precipitation accuracy and turn the result into bounded provider weights. `lib/reliability/` scores one station (서울 108) with an online Hedge update, persists to the `reliability-state` branch, and feeds the live Sky snapshot. `lib/performance/` scores every eligible station with batch Brier scoring split by Capture Cohort, persists to PostgreSQL, adds a Prospective Benchmark and Benchmark Suspension, and feeds the local forecast. They run on the same daily cron, neither reads the other, and a user can see two independently learned precipitation blends in one product.
 
 They also share a vocabulary and a contract. Both define equal weights, renormalization, a 0.1 mm rain threshold, a 50% decision threshold, a 0.05 weight floor, a 0.6 weight cap, an Equal Fallback mode, a ramp from a warm-up count to full confidence, and a `normalizeClamped` with the same name and the same signature. Read as source, they look like one concept implemented twice.
 

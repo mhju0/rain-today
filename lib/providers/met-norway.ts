@@ -11,7 +11,7 @@ import { createWeatherProvider } from "./read.ts";
 /**
  * MET Norway (Norwegian Meteorological Institute) — free, no API key, but their
  * terms REQUIRE an identifying User-Agent with contact info. We treat it as
- * opt-in: set MET_NO_USER_AGENT (e.g. "SeoulSky/1.0 contact@example.com") to
+ * opt-in: set MET_NO_USER_AGENT (e.g. "RainToday/1.0 contact@example.com") to
  * activate it. Without it the provider reports needs-config and the app simply
  * continues on Open-Meteo — we never hit MET with a generic User-Agent.
  * https://api.met.no/weatherapi/locationforecast/2.0/documentation
