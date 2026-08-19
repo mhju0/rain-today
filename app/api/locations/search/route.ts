@@ -12,9 +12,14 @@ export async function GET(request: Request) {
   if (limited) return limited;
   try {
     const query = new URL(request.url).searchParams.get("q") ?? "";
+    // Live call only. Kakao's terms bar replicating API results without prior
+    // approval (site terms 11-3), and the Maps team reads a cache kept to cut
+    // request frequency as a temporary database, which their operating policy
+    // forbids. The daily quota is 100,000 against traffic nowhere near it, so
+    // the cache bought nothing worth the breach.
     return NextResponse.json(
       { results: await searchKoreanLocations(query) },
-      { headers: { "Cache-Control": "public, max-age=300" } },
+      { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
     if (error instanceof RangeError) {

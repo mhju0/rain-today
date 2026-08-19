@@ -61,6 +61,10 @@ Each forecast provider exposes one Provider Snapshot read. Its availability, cac
 
 The UI must retain the applicable credits: Kakao Map for administrative search; Open-Meteo; MET Norway; 기상청 (KMA); AirKorea; Pirate Weather; WeatherAPI; RainViewer; and © CARTO / © OpenStreetMap for the radar basemap. The service-area geometry is derived from 국가데이터처 SGIS 행정구역 경계, published with no stated usage restriction; it is used server-side only and no boundary geometry is displayed. Check provider terms before changing commercial use, caching, or redistribution behavior.
 
+Kakao is credited in **plain text only, and deliberately so**. Kakao Developers site terms 11-10 prohibit using Kakao trademarks or logos without explicit consent, and Kakao states that Local API search results require no source attribution or branding at all — the logo guidance applies to the Kakao Map SDK, which this project does not use. Adding a Kakao logo would move the project from compliant to non-compliant.
+
+Kakao Local search is **live call only**. Site terms 11-3 bar replicating API results without prior approval, and Kakao's Maps team treats a cache kept to reduce request frequency as a temporary database that their operating policy forbids, explicitly including a one-hour cache. `/api/locations/search` therefore answers `no-store` and nothing about a Kakao response is persisted. The daily quota is 100,000 requests per app, far above this project's traffic, so there is no pressure to revisit that. Serving Local results alongside a non-Kakao basemap is permitted; Kakao does not restrict use with third-party APIs.
+
 ## Implementation map
 
 - Forecast-location validation and KMA grid conversion: `lib/location.ts`
