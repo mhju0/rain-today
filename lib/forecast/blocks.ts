@@ -16,10 +16,21 @@ import type { HourlyForecast, WeatherCondition } from "../types.ts";
 
 const KST = "Asia/Seoul";
 const hourFmt = new Intl.DateTimeFormat("en-GB", { timeZone: KST, hour: "2-digit", hour12: false });
+const dateFmt = new Intl.DateTimeFormat("en-CA", {
+  timeZone: KST,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
 
 /** The KST wall-clock hour (0–23) for an ISO instant, via the format.ts pattern. */
 function kstHour(iso: string): number {
   return Number(hourFmt.format(new Date(iso)));
+}
+
+/** The KST calendar date (YYYY-MM-DD) for an ISO instant. */
+function kstDate(iso: string): string {
+  return dateFmt.format(new Date(iso));
 }
 
 /**
@@ -41,6 +52,12 @@ export interface ForecastBlock {
   label: string;
   /** Short muted KST range, e.g. "15–18시" (end is exclusive — last hour + 1). */
   rangeLabel: string;
+  /** KST wall-clock hour the block opens on. */
+  startHour: number;
+  /** Exclusive KST end hour — last hour + 1, wrapping to 0 past midnight. */
+  endHour: number;
+  /** KST calendar date (YYYY-MM-DD) the block opens on, for the date divider. */
+  startDate: string;
   /** Max temperature across the block, rounded. */
   tempHigh: number;
   /** Min temperature across the block, rounded. */
@@ -83,7 +100,18 @@ function buildBlock(entries: HourlyForecast[], index: number): ForecastBlock {
   const endHour = (kstHour(entries[entries.length - 1].time) + 1) % 24;
   const rangeLabel = `${startHour}–${endHour}시`;
 
-  return { label, rangeLabel, tempHigh, tempLow, precipMax, condition, representativeTime: midEntry.time };
+  return {
+    label,
+    rangeLabel,
+    startHour,
+    endHour,
+    startDate: kstDate(entries[0].time),
+    tempHigh,
+    tempLow,
+    precipMax,
+    condition,
+    representativeTime: midEntry.time,
+  };
 }
 
 /**

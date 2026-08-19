@@ -1,4 +1,5 @@
 import { buildForecastBlocks } from "./forecast/blocks.ts";
+import { readTimeline, type TimelineReading } from "./forecast/rainWindow.ts";
 import type { LocalForecastEvidence, LocalForecastResponse } from "./localForecast.ts";
 import type { WeatherCondition } from "./types.ts";
 
@@ -74,9 +75,17 @@ export interface LocalForecastTimelineBlock {
   label: string;
   /** Short KST range, e.g. "15–18시". */
   rangeLabel: string;
+  /** KST hour the block opens on — the ribbon's axis ticks. */
+  startHour: number;
+  /** Exclusive KST hour the block closes on. */
+  endHour: number;
   /** Highest probability in the block. Null — never 0 — when no hour carries one. */
   precipMax: number | null;
   condition: WeatherCondition;
+  /** At or above the umbrella threshold, so the ribbon marks it as rain. */
+  wet: boolean;
+  /** "8/19 (수)" on the first block of a new KST date; null elsewhere. */
+  dayTag: string | null;
 }
 
 export interface LocalForecastTimelineView {
@@ -87,8 +96,10 @@ export interface LocalForecastTimelineView {
    * them rather than let them read as consensus.
    */
   sourceName: string;
-  /** Label of the first block to reach the umbrella threshold; null when none does. */
-  onsetLabel: string | null;
+  /** The probability at which the ribbon starts calling a block rain. */
+  threshold: number;
+  /** Start and end of the rain, already derived — the page only formats it. */
+  reading: TimelineReading;
 }
 
 export interface LocalForecastView {
@@ -146,6 +157,16 @@ const EMPTY_EVIDENCE_DETAIL: Partial<Record<LocalForecastEvidence["reason"], str
   "seed-evidence": "이 지역에서 실제 비교가 쌓이면 과거 추정을 대체합니다.",
 };
 
+/** "8/19 (수)" — the divider label where the ribbon crosses into a new KST day. */
+function formatDayTag(date: string): string {
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    month: "numeric",
+    day: "numeric",
+    weekday: "short",
+  }).format(new Date(`${date}T12:00:00+09:00`));
+}
+
 const COHORT_LABELS: Record<LocalForecastResponse["captureCohort"], string> = {
   "06": "오전 6시 발표 기준",
   "18": "오후 6시 발표 기준",
@@ -194,17 +215,24 @@ export function toLocalForecastView(response: LocalForecastResponse): LocalForec
   const timeline: LocalForecastTimelineView | null =
     response.hourly && blocks.length > 0
       ? {
-          blocks: blocks.map((block) => ({
+          blocks: blocks.map((block, index) => ({
             label: block.label,
             rangeLabel: block.rangeLabel,
+            startHour: block.startHour,
+            endHour: block.endHour,
             precipMax: block.precipMax,
             condition: block.condition,
+            wet: block.precipMax !== null && block.precipMax >= RAIN_ONSET_PROBABILITY,
+            // Tag only where the KST date actually turns over, so the ribbon
+            // draws one divider rather than repeating the date on every block.
+            dayTag:
+              index > 0 && block.startDate !== blocks[index - 1].startDate
+                ? formatDayTag(block.startDate)
+                : null,
           })),
           sourceName: response.hourly.sourceName,
-          onsetLabel:
-            blocks.find(
-              (block) => block.precipMax !== null && block.precipMax >= RAIN_ONSET_PROBABILITY,
-            )?.label ?? null,
+          threshold: RAIN_ONSET_PROBABILITY,
+          reading: readTimeline(blocks, RAIN_ONSET_PROBABILITY),
         }
       : null;
 
