@@ -5,7 +5,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Local performance](https://github.com/mhju0/raintoday/actions/workflows/local-performance.yml/badge.svg)](https://github.com/mhju0/raintoday/actions/workflows/local-performance.yml)
 
-오늘비 ("rain today") is a South Korea local rain forecast. It leads with when rain is expected to arrive at the user's chosen coordinate and how likely it is today, carries tomorrow alongside them, and — when sufficient prospective evidence exists — adjusts each provider's influence on the next-day figure using the Recent Performance Profile from its KMA Station Match.
+오늘비 ("rain today") is a South Korea local rain forecast. It leads with when rain starts and stops at the user's chosen coordinate, shows the next 24 hours as a horizontal time axis, carries today and tomorrow as two separately-calculated figures, and — when sufficient prospective evidence exists — adjusts each provider's influence on the next-day figure using the Recent Performance Profile from its KMA Station Match.
 
 **Live demo:** [raintoday.vercel.app/sky](https://raintoday.vercel.app/sky)
 
@@ -13,19 +13,19 @@ The interface is Korean, for Korean users. The captions below describe what each
 
 ![The chooser: pick the device location, or search a Korean administrative area](public/screenshots/landing.webp)
 
-*Nothing is requested until the visitor asks. The app never prompts for location automatically or infers it from an IP address.*
+*Nothing is requested until the visitor asks — the app never prompts for location automatically or infers it from an IP address. The three figures beside the two ways in are the same evidence the forecast ends on, stated before anyone commits a coordinate.*
 
-![When the rain arrives, with today's probability beside it](public/screenshots/forecast.webp)
+![The rain window as a sentence, above the 24-hour time axis](public/screenshots/forecast.webp)
 
-*The heading answers when, not whether — the probability alone cannot tell someone leaving at 09:00 from someone leaving at 21:00. The strip is one provider's hourly series and says so, because the figure beside it is a blend of several and the two must not read as the same claim. A time block nobody published shows a dash, never 0%.*
+*The heading answers when, not whether — a probability alone cannot tell someone leaving at 09:00 from someone leaving at 21:00. The ribbon is eight 3-hour blocks on a plain 0–100% scale, with the umbrella threshold drawn at the value it names and the rain window marked across every block it covers. It is one provider's hourly series and says so, because the day figures below it are a blend of several. A block nobody published is hatched and shows a dash, never 0%.*
 
-![Six-day outlook and the provider comparison](public/screenshots/outlook.webp)
+![Today and tomorrow as two cards, over the three evidence cards](public/screenshots/outlook.webp)
 
-*Every provider that supplied a probability is shown with the figure it actually gave. When no local performance record exists yet, the page says so and averages them equally rather than drawing identical bars.*
+*Today and tomorrow are different calculations, so they are different surfaces and each card carries its own method tag — performance weighting is scored on next-day forecasts only and never claimed for today. Below them: the station the evidence comes from, every provider with the figure it actually gave and the influence it was granted, and the six-day outlook that is always an equal average.*
 
 <img src="public/screenshots/mobile.webp" alt="The same forecast on a phone" width="320">
 
-*On a phone the strip sits above the detail rows: the answer is the arrival time, so it comes before the millimetres. The location bar stays pinned through the full scroll.*
+*On a phone the sentence and both day cards stay whole; only the ribbon scrolls sideways, so nobody has to swipe to get the answer. The location bar stays pinned through the full scroll.*
 
 ## Product contract
 

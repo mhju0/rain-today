@@ -574,11 +574,23 @@ html {
 /* ---------- nationwide local forecast ---------- */
 
 .local-forecast-page {
-  --local-bg: #071018;
-  --local-ink: #f3f0e8;
-  --local-muted: #9ba9b1;
-  --local-line: rgb(210 224 226 / 0.14);
-  --local-accent: #9ed9d2;
+  /* The ambient scene is gone: this page is read, not looked at. One flat
+     ground, two panel tones, and colour reserved for the two things that carry
+     meaning — rain (blue) and the rain window itself (amber). */
+  --local-bg: #0b0f14;
+  --local-panel: #121820;
+  --local-panel-2: #171f29;
+  --local-ink: #e6edf3;
+  --local-ink-2: #b7c2ce;
+  --local-muted: #8a97a6;
+  --local-dim: #5e6c7b;
+  --local-line: #1e2731;
+  --local-line-2: #2a3541;
+  --local-accent: #4cc2ff;
+  --local-accent-deep: #2e6e92;
+  --local-amber: #f2b441;
+  --local-amber-deep: #6b5320;
+  --local-mono: ui-monospace, "SF Mono", SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
 
   /* ---- type scale ----
      Replaces 22 measured sizes, most of them accidental near-duplicates
@@ -618,67 +630,9 @@ html {
      unbroken token (a long provider name) that cannot fit its column. */
   word-break: keep-all;
   overflow-wrap: break-word;
-  background:
-    radial-gradient(circle at 72% 2%, rgb(41 91 104 / 0.44), transparent 34rem),
-    radial-gradient(circle at 5% 86%, rgb(89 70 56 / 0.24), transparent 30rem),
-    var(--local-bg);
+  background: var(--local-bg);
   color: var(--local-ink);
   isolation: isolate;
-}
-
-.local-atmosphere {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.local-atmosphere::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  opacity: 0.035;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-
-.local-atmosphere span {
-  position: absolute;
-  border-radius: 999px;
-  filter: blur(90px);
-  opacity: 0.2;
-  animation: local-atmosphere-drift 20s ease-in-out infinite alternate;
-}
-
-.local-atmosphere span:nth-child(1) {
-  width: 26rem;
-  height: 26rem;
-  right: 5%;
-  top: -12rem;
-  background: #70b5b3;
-}
-
-.local-atmosphere span:nth-child(2) {
-  width: 18rem;
-  height: 18rem;
-  left: -8rem;
-  bottom: 8%;
-  background: #a37e60;
-  animation-delay: -8s;
-}
-
-.local-atmosphere span:nth-child(3) {
-  width: 13rem;
-  height: 13rem;
-  right: 20%;
-  top: 48%;
-  background: #426886;
-  animation-delay: -14s;
-}
-
-@keyframes local-atmosphere-drift {
-  from { transform: translate3d(-2%, -3%, 0) scale(0.96); }
-  to { transform: translate3d(3%, 4%, 0) scale(1.08); }
 }
 
 .local-site-header {
@@ -769,95 +723,169 @@ html {
   height: 0.38rem;
   border-radius: 50%;
   background: var(--local-accent);
-  box-shadow: 0 0 1rem rgb(158 217 210 / 0.8);
+  box-shadow: 0 0 1rem rgb(76 194 255 / 0.5);
 }
 
 .local-chooser {
   width: min(100% - 2.5rem, 1180px);
-  min-height: calc(100svh - 5.5rem);
   margin: 0 auto;
-  padding: clamp(4rem, 10vh, 8rem) 0;
+  padding: clamp(2.5rem, 6vh, 4.5rem) 0 4rem;
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(20rem, 0.8fr);
-  gap: clamp(3rem, 9vw, 9rem);
-  align-items: center;
+  grid-template-columns: minmax(0, 1.15fr) minmax(20rem, 0.85fr);
+  gap: clamp(2rem, 5vw, 4rem);
+  /* Top-aligned, not centred: two columns of different heights each floating at
+     their own centre read as two unrelated blocks. */
+  align-items: start;
 }
 
 .local-eyebrow {
+  font-family: var(--local-mono);
   color: var(--local-accent);
-  font-size: var(--t-label);
-  font-weight: 650;
-  letter-spacing: 0.2em;
+  font-size: 0.68rem;
+  font-weight: 400;
+  letter-spacing: 0.18em;
   line-height: 1.4;
+  text-transform: uppercase;
 }
 
 .local-chooser-copy h1,
-.local-forecast-intro h1,
+.local-answer h1,
 .local-section-heading h2 {
   text-wrap: balance;
   letter-spacing: -0.055em;
 }
 
 .local-chooser-copy h1 {
-  margin-top: 1.4rem;
+  margin-top: 1rem;
   /* The copy carries its own <br>, so balancing fights it: the algorithm split
      "여기서는 어떨까요?" across two more lines. `ch` is also the wrong unit here
      — it is the width of "0", about half a Hangul glyph — so the width is set
      in `em`, which tracks Hangul's roughly square advance. */
   text-wrap: initial;
   max-width: 12em;
-  font-size: clamp(3.4rem, 7vw, 7rem);
-  font-weight: 360;
-  line-height: 0.98;
+  /* Was clamped to 7rem, which rendered ~74px — larger than anything on the
+     dashboard that follows it. One type system across both screens. */
+  font-size: clamp(2.4rem, 4.6vw, 3.6rem);
+  font-weight: 300;
+  line-height: 1.08;
 }
 
-.local-chooser-copy > p:last-child {
-  max-width: 35rem;
-  margin-top: 2rem;
-  color: #c3ccd0;
-  font-size: clamp(1rem, 1.5vw, 1.16rem);
-  line-height: 1.85;
+.local-chooser-copy h1 b {
+  font-weight: 650;
+}
+
+.local-chooser-copy > p {
+  max-width: 26em;
+  margin-top: 1.15rem;
+  color: var(--local-ink-2);
+  font-size: var(--t-value);
+  line-height: 1.75;
   text-wrap: pretty;
 }
 
+/* The three facts the dashboard's evidence cards end on, said up front. */
+.local-chooser-facts {
+  margin: 1.9rem 0 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--local-line);
+  border-bottom: 1px solid var(--local-line);
+}
+
+.local-chooser-facts > div {
+  padding: 0.9rem 0.9rem 1rem 0;
+  display: grid;
+  gap: 0.3rem;
+  align-content: start;
+}
+
+.local-chooser-facts > div + div {
+  padding-left: 0.9rem;
+  border-left: 1px solid var(--local-line);
+}
+
+.local-chooser-facts dt {
+  font-family: var(--local-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--local-muted);
+}
+
+.local-chooser-facts dd {
+  margin: 0;
+  font-family: var(--local-mono);
+  font-size: 1.06rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--local-ink);
+}
+
+.local-chooser-facts small {
+  font-size: 0.68rem;
+  line-height: 1.5;
+  color: var(--local-dim);
+}
+
 .local-location-actions {
-  padding-top: 1rem;
+  display: grid;
+  gap: 0.75rem;
+  align-content: start;
+  padding: 1.15rem;
+  border: 1px solid var(--local-line);
+  border-radius: 3px;
+  background: var(--local-panel);
+}
+
+.local-panel-title {
+  font-family: var(--local-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--local-muted);
 }
 
 .local-primary-button {
   width: 100%;
-  min-height: 4.35rem;
+  min-height: 3.25rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.8rem;
-  border: 1px solid rgb(193 229 225 / 0.5);
-  background: #d7ece7;
-  color: #0b2225;
-  font-size: 0.96rem;
-  font-weight: 680;
+  gap: 0.6rem;
+  border: 1px solid var(--local-accent-deep);
+  border-radius: 3px;
+  background: rgb(76 194 255 / 0.08);
+  color: var(--local-accent);
+  font-size: 0.88rem;
+  font-weight: 650;
   cursor: pointer;
-  transition: transform 180ms ease, background 180ms ease;
+  transition: background 180ms ease, border-color 180ms ease;
 }
 
 .local-primary-button:hover {
-  transform: translateY(-2px);
-  background: #edf7f3;
+  border-color: var(--local-accent);
+  background: rgb(76 194 255 / 0.15);
+}
+
+.local-primary-button:disabled {
+  cursor: progress;
+  opacity: 0.7;
 }
 
 .local-button-icon,
 .local-search-form > svg {
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 1rem;
+  height: 1rem;
 }
 
 .local-divider {
-  margin: 2.1rem 0 1.3rem;
   display: flex;
   align-items: center;
-  gap: 0.9rem;
-  color: var(--local-muted);
-  font-size: 0.72rem;
+  gap: 0.75rem;
+  font-family: var(--local-mono);
+  color: var(--local-dim);
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
 }
 
 .local-divider::before,
@@ -865,22 +893,24 @@ html {
   content: "";
   flex: 1;
   height: 1px;
-  background: var(--local-line);
+  background: var(--local-line-2);
 }
 
 .local-search-form {
-  min-height: 4rem;
+  min-height: 3.25rem;
+  padding: 0 0.85rem;
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 0.8rem;
-  border-bottom: 1px solid rgb(210 224 226 / 0.42);
-  transition: border-color 160ms ease, box-shadow 160ms ease;
+  gap: 0.65rem;
+  border: 1px solid var(--local-line-2);
+  border-radius: 3px;
+  background: var(--local-panel-2);
+  transition: border-color 160ms ease;
 }
 
 .local-search-form:focus-within {
-  border-bottom-color: var(--local-accent);
-  box-shadow: 0 1px 0 rgb(158 217 210 / 0.25);
+  border-color: var(--local-accent-deep);
 }
 
 .local-search-form > svg {
@@ -889,21 +919,21 @@ html {
 
 .local-search-form input {
   min-width: 0;
-  height: 4rem;
+  height: 3.25rem;
   outline: none;
   color: var(--local-ink);
-  font-size: 1rem;
+  font-size: 0.9rem;
 }
 
 .local-search-form input::placeholder {
-  color: #788890;
+  color: var(--local-dim);
 }
 
 .local-search-form button {
   min-height: 2.75rem;
-  padding: 0 0.25rem 0 1rem;
+  padding: 0 0.1rem 0 0.65rem;
   color: var(--local-accent);
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 650;
   cursor: pointer;
 }
@@ -933,14 +963,22 @@ html {
 .local-form-status button {
   flex: 0 0 auto;
   padding: 0.8rem 0 0.2rem;
-  border-bottom: 1px solid rgb(158 217 210 / 0.55);
+  border-bottom: 1px solid var(--local-accent-deep);
   color: var(--local-accent);
   font-size: 0.72rem;
   cursor: pointer;
 }
 
 .local-privacy-note {
-  margin-top: 1.6rem;
+  margin-top: 0.25rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--local-line);
+  display: grid;
+  gap: 0.4rem;
+  font-family: var(--local-mono);
+  font-size: 0.62rem;
+  line-height: 1.75;
+  color: var(--local-dim);
 }
 
 .local-search {
@@ -1016,44 +1054,105 @@ html {
   color: #84969d;
 }
 
+.local-loading-place {
+  font-family: var(--local-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--local-accent);
+}
+
+.local-loading-lead {
+  max-width: 24em;
+  font-size: clamp(1.25rem, 2.6vw, 1.7rem);
+  font-weight: 300;
+  letter-spacing: -0.03em;
+  line-height: 1.25;
+}
+
+.local-loading-lead b {
+  font-weight: 650;
+}
+
+.local-loading-names {
+  font-family: var(--local-mono);
+  font-size: 0.72rem;
+  line-height: 1.7;
+  color: var(--local-ink-2);
+}
+
+.local-loading-rule {
+  height: 1px;
+  background: var(--local-line);
+}
+
+.local-loading-note {
+  font-family: var(--local-mono);
+  font-size: 0.66rem;
+  line-height: 1.7;
+  color: var(--local-dim);
+}
+
+/* One card for a failure, shaped by whether the same request could ever work. */
+.local-state-card {
+  width: min(100% - 2.5rem, 42rem);
+  margin: clamp(2.5rem, 8vh, 5rem) auto;
+  padding: 1.35rem 1.5rem 1.5rem;
+  display: grid;
+  gap: 0.7rem;
+  border: 1px solid var(--local-line);
+  border-left: 2px solid var(--local-amber);
+  border-radius: 3px;
+  background: var(--local-panel);
+}
+
+.local-state-kicker {
+  font-family: var(--local-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--local-amber);
+}
+
+.local-state-heading {
+  font-size: 1.2rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.4;
+}
+
+.local-state-body {
+  max-width: 34em;
+  font-size: 0.85rem;
+  line-height: 1.7;
+  color: var(--local-ink-2);
+}
+
+.local-state-why {
+  margin-top: 0.15rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--local-line);
+  font-family: var(--local-mono);
+  font-size: 0.66rem;
+  line-height: 1.7;
+  color: var(--local-dim);
+}
+
 .local-loading {
   min-height: calc(100svh - 5.5rem);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1.3rem;
-  padding: 2rem;
-  color: #c7d0d4;
-  text-align: center;
+  display: grid;
+  gap: 0.85rem;
+  align-content: center;
+  justify-items: start;
+  width: min(100% - 2.5rem, 40rem);
+  margin: 0 auto;
+  padding: 2rem 0;
+  color: var(--local-ink);
 }
 
-.local-loading > span {
-  width: 3rem;
-  height: 1px;
-  overflow: hidden;
-  background: rgb(255 255 255 / 0.15);
-}
-
-.local-loading > span::after {
-  content: "";
-  display: block;
-  width: 50%;
-  height: 100%;
-  background: var(--local-accent);
-  animation: local-loading 900ms ease-in-out infinite alternate;
-}
-
-@keyframes local-loading {
-  from { transform: translateX(0); }
-  to { transform: translateX(100%); }
-}
-
-.local-loading button {
-  min-height: 2.75rem;
-  border-bottom: 1px solid var(--local-accent);
-  color: var(--local-accent);
-  cursor: pointer;
+.local-loading-rule {
+  align-self: stretch;
+  justify-self: stretch;
 }
 
 .local-dashboard {
@@ -1062,330 +1161,22 @@ html {
   padding-bottom: 4rem;
 }
 
-.local-dashboard-topline {
-  min-height: 5rem;
-  /* Same rule as the site header: place, observation and control read as one
-     line, so they share a baseline rather than three centred boxes. */
-  display: grid;
-  grid-auto-flow: column;
-  justify-content: space-between;
-  align-content: center;
-  align-items: baseline;
-  border-bottom: 1px solid var(--local-line);
-}
-
-.local-dashboard-topline > div {
-  display: flex;
-  align-items: baseline;
-  gap: 0.8rem;
-}
-
-.local-dashboard-topline span {
-  font-size: 0.94rem;
-  font-weight: 650;
-}
-
-.local-dashboard-topline small {
-  color: var(--local-muted);
-  font-size: 0.67rem;
-}
-
-.local-dashboard-topline button {
-  min-height: 2.75rem;
-  padding: 0 0.1rem;
-  border-bottom: 1px solid rgb(158 217 210 / 0.6);
-  color: var(--local-accent);
-  font-size: 0.78rem;
-  cursor: pointer;
-}
-
-/* Observed conditions, beside the place they belong to. The most common reason
-   anyone opens a weather page is this line. */
-.local-now {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  margin-left: auto;
-  margin-right: 1.5rem;
-}
-
-.local-now > span {
-  color: var(--local-muted);
-  font-size: 0.72rem;
-  font-weight: 400;
-  letter-spacing: 0.08em;
-}
-
-.local-now strong {
-  font-size: var(--t-lead);
-  font-weight: 400;
-  letter-spacing: -0.03em;
-}
-
-.local-now small {
-  color: var(--local-ink);
-  font-size: 0.78rem;
-}
-
-.local-precision-summary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  border-bottom: 1px solid var(--local-line);
-}
-
-.local-precision-summary div {
-  padding: 1rem 1.25rem 1rem 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.local-precision-summary div + div {
-  padding-left: 1.25rem;
-  border-left: 1px solid var(--local-line);
-}
-
-.local-precision-summary span {
-  color: var(--local-muted);
-  font-size: var(--t-label);
-  letter-spacing: 0.08em;
-}
-
-.local-precision-summary strong {
-  color: #cbd5d7;
-  font-size: 0.75rem;
-  font-weight: 560;
-}
-
-.local-forecast-hero {
-  min-height: min(41rem, calc(100svh - 10.5rem));
-  padding: var(--s-band) 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: clamp(1.5rem, 4vw, 3.5rem) clamp(2rem, 5vw, 4rem);
-  /* End-aligned, not centred: the probability is now a short read sitting
-     beside a tall intro block, and centring left it floating mid-column. */
-  align-items: end;
-  border-bottom: 1px solid var(--local-line);
-}
-
-.local-forecast-intro h1 {
-  margin-top: 1.2rem;
-  max-width: 9ch;
-  font-size: var(--t-display);
-  font-weight: 380;
-  line-height: 1.02;
-}
-
-/* The sky in one word. A bare "43%" cannot tell drizzle from a thunderstorm,
-   and the condition was already in the payload. */
-.local-hero-condition {
-  margin-top: 0.9rem;
-  color: var(--local-accent);
-  font-size: var(--t-lead);
-  font-weight: 450;
-  letter-spacing: -0.02em;
-}
-
-.local-action-copy {
-  max-width: 18rem;
-  margin-top: 0.9rem;
-  color: #cbd5d7;
-  font-size: var(--t-value);
-  line-height: 1.65;
-}
-
-/* 강수 확률 is widely misread as area coverage or duration, so define it once
-   where the number actually is. */
-.local-hero-note {
-  grid-column: 1 / -1;
-  max-width: 44ch;
-  margin-top: 2rem;
-  color: var(--local-muted);
-  font-size: var(--t-body);
-  line-height: 1.7;
-}
-
-.local-rain-number {
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-end;
-  color: #edf5ef;
-  font-variant-numeric: tabular-nums;
-}
-
-.local-rain-number span {
-  font-size: var(--t-numeral);
-  font-weight: 260;
-  letter-spacing: -0.05em;
-  line-height: 0.86;
-}
-
-.local-rain-number small {
-  margin: 0.2rem 0 0 0.4rem;
-  color: var(--local-accent);
-  font-size: clamp(0.9rem, 1.4vw, 1.15rem);
-  font-weight: 450;
-}
-
-/* ---- Timeline: when the rain arrives, not just whether ---------------------
-   These bars are one provider's hourly series, while the headline probability
-   blends several, so the strip carries its own attribution rather than letting
-   the two read as the same claim. */
-.local-timeline {
-  grid-column: 1 / -1;
-}
-
-.local-timeline-blocks {
-  display: grid;
-  grid-auto-columns: minmax(0, 1fr);
-  grid-auto-flow: column;
-  gap: clamp(0.4rem, 1.4vw, 0.9rem);
-}
-
-.local-timeline-block {
-  display: grid;
-  grid-template-rows: 1fr auto auto auto;
-  gap: 0.45rem;
-  text-align: center;
-}
-
-.local-timeline-pct {
-  color: var(--local-muted);
-  font-size: 0.78rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.local-timeline-track {
-  display: flex;
-  align-items: flex-end;
-  height: clamp(3.2rem, 6vw, 4.6rem);
-  border-bottom: 1px solid var(--local-line);
-}
-
-/* min-height keeps a 1% hour visible as a sliver instead of vanishing, which
-   would be indistinguishable from an hour nobody forecast. */
-.local-timeline-track i {
-  display: block;
-  width: 100%;
-  min-height: 2px;
-  border-radius: 3px 3px 0 0;
-  background: rgb(210 224 226 / 0.2);
-}
-
-.local-timeline-block.is-peak .local-timeline-track i {
-  background: var(--local-accent);
-}
-
-.local-timeline-block.is-peak .local-timeline-pct {
-  color: var(--local-accent);
-}
-
-/* An hour with no published probability is drawn as an outline, so absence of
-   data never renders as a confident 0%. */
-.local-timeline-block.is-empty .local-timeline-pct {
-  color: rgb(210 224 226 / 0.35);
-}
-
-.local-timeline-block strong {
-  font-size: 0.85rem;
-  font-weight: 560;
-}
-
-.local-timeline-block small {
-  color: var(--local-muted);
-  font-size: 0.68rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.local-timeline-source {
-  margin-top: var(--s-3);
-  color: var(--local-muted);
-  font-size: var(--t-label);
-  letter-spacing: 0.04em;
-}
-
-.local-forecast-facts {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  border-top: 1px solid var(--local-line);
-}
-
-.local-forecast-facts div {
-  padding: 1.25rem 1rem 1.25rem 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  border-bottom: 1px solid var(--local-line);
-}
-
-.local-forecast-facts div + div {
-  padding-left: 1rem;
-  border-left: 1px solid var(--local-line);
-}
-
-.local-forecast-facts span,
 .local-evidence-meta span {
   color: var(--local-muted);
   font-size: var(--t-label);
   letter-spacing: 0.08em;
 }
 
-.local-forecast-facts strong {
-  font-size: 0.97rem;
-  font-weight: 570;
-}
-
-.local-influence-section,
-.local-evidence-section,
-.local-outlook-section {
-  padding: var(--s-band) 0;
-  border-bottom: 1px solid var(--local-line);
-}
-
-.local-outlook-heading h2 {
-  max-width: none;
-}
-
-.local-outlook-grid {
-  margin-top: clamp(3rem, 7vw, 5.5rem);
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+.local-evidence-section {
+  padding: 2.5rem 0 0;
   border-top: 1px solid var(--local-line);
-  border-bottom: 1px solid var(--local-line);
+  margin-top: 2.5rem;
 }
 
-.local-outlook-day {
-  min-height: 9rem;
-  padding: 1.35rem 1rem;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.local-outlook-day + .local-outlook-day {
-  border-left: 1px solid var(--local-line);
-}
-
-.local-outlook-day span,
-.local-outlook-day small {
-  color: var(--local-muted);
-  font-size: 0.68rem;
-}
-
-.local-outlook-day strong {
-  font-size: var(--t-figure);
-  font-weight: 360;
-  letter-spacing: -0.045em;
-}
-
-.local-outlook-day em {
-  margin-top: -0.6rem;
-  color: var(--local-accent);
-  font-size: 0.8rem;
-  font-style: normal;
+.local-evidence-section .local-section-heading h2 {
+  font-size: 1.45rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
 
 .local-section-heading {
@@ -1408,85 +1199,6 @@ html {
   max-width: 24rem;
   color: var(--local-muted);
   line-height: 1.7;
-}
-
-.local-influence-grid {
-  margin-top: clamp(3rem, 7vw, 5.5rem);
-  border-top: 1px solid var(--local-line);
-}
-
-.local-influence-row {
-  min-height: 5rem;
-  display: grid;
-  grid-template-columns: minmax(10rem, 0.75fr) minmax(14rem, 1.4fr) 4rem;
-  gap: 2rem;
-  align-items: center;
-  border-bottom: 1px solid var(--local-line);
-}
-
-/* Equal weights make every bar identical, which reads as a chart that failed
-   to load. In that mode the section says so in words and shows the spread. */
-.local-influence-note {
-  max-width: 46ch;
-  margin-top: 2.5rem;
-  color: #cbd5d7;
-  font-size: var(--t-body);
-  line-height: 1.75;
-}
-
-.local-influence-grid.is-equal {
-  margin-top: 1.25rem;
-}
-
-.local-influence-row.is-equal {
-  min-height: 3.8rem;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.local-influence-row.is-equal b {
-  font-size: var(--t-value);
-  font-weight: 400;
-  font-variant-numeric: tabular-nums;
-}
-
-.local-influence-row > div:first-child {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.local-influence-row strong {
-  font-size: 0.92rem;
-  font-weight: 600;
-}
-
-.local-influence-row div > span,
-.local-influence-row b {
-  color: #c4d0d2;
-  font-size: 0.78rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.local-influence-row b {
-  text-align: right;
-  font-weight: 620;
-}
-
-.local-weight-track {
-  height: 2px;
-  overflow: hidden;
-  background: rgb(255 255 255 / 0.11);
-}
-
-.local-weight-track span {
-  display: block;
-  height: 100%;
-  background: var(--local-accent);
-  box-shadow: 0 0 1rem rgb(158 217 210 / 0.48);
 }
 
 /* This is the answer to "is this better than a normal weather app?", so it
@@ -1526,12 +1238,12 @@ html {
 }
 
 .local-status-pill.is-active {
-  border-color: rgb(158 217 210 / 0.42);
+  border-color: var(--local-accent-deep);
   color: var(--local-accent);
 }
 
 .local-evidence-meta {
-  margin-top: clamp(3rem, 7vw, 5.5rem);
+  margin-top: 1.5rem;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   border-top: 1px solid var(--local-line);
@@ -1539,7 +1251,7 @@ html {
 }
 
 .local-evidence-meta > div {
-  min-height: 7rem;
+  min-height: 5rem;
   padding: 1.5rem 1.5rem 1.5rem 0;
   display: flex;
   flex-direction: column;
@@ -1558,7 +1270,7 @@ html {
 }
 
 .local-score-table {
-  margin-top: 2.5rem;
+  margin-top: 1.75rem;
 }
 
 .local-score-row {
@@ -1598,7 +1310,7 @@ html {
 .local-score-scroll {
   overflow-x: auto;
   scrollbar-width: thin;
-  scrollbar-color: rgb(158 217 210 / 0.4) transparent;
+  scrollbar-color: rgb(76 194 255 / 0.35) transparent;
 }
 
 .local-score-scroll::-webkit-scrollbar {
@@ -1607,7 +1319,7 @@ html {
 
 .local-score-scroll::-webkit-scrollbar-thumb {
   border-radius: 3px;
-  background: rgb(158 217 210 / 0.4);
+  background: rgb(76 194 255 / 0.35);
 }
 
 .local-score-row strong {
@@ -1665,6 +1377,625 @@ html {
   letter-spacing: 0.04em;
 }
 
+/* ---------- dashboard: horizontal time axis ----------
+   The page is one vertical read: the answer as a sentence, the ribbon that
+   shows its shape, the two day cards, then the evidence. Nothing here is a
+   control — the only interactive element on the whole dashboard is the
+   "위치 바꾸기" button. */
+
+.local-dashboard {
+  --local-track: 160px;
+  display: flex;
+  flex-direction: column;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- location strip ---- */
+.local-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--local-line);
+}
+
+.local-strip-place,
+.local-strip-now {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.7rem;
+  align-items: baseline;
+}
+
+.local-strip-place b {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* A text-less flex item has no baseline of its own, so it is nudged onto the
+   row's instead of stretching the line box. */
+.local-strip-pin {
+  align-self: center;
+  width: 0.85rem;
+  height: 0.85rem;
+  color: var(--local-accent);
+  flex: none;
+}
+
+.local-strip-meta {
+  font-family: var(--local-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  color: var(--local-muted);
+}
+
+.local-strip-temp {
+  font-family: var(--local-mono);
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.local-strip-now button {
+  min-height: 2.75rem;
+  padding: 0 0.9rem;
+  border: 1px solid var(--local-line-2);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--local-ink-2);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.local-strip-now button:hover {
+  border-color: var(--local-accent-deep);
+  color: var(--local-ink);
+}
+
+/* ---- the answer ---- */
+.local-answer {
+  padding: 1.6rem 0 1.25rem;
+}
+
+.local-answer h1 {
+  margin: 0.75rem 0 0;
+  font-size: var(--t-display);
+  font-weight: 300;
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+}
+
+.local-answer h1 b {
+  font-weight: 650;
+}
+
+.local-answer-dim {
+  color: var(--local-dim);
+}
+
+.local-answer-sub {
+  margin: 0.9rem 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.25rem;
+  font-family: var(--local-mono);
+  font-size: 0.75rem;
+  color: var(--local-muted);
+}
+
+.local-answer-sub b {
+  color: var(--local-ink-2);
+  font-weight: 600;
+}
+
+.local-answer-sub b.is-wet {
+  color: var(--local-amber);
+}
+
+.local-answer-action {
+  margin: 0.9rem 0 0;
+  max-width: var(--measure);
+  font-size: var(--t-value);
+  color: var(--local-ink-2);
+  line-height: 1.65;
+}
+
+/* ---- the ribbon ---- */
+.local-ribbon-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 0.75rem;
+}
+
+.local-ribbon-src {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--local-line-2);
+  border-radius: 3px;
+  font-family: var(--local-mono);
+  font-size: 0.7rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--local-ink-2);
+}
+
+.local-ribbon-src i {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  background: var(--local-accent);
+}
+
+.local-ribbon-note {
+  font-family: var(--local-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+  color: var(--local-dim);
+}
+
+/* min-width: 0 on the scroller AND on every ancestor between it and the track,
+   or a grid/flex item refuses to shrink below its content and the scroll never
+   engages. */
+.local-ribbon,
+.local-ribbon-scroll {
+  min-width: 0;
+}
+
+.local-ribbon-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(76 194 255 / 0.35) transparent;
+}
+
+.local-ribbon-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  gap: 3px;
+  min-width: 0;
+  /* Room for the date tag, which hangs above its column rather than covering
+     the period label. */
+  padding-top: 1rem;
+}
+
+.local-ribbon-col {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto var(--local-track) auto;
+}
+
+/* The rain window, marked once across every block it covers. */
+.local-ribbon-col.is-wet {
+  background: rgb(242 180 65 / 0.07);
+}
+
+.local-ribbon-col.is-wet .local-ribbon-per,
+.local-ribbon-col.is-wet .local-ribbon-val {
+  color: var(--local-amber);
+}
+
+.local-ribbon-col.is-daybreak {
+  border-left: 1px solid var(--local-line-2);
+}
+
+.local-ribbon-daytag {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translate(-1px, -100%);
+  padding: 0 0.45rem 0 0.3rem;
+  border-left: 1px solid var(--local-line-2);
+  font-family: var(--local-mono);
+  font-size: 0.6rem;
+  line-height: 1rem;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  color: var(--local-ink-2);
+}
+
+.local-ribbon-chead {
+  padding: 0 0.25rem 0.55rem;
+  display: grid;
+  gap: 2px;
+}
+
+.local-ribbon-per {
+  font-size: 0.76rem;
+  font-weight: 650;
+  color: var(--local-ink-2);
+}
+
+.local-ribbon-rng {
+  font-family: var(--local-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.02em;
+  color: var(--local-dim);
+}
+
+.local-ribbon-track {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  border-bottom: 1px solid var(--local-line-2);
+}
+
+/* The umbrella threshold, anchored to the track. The bar scale is a plain
+   0–100%, so the line sits at exactly the probability it names — no visual
+   exaggeration between the number and the mark. */
+.local-ribbon-track::before {
+  content: "";
+  position: absolute;
+  inset: auto 0 var(--threshold) 0;
+  border-top: 1px dashed var(--local-amber-deep);
+  pointer-events: none;
+}
+
+.local-ribbon-rule {
+  position: absolute;
+  left: 0;
+  bottom: calc(var(--threshold) + 3px);
+  padding-right: 0.4rem;
+  background: var(--local-bg);
+  font-family: var(--local-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  color: var(--local-amber);
+  pointer-events: none;
+}
+
+.local-ribbon-bar {
+  width: 100%;
+  height: var(--h);
+  min-height: 3px;
+  background: linear-gradient(180deg, var(--local-accent) 0%, var(--local-accent-deep) 100%);
+}
+
+.local-ribbon-col.is-wet .local-ribbon-bar {
+  background: linear-gradient(180deg, var(--local-amber) 0%, #9a7526 100%);
+}
+
+/* A published 0% is a real statement and keeps a real (if thin) bar. */
+.local-ribbon-bar.is-zero {
+  height: 3px;
+  background: var(--local-accent-deep);
+  opacity: 0.55;
+}
+
+/* No published value is not 0%: hatch it and leave it unfilled. */
+.local-ribbon-track.is-na {
+  border-bottom-color: var(--local-line);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent 0 5px,
+    rgb(138 151 166 / 0.16) 5px 6px
+  );
+}
+
+.local-ribbon-na {
+  position: absolute;
+  inset: auto 0 0.5rem;
+  text-align: center;
+  font-family: var(--local-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: var(--local-muted);
+}
+
+.local-ribbon-cfoot {
+  padding: 0.55rem 0.25rem 0;
+  display: grid;
+  gap: 1px;
+}
+
+.local-ribbon-val {
+  font-family: var(--local-mono);
+  font-size: clamp(0.95rem, 1.6vw, 1.35rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--local-ink);
+}
+
+.local-ribbon-val span {
+  margin-left: 1px;
+  font-size: 0.62em;
+  color: var(--local-muted);
+}
+
+.local-ribbon-val.is-na {
+  color: var(--local-muted);
+}
+
+.local-ribbon-hint {
+  font-size: 0.66rem;
+  line-height: 1.35;
+  color: var(--local-dim);
+}
+
+.local-ribbon-axis {
+  margin-top: 2px;
+  padding-top: 0.5rem;
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid var(--local-line);
+  font-family: var(--local-mono);
+  font-size: 0.66rem;
+  color: var(--local-dim);
+}
+
+.local-ribbon-swipe {
+  display: none;
+  padding-top: 0.5rem;
+  font-family: var(--local-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.03em;
+  color: var(--local-dim);
+}
+
+/* ---- today / tomorrow ---- */
+.local-days {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+  padding: 1.75rem 0 0;
+}
+
+.local-day {
+  min-width: 0;
+  display: grid;
+  gap: 0.55rem;
+  align-content: start;
+  padding: 0.95rem 1rem 1rem;
+  border: 1px solid var(--local-line);
+  border-radius: 3px;
+  background: var(--local-panel);
+}
+
+/* The weighted card is a different calculation, so it is a different surface. */
+.local-day.is-weighted {
+  border-color: var(--local-line-2);
+  background: var(--local-panel-2);
+}
+
+.local-day-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.6rem;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.local-day-when {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 650;
+  letter-spacing: 0;
+  color: var(--local-ink-2);
+}
+
+.local-day-when span {
+  margin-left: 0.4rem;
+  font-family: var(--local-mono);
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--local-dim);
+}
+
+.local-tag {
+  padding: 0.2rem 0.45rem;
+  border: 1px solid var(--local-line-2);
+  border-radius: 2px;
+  font-family: var(--local-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  color: var(--local-muted);
+}
+
+.local-tag.is-weighted {
+  border-color: var(--local-accent-deep);
+  background: rgb(76 194 255 / 0.08);
+  color: var(--local-accent);
+}
+
+.local-day-value {
+  margin: 0;
+  font-family: var(--local-mono);
+  font-size: 2.35rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.local-day-value span {
+  margin-left: 2px;
+  font-size: 0.45em;
+  color: var(--local-muted);
+}
+
+.local-day-row {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.75rem;
+  font-family: var(--local-mono);
+  font-size: 0.72rem;
+  color: var(--local-muted);
+}
+
+.local-day-why,
+.local-card-why {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.6;
+  color: var(--local-dim);
+}
+
+.local-day-why b,
+.local-card-why b {
+  color: var(--local-ink-2);
+  font-weight: 600;
+}
+
+/* ---- evidence cards ---- */
+.local-evidence-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+  padding: 0.9rem 0 0;
+}
+
+.local-card {
+  min-width: 0;
+  display: grid;
+  gap: 0.65rem;
+  align-content: start;
+  padding: 0.9rem 0.95rem 0.95rem;
+  border: 1px solid var(--local-line);
+  border-radius: 3px;
+  background: var(--local-panel);
+}
+
+.local-card-head {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  justify-content: space-between;
+  font-family: var(--local-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  color: var(--local-muted);
+}
+
+.local-card-head h2 {
+  margin: 0;
+  font: inherit;
+  text-transform: uppercase;
+}
+
+.local-card-head b {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--local-ink-2);
+}
+
+.local-kv {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.3rem 0.75rem;
+  font-family: var(--local-mono);
+  font-size: 0.72rem;
+}
+
+.local-kv dt {
+  color: var(--local-dim);
+}
+
+.local-kv dd {
+  margin: 0;
+  text-align: right;
+  color: var(--local-ink-2);
+}
+
+.local-prov {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.local-prow {
+  display: grid;
+  grid-template-columns: minmax(0, 7rem) minmax(2.5rem, 1fr) 2.25rem;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.72rem;
+}
+
+.local-prow-n {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--local-ink-2);
+}
+
+.local-prow.is-best .local-prow-n {
+  font-weight: 600;
+  color: var(--local-amber);
+}
+
+.local-meter {
+  position: relative;
+  height: 4px;
+  background: var(--local-line-2);
+}
+
+.local-meter i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  display: block;
+  width: var(--w);
+  background: var(--local-accent-deep);
+}
+
+.local-prow.is-best .local-meter i {
+  background: var(--local-amber);
+}
+
+.local-prow-v {
+  font-family: var(--local-mono);
+  font-size: 0.7rem;
+  text-align: right;
+  color: var(--local-ink-2);
+}
+
+.local-week {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 4px;
+}
+
+.local-wd {
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+}
+
+.local-wd-d {
+  font-family: var(--local-mono);
+  font-size: 0.6rem;
+  white-space: nowrap;
+  color: var(--local-dim);
+}
+
+.local-wd-b {
+  width: 100%;
+  height: 34px;
+  display: flex;
+  align-items: flex-end;
+}
+
+.local-wd-b i {
+  width: 100%;
+  height: var(--h);
+  min-height: 2px;
+  background: var(--local-accent-deep);
+}
+
+.local-wd-v {
+  font-family: var(--local-mono);
+  font-size: 0.66rem;
+  color: var(--local-ink-2);
+}
+
 @media (max-width: 900px) {
   /* One number governs the vertical rhythm at every width. */
   .local-forecast-page {
@@ -1673,7 +2004,7 @@ html {
 
   .local-chooser {
     grid-template-columns: 1fr;
-    align-content: center;
+    align-content: start;
   }
 
   .local-chooser-copy h1 {
@@ -1684,26 +2015,22 @@ html {
     max-width: 35rem;
   }
 
-  /* Range labels stay: two consecutive blocks can share a period name
-     (00–05 spans two of them), and the range is what tells them apart. */
-  .local-timeline-block strong {
-    font-size: 0.76rem;
+  .local-dashboard {
+    --local-track: 140px;
   }
 
-  .local-timeline-block small {
-    font-size: 0.62rem;
+  /* Eight one-line hints are unreadable once a column is under ~90px, and they
+     are the one thing on this page nobody needs in order to get the answer. */
+  .local-ribbon-hint {
+    display: none;
   }
 
-  .local-outlook-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+  .local-evidence-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .local-outlook-day:nth-child(5) {
-    border-left: 0;
-  }
-
-  .local-outlook-day:nth-child(n + 5) {
-    border-top: 1px solid var(--local-line);
+  .local-evidence-cards > :last-child {
+    grid-column: 1 / -1;
   }
 }
 
@@ -1731,12 +2058,28 @@ html {
   }
 
   .local-chooser-copy h1 {
-    font-size: clamp(3.3rem, 16vw, 5rem);
+    font-size: clamp(2rem, 8.6vw, 2.6rem);
   }
 
-  .local-chooser-copy > p:last-child {
-    margin-top: 1.5rem;
+  .local-chooser-copy > p {
+    margin-top: 1rem;
     font-size: 0.94rem;
+  }
+
+  /* Three facts across a 390px screen leaves ~110px a column, which breaks the
+     provider list into a ragged stack. One per row instead. */
+  .local-chooser-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .local-chooser-facts > div {
+    padding: 0.8rem 0;
+  }
+
+  .local-chooser-facts > div + div {
+    padding-left: 0;
+    border-left: 0;
+    border-top: 1px solid var(--local-line);
   }
 
   .local-search-results li {
@@ -1745,97 +2088,50 @@ html {
     gap: 0.4rem;
   }
 
-  .local-dashboard-topline > div {
-    flex-direction: column;
-    gap: 0.25rem;
+  .local-dashboard {
+    --local-track: 122px;
   }
 
-  /* The dashboard runs about eleven phone screens, and both navigation
-     controls used to scroll away in the first 152px and never come back. */
-  .local-dashboard-topline {
+  /* The location strip is the only navigation on a page about eleven phone
+     screens long, so it stays put instead of scrolling away in the first
+     screenful. Full-bleed across the page gutter. */
+  .local-strip {
     position: sticky;
     top: 0;
     z-index: 2;
-    min-height: 3.75rem;
-    gap: 0.75rem;
-    /* Full-bleed across the page gutter and frosted rather than filled: a
-       solid inset bar reads as a detached box over the scene gradient. */
     margin-inline: -1rem;
     padding-inline: 1rem;
-    background: color-mix(in srgb, var(--local-bg) 78%, transparent);
+    background: color-mix(in srgb, var(--local-bg) 88%, transparent);
     backdrop-filter: blur(14px);
   }
 
-  .local-dashboard-topline .local-topline-place small {
+  .local-strip-place .local-strip-meta {
     display: none;
   }
 
-  .local-now {
-    margin-right: 0.75rem;
+  /* Eight blocks at this width would be 40px each. The ribbon — and only the
+     ribbon — scrolls sideways; the sentence and the two day cards stay whole,
+     so nobody has to swipe to get the answer. */
+  .local-ribbon-grid,
+  .local-ribbon-axis {
+    min-width: 620px;
   }
 
-  .local-now > span {
-    display: none;
+  .local-ribbon-swipe {
+    display: block;
   }
 
-  /* Answer first. The methodology row used to push the rain number about
-     640px down, below the fold on a 375x667 phone. */
-  .local-dashboard {
-    display: flex;
-    flex-direction: column;
+  .local-days,
+  .local-evidence-cards {
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .local-dashboard-topline { order: 0; }
-  .local-forecast-hero { order: 1; }
-  .local-tomorrow { order: 2; }
-  .local-outlook-section { order: 3; }
-  .local-precision-summary { order: 4; }
-  .local-influence-section { order: 5; }
-  .local-evidence-section { order: 6; }
-  .local-footer { order: 7; }
-
-  .local-tomorrow {
-    grid-template-columns: 1fr;
-    align-items: start;
-  }
-
-  .local-precision-summary {
-    grid-template-columns: 1fr;
-  }
-
-  .local-precision-summary div {
-    padding: 0.85rem 0;
-  }
-
-  .local-precision-summary div + div {
-    padding-left: 0;
-    border-top: 1px solid var(--local-line);
-    border-left: 0;
-  }
-
-  .local-forecast-hero {
-    min-height: auto;
-    padding: 4rem 0;
-    grid-template-columns: 1fr;
-    gap: 3rem;
-  }
-
-  .local-rain-number {
-    justify-content: flex-start;
-  }
-
-  .local-rain-number span {
-    font-size: clamp(3.6rem, 19vw, 5.5rem);
-  }
-
-  .local-forecast-facts {
+  .local-evidence-cards > :last-child {
     grid-column: auto;
-    grid-template-columns: 1fr;
   }
 
-  .local-forecast-facts div + div {
-    padding-left: 0;
-    border-left: 0;
+  .local-day-value {
+    font-size: 2rem;
   }
 
   .local-section-heading {
@@ -1847,42 +2143,8 @@ html {
     justify-self: start;
   }
 
-  .local-influence-row {
-    min-height: 6rem;
-    grid-template-columns: 1fr 3rem;
-    gap: 0.7rem 1rem;
-  }
-
-  .local-weight-track {
-    grid-row: 2;
-    grid-column: 1 / -1;
-  }
-
   .local-evidence-meta {
     grid-template-columns: 1fr;
-  }
-
-  .local-outlook-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: 1.25rem;
-  }
-
-  /* Separation comes from the column gap, not from padding that would push
-     the first card's text off the container's left edge. */
-  .local-outlook-day {
-    padding-inline: 0;
-  }
-
-  .local-outlook-day + .local-outlook-day {
-    border-left: 0;
-  }
-
-  .local-outlook-day:nth-child(odd) {
-    border-left: 0;
-  }
-
-  .local-outlook-day:nth-child(n + 3) {
-    border-top: 1px solid var(--local-line);
   }
 
   .local-evidence-meta > div {
@@ -1909,11 +2171,6 @@ html {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .local-atmosphere span,
-  .local-loading > span::after {
-    animation: none;
-  }
-
   .local-primary-button {
     transition: none;
   }
@@ -1985,64 +2242,47 @@ html {
 }
 
 .local-error-actions {
+  margin-top: 0.15rem;
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.75rem 1.5rem;
+  gap: 0.55rem;
 }
 
-/* Tomorrow, after today. Secondary by scale but still its own block — the
-   recent-performance weighting only applies to this day, so it needs a home. */
-.local-tomorrow {
-  padding: var(--s-band) 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 1.5rem 2.5rem;
-  /* The heading cluster is two stacked lines, so plain `baseline` would align
-     its eyebrow with the figure. `last baseline` aligns the line that actually
-     reads across — the heading and the number. `end` stays as the fallback:
-     an unsupported value would be dropped and inherit `stretch`, not `end`. */
-  align-items: end;
-  align-items: last baseline;
-  border-bottom: 1px solid var(--local-line);
+/* These lost their styling when the old centred loading/error block went; they
+   are controls, so they have to look like the ones on the chooser. */
+.local-error-actions button {
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  border: 1px solid var(--local-line-2);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--local-ink-2);
+  font-size: 0.8rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: border-color 180ms ease, color 180ms ease, background 180ms ease;
 }
 
-.local-tomorrow-head h2 {
-  margin-top: 0.5rem;
-  font-size: var(--t-heading);
-  font-weight: 380;
-  letter-spacing: -0.035em;
+.local-error-actions button:hover {
+  border-color: var(--local-accent-deep);
+  color: var(--local-ink);
 }
 
-.local-tomorrow-figure {
-  display: flex;
-  align-items: baseline;
-  gap: 0.9rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.local-tomorrow-figure strong {
-  font-size: var(--t-figure);
-  font-weight: 260;
-  letter-spacing: -0.05em;
-}
-
-.local-tomorrow-figure span {
+.local-error-actions button.is-primary {
+  border-color: var(--local-accent-deep);
+  background: rgb(76 194 255 / 0.08);
   color: var(--local-accent);
-  font-size: 1rem;
 }
 
-.local-tomorrow-figure small {
-  color: var(--local-muted);
-  font-size: 0.85rem;
+.local-error-actions button.is-primary:hover {
+  border-color: var(--local-accent);
+  background: rgb(76 194 255 / 0.15);
 }
 
-.local-tomorrow-note {
-  grid-column: 1 / -1;
-  max-width: 46ch;
-  color: var(--local-muted);
-  font-size: var(--t-body);
-  line-height: 1.7;
+@media (prefers-reduced-motion: reduce) {
+  .local-error-actions button {
+    transition: none;
+  }
 }
 
 /* The chooser stays mounted under the loading overlay. Replacing the page with
@@ -2057,8 +2297,16 @@ html {
   position: fixed;
   inset: 0;
   z-index: 5;
-  background: color-mix(in srgb, var(--local-bg) 55%, transparent);
-  backdrop-filter: blur(3px);
+  width: auto;
+  padding-inline: clamp(1.25rem, 6vw, 6rem);
+  justify-content: center;
+  background: color-mix(in srgb, var(--local-bg) 88%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+/* The stack is capped so the lead does not run the full width of a desktop. */
+.local-loading.is-overlay > * {
+  width: min(100%, 34rem);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2066,169 +2314,4 @@ html {
     transition: none;
     filter: none;
   }
-}
-
-
-/* ============================================================
-   COLUMN GRID — one set of lines for the whole dashboard.
-
-   Before this, text began at 27 different x positions because every section
-   invented its own track list. Twelve columns give four working lines:
-   L1 (col 1), L2 (col 5), L3 (col 9) and R (the right edge of col 12), and
-   every 3-up on the page is 4/4/4, so unrelated sections share start columns.
-
-   Scoped to >=901px on purpose. Below that the dashboard is `display: flex`
-   with explicit `order` so the rain number leads on a phone; placing grid
-   columns at those widths would fight that layout.
-   ============================================================ */
-@media (min-width: 901px) {
-  .local-dashboard {
-    display: grid;
-    grid-template-columns: repeat(12, minmax(0, 1fr));
-    column-gap: 1.25rem;
-    /* Sections carry their own 88px band, so the container adds nothing. */
-    row-gap: 0;
-    align-content: start;
-  }
-
-  /* Sections span the full width and re-expose the same lines to their own
-     children. The fallback repeats the identical track list, which resolves
-     to the same positions precisely because these all span 1 / -1. */
-  .local-dashboard > * {
-    grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: subgrid;
-    /* Subgrid inherits the parent's lines but NOT its gaps. Any section that
-       declares its own gap (the hero's was 80px) would shift every column it
-       passes down, so the gutter is pinned here. */
-    column-gap: 1.25rem;
-    /* One value owns the vertical gap inside a section. Children must not add
-       their own margin-top on top of it. */
-    row-gap: var(--s-6);
-  }
-
-  .local-dashboard > * > * { margin-top: 0; }
-
-  @supports not (grid-template-columns: subgrid) {
-    .local-dashboard > * {
-      grid-template-columns: repeat(12, minmax(0, 1fr));
-      column-gap: 1.25rem;
-    }
-  }
-
-  /* Intermediate wrappers have to pass the lines down too, or their rows
-     resolve against their own box instead of the page grid. */
-  .local-outlook-grid,
-  .local-influence-grid,
-  .local-score-table,
-  .local-influence-row,
-  .local-score-row,
-  .local-section-heading,
-  .local-evidence-meta {
-    grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: subgrid;
-    column-gap: 1.25rem;
-  }
-
-  @supports not (grid-template-columns: subgrid) {
-    .local-outlook-grid,
-    .local-influence-grid,
-    .local-score-table,
-    .local-influence-row,
-    .local-score-row,
-    .local-section-heading,
-    .local-evidence-meta {
-      grid-template-columns: repeat(12, minmax(0, 1fr));
-      column-gap: 1.25rem;
-    }
-  }
-
-  /* ---- the three rails ---- */
-  .local-topline-place,
-  .local-section-heading > div,
-  .local-footer p:first-child { grid-column: 1 / 7; }
-
-  /* Three rails, no overlap: an overlapping span silently drops the item onto
-     the next row, which is what put the numeral below the action copy. */
-  .local-forecast-intro,
-  .local-tomorrow-head { grid-column: 1 / 5; }
-
-  /* All three hero columns start on the same line. With `align-items: center`
-     inside a 41rem min-height each floated to its own height, which read as an
-     accidental gap under the action copy. */
-  .local-forecast-hero { align-items: start; min-height: 0; }
-  .local-rain-number { grid-column: 5 / 9; justify-content: flex-start; }
-  .local-tomorrow-figure { grid-column: 5 / 9; }
-
-  .local-tomorrow-note { grid-column: 1 / 5; }
-
-  .local-forecast-facts,
-  .local-section-heading > p,
-  .local-footer p:last-child { grid-column: 9 / -1; }
-
-  /* Explicit rows. The strip sits above the detail rows in the DOM because a
-     phone stacks in source order and the strip is the answer there; on this
-     grid, auto-placement would read that as a full-width row 2 and push the
-     detail rail down to row 3, leaving two thirds of row 1 empty. */
-  .local-forecast-hero > .local-forecast-intro,
-  .local-forecast-hero > .local-rain-number,
-  .local-forecast-hero > .local-forecast-facts { grid-row: 1; }
-  .local-forecast-hero > .local-timeline { grid-row: 2; }
-  .local-forecast-hero > .local-hero-note { grid-row: 3; }
-
-  /* Captions start on L3 and run to R rather than sitting ragged inside it.
-     Their right edge was landing wherever the text happened to end. */
-  .local-section-heading > p,
-  .local-footer p:last-child {
-    justify-self: stretch;
-    text-align: left;
-    max-width: none;
-  }
-
-  .local-now { grid-column: 7 / 11; justify-self: end; margin: 0; }
-  .local-dashboard-topline > button { grid-column: 11 / -1; justify-self: end; }
-
-  /* The pill must not stretch into a 380px bar. */
-  .local-status-pill { grid-column: 11 / -1; justify-self: end; align-self: end; }
-
-  /* Prose blocks: one measure, one starting line. */
-  .local-hero-note,
-  .local-tomorrow-note,
-  .local-influence-note,
-  .local-method-note,
-  .local-empty-evidence,
-  .local-benchmark-line,
-  .local-score-detail { grid-column: 1 / 9; max-width: var(--measure); }
-
-  /* 3-up strips share exactly the same lines. */
-  .local-precision-summary > div,
-  .local-evidence-meta > div,
-  .local-precision-summary > div + div,
-  .local-evidence-meta > div + div { padding-inline: 0; border-left: 0; }
-  .local-precision-summary > div:nth-child(1),
-  .local-evidence-meta > div:nth-child(1) { grid-column: 1 / 5; }
-  .local-precision-summary > div:nth-child(2),
-  .local-evidence-meta > div:nth-child(2) { grid-column: 5 / 9; }
-  .local-precision-summary > div:nth-child(3),
-  .local-evidence-meta > div:nth-child(3) { grid-column: 9 / -1; }
-
-  /* Score rows: label rail, then two data columns that end on R. */
-  .local-score-row > *:nth-child(1) { grid-column: 1 / 6; }
-  .local-score-row > *:nth-child(2) { grid-column: 6 / 10; }
-  .local-score-row > *:nth-child(3) { grid-column: 10 / -1; }
-
-  /* Influence rows: name rail, bar spanning the middle, percentage on R. */
-  .local-influence-row > div:first-child { grid-column: 1 / 5; }
-  .local-weight-track { grid-column: 5 / 12; }
-  .local-influence-row > b { grid-column: 12 / -1; justify-self: end; }
-  .local-influence-row.is-equal > strong { grid-column: 1 / 5; }
-  .local-influence-row.is-equal > b { grid-column: 9 / -1; justify-self: end; }
-
-  /* Outlook: each card occupies two columns, so all six start on grid lines.
-     Horizontal padding is removed — the column gap already separates them,
-     and padding would push the first card's text off the L1 rail. */
-  .local-outlook-grid { row-gap: 0; }
-  .local-outlook-day { grid-column: span 2; padding-inline: 0; }
-  .local-outlook-day + .local-outlook-day { border-left: 0; }
 }

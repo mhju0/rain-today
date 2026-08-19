@@ -131,3 +131,19 @@ test("buildForecastBlocks: short series yields fewer blocks, never an invented o
   assert.equal(seven.length, 3); // [0-2], [3-5], [6]
   assert.equal(seven[2].rangeLabel, "6–7시"); // single trailing hour → end = hour + 1
 });
+
+// --- clock fields the horizontal ribbon anchors on --------------------------
+
+test("buildForecastBlocks: startHour/endHour bracket the block, endHour wrapping past midnight", () => {
+  const blocks = buildForecastBlocks(seq(21, 6));
+  assert.equal(blocks[0].startHour, 21);
+  assert.equal(blocks[0].endHour, 0); // 21,22,23 → exclusive end wraps to 0
+  assert.equal(blocks[1].startHour, 0);
+  assert.equal(blocks[1].endHour, 3);
+});
+
+test("buildForecastBlocks: startDate is the KST calendar date the block opens on", () => {
+  const blocks = buildForecastBlocks(seq(21, 6));
+  assert.equal(blocks[0].startDate, "2026-06-19");
+  assert.equal(blocks[1].startDate, "2026-06-20");
+});

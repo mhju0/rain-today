@@ -293,9 +293,12 @@ test("rain onset is the first block that reaches the umbrella threshold", () => 
   const blocks = view.timeline?.blocks ?? [];
   assert.equal(blocks.length, 4);
   assert.equal(blocks[2].precipMax, 80);
-  // The third block is the first to reach 40, so onset must be its label and
-  // not merely the wettest block's.
-  assert.equal(view.timeline?.onsetLabel, blocks[2].label);
+  // The third block is the first to reach 40, so the run must open there and
+  // not merely at the wettest block.
+  assert.equal(view.timeline?.reading.firstRun?.startIndex, 2);
+  assert.equal(view.timeline?.reading.firstRun?.startLabel, blocks[2].label);
+  assert.equal(blocks[2].wet, true);
+  assert.equal(blocks[1].wet, false);
 });
 
 test("a day that never reaches the threshold reports no onset", () => {
@@ -303,7 +306,8 @@ test("a day that never reaches the threshold reports no onset", () => {
     response({ hourly: { entries: hours([5, 10, 39, 12, 8, 3]), sourceName: "Open-Meteo" } }),
   );
   assert.notEqual(view.timeline, null);
-  assert.equal(view.timeline?.onsetLabel, null);
+  assert.equal(view.timeline?.reading.firstRun, null);
+  assert.equal(view.timeline?.blocks.every((block) => !block.wet), true);
 });
 
 test("hours with no published probability stay null instead of reading as 0%", () => {
@@ -314,7 +318,8 @@ test("hours with no published probability stay null instead of reading as 0%", (
   // A 0 here would tell someone it is certainly not raining, which nobody said.
   assert.equal(blocks[0].precipMax, null);
   assert.equal(blocks[1].precipMax, 65);
-  assert.equal(view.timeline?.onsetLabel, blocks[1].label);
+  assert.equal(blocks[0].wet, false);
+  assert.equal(view.timeline?.reading.firstRun?.startIndex, 1);
 });
 
 function seedScore(

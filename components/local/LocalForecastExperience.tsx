@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { CONDITION_LABELS_KO } from "@/lib/conditions";
-import type { LocalForecastView } from "@/lib/localForecastView";
+import { periodNameForHour } from "@/lib/forecast/blocks";
+import type { TimelineReading } from "@/lib/forecast/rainWindow";
+import type { LocalForecastTimelineBlock, LocalForecastView } from "@/lib/localForecastView";
 import {
   describeForecastLocationSelection,
   type ForecastLocationSelection,
@@ -24,6 +26,26 @@ interface ChosenForecastLocation {
   elevationM: number | null;
   selection: ForecastLocationSelection;
 }
+
+/**
+ * The forecast providers, in the order CLAUDE.md pins them. The chooser states
+ * the count before a visitor commits a coordinate, so it counts this list
+ * rather than carrying a number that can drift away from it.
+ */
+export const COMPARED_PROVIDER_NAMES = [
+  "Open-Meteo",
+  "MET Norway",
+  "기상청",
+  "Pirate Weather",
+  "WeatherAPI",
+] as const;
+
+/**
+ * Stations in the generated ASOS catalog. Held as a literal because the catalog
+ * itself is a large generated module that has no business in the client bundle;
+ * a test asserts this stays equal to `FALLBACK_STATION_CATALOG.length`.
+ */
+export const VERIFICATION_STATION_COUNT = 97;
 
 const STORED_LOCATION_KEY = "raintoday.last-location.v1";
 /** Pre-rename key. Read once so a returning visitor keeps their place. */
@@ -65,13 +87,19 @@ function formatDate(date: string | null): string {
   }).format(new Date(`${date}T12:00:00+09:00`));
 }
 
+/**
+ * "20 목" — six of these share one card, so the month is dropped. The card
+ * already says these are the days after tomorrow, and a full "8. 20. (목)"
+ * overflows its column at every width.
+ */
 function formatOutlookDate(date: string): string {
-  return new Intl.DateTimeFormat("ko-KR", {
+  const weekday = new Intl.DateTimeFormat("ko-KR", {
     timeZone: "Asia/Seoul",
-    weekday: "short",
-    month: "numeric",
-    day: "numeric",
+    weekday: "narrow",
   }).format(new Date(`${date}T12:00:00+09:00`));
+  // Off the ISO date rather than Intl: ko-KR renders `day: "numeric"` as "20일",
+  // and "20일 목" is a third wider than the column it has to sit in.
+  return `${Number(date.slice(8, 10))} ${weekday}`;
 }
 
 /**
@@ -386,18 +414,39 @@ export function LocationChooser({ onChoose, autoFocus = false, busy = false }: {
       inert={busy || undefined}
     >
       <div className="local-chooser-copy">
-        <p className="local-eyebrow">KOREA · LOCAL RAIN FORECAST</p>
+        <p className="local-eyebrow">대한민국 로컬 강수 예보</p>
         {/* Day-agnostic on purpose: the forecast now opens on today and carries
             tomorrow beside it, so naming one day in the promise would be wrong
             again the moment the other is on screen. */}
-        <h1 id="location-heading">비, 여기서는<br />어떨까요?</h1>
+        <h1 id="location-heading">비, <b>여기서는</b><br />어떨까요?</h1>
         <p>
           여러 날씨 서비스를 한곳에서 비교하고, 가까운 관측소에서 최근 실제로
           얼마나 맞았는지에 따라 예보의 영향을 조정합니다.
         </p>
+
+        {/* The same three facts the dashboard's evidence cards end on, said
+            before the visitor commits a coordinate rather than only after. */}
+        <dl className="local-chooser-facts">
+          <div>
+            <dt>비교하는 서비스</dt>
+            <dd>{COMPARED_PROVIDER_NAMES.length}곳</dd>
+            <small>{COMPARED_PROVIDER_NAMES.join(" · ")}</small>
+          </div>
+          <div>
+            <dt>검증 관측소</dt>
+            <dd>{VERIFICATION_STATION_COUNT}개</dd>
+            <small>기상청 ASOS · 익일 예보만 채점합니다</small>
+          </div>
+          <div>
+            <dt>시간축</dt>
+            <dd>24시간</dd>
+            <small>3시간 블록 8개로 비가 시작되고 그치는 때</small>
+          </div>
+        </dl>
       </div>
 
       <div className="local-location-actions">
+        <p className="local-panel-title">어디의 비를 볼까요</p>
         <button
           className="local-primary-button"
           type="button"
@@ -549,13 +598,15 @@ export function LocationChooser({ onChoose, autoFocus = false, busy = false }: {
         </div>
         </div>
 
-        <p className="local-privacy-note">
-          현재 위치 좌표는 예보를 위해 서버와 날씨 제공사에 전송되며, 계정이나 DB에
-          저장하지 않습니다. 다시 열었을 때 바로 보여드리려고 마지막으로 선택한 위치만
-          이 기기에 저장합니다. 예보 데이터는 좌표 기반으로 서버 메모리에 잠시 캐시될
-          수 있습니다. 지역 검색어는 Kakao에 전달되며, 검색 응답은 저장하지 않습니다.
-          <span>검색 결과는 행정구역 또는 법정구역 대표 위치 · 지역 검색 Kakao Map</span>
-        </p>
+        <div className="local-privacy-note">
+          <p>
+            현재 위치 좌표는 예보를 위해 서버와 날씨 제공사에 전송되며, 계정이나 DB에
+            저장하지 않습니다. 다시 열었을 때 바로 보여드리려고 마지막으로 선택한 위치만
+            이 기기에 저장합니다. 예보 데이터는 좌표 기반으로 서버 메모리에 잠시 캐시될
+            수 있습니다. 지역 검색어는 Kakao에 전달되며, 검색 응답은 저장하지 않습니다.
+          </p>
+          <p>검색 결과는 행정구역 또는 법정구역 대표 위치 · 지역 검색 Kakao Map</p>
+        </div>
       </div>
     </section>
   );
@@ -758,6 +809,66 @@ function PerformanceEvidence({ evidence, cohortLabel }: {
   );
 }
 
+/** "31° / 23°", with an em dash wherever a provider published no value. */
+function formatRange(high: number | null, low: number | null): string {
+  const one = (value: number | null) => (value === null ? "—" : `${Math.round(value)}°`);
+  return `${one(high)} / ${one(low)}`;
+}
+
+/** "0.121 vs 0.134" — only when both sides of the benchmark actually scored. */
+function benchmarkPair(benchmark: LocalForecastView["evidence"]["benchmark"]): string {
+  if (!benchmark || benchmark.adaptiveBrier === null || benchmark.equalBrier === null) return "—";
+  return `${benchmark.adaptiveBrier.toFixed(3)} vs ${benchmark.equalBrier.toFixed(3)}`;
+}
+
+/**
+ * One block's one-line reading. Kept factual rather than advisory: the umbrella
+ * advice belongs to the day, and repeating it eight times would assert an
+ * hourly recommendation the daily blend never made.
+ */
+function blockHint(
+  block: LocalForecastTimelineBlock,
+  role: "onset" | "peak" | "wet" | "dry",
+): string {
+  if (block.precipMax === null) return "아직 발표되지 않았습니다. 0%가 아니라 값이 없는 것입니다.";
+  if (role === "onset") return "여기서 비가 시작됩니다.";
+  if (role === "peak") return "가장 높은 시간대입니다.";
+  if (role === "wet") return "비 구간입니다.";
+  if (block.precipMax === 0) return "비 예보 없음.";
+  return "기준 아래입니다.";
+}
+
+/**
+ * "오후 1시", "자정" — a Korean period name pairs with a 12-hour number, so the
+ * raw 24-hour clock the blocks carry ("오후 13시") reads as a mistake.
+ */
+function clockLabel(hour: number): string {
+  if (hour === 0) return "자정";
+  const period = periodNameForHour(hour);
+  return `${period} ${hour % 12 === 0 ? 12 : hour % 12}시`;
+}
+
+/** The rain window as the sentence the page leads with. */
+function RainSentence({ run, endsTomorrow }: {
+  run: TimelineReading["firstRun"];
+  endsTomorrow: boolean;
+}) {
+  if (!run) return <>앞으로 24시간, <b>비 소식은 없습니다</b></>;
+  const onset = run.startIndex === 0
+    ? "지금부터"
+    : `${run.startsTomorrow ? "내일 " : ""}${clockLabel(run.startHour)}부터`;
+  if (!run.endsWithinWindow) {
+    return <>비는 <b>{onset}</b><span className="local-answer-dim">, </span>예보 끝까지 이어집니다</>;
+  }
+  return (
+    <>
+      비는 <b>{onset}</b>
+      <span className="local-answer-dim">, </span>
+      <b>{endsTomorrow && !run.startsTomorrow ? "내일 " : ""}{clockLabel(run.endHour)}까지</b>
+    </>
+  );
+}
+
 function ForecastDashboard({ forecast, selection, onReset }: {
   forecast: LocalForecastView;
   selection: ForecastLocationSelection;
@@ -771,34 +882,30 @@ function ForecastDashboard({ forecast, selection, onReset }: {
   // described as "최근 관측 성능".
   const seeded = forecast.blendMode === "seed";
   const weighted = learned || seeded;
-  // Lead with today — it is what someone opening a weather app is asking. Fall
-  // back to tomorrow only when no provider still publishes a daily entry for
-  // today, so the hero is never empty.
   // Normalise first: an absent field is not the same as an explicit null, and
   // testing the raw value would report "오늘" while rendering tomorrow's numbers.
   const today = forecast.today ?? null;
-  const leadIsToday = today !== null;
-  const lead = today ?? {
-    date: forecast.targetDate ?? "",
-    precipitationProbability: forecast.recommendation.precipitationProbability,
-    precipitationAmountMm: forecast.recommendation.precipitationAmountMm,
-    temperatureMax: forecast.recommendation.temperatureMax,
-    temperatureMin: forecast.recommendation.temperatureMin,
-    condition: forecast.recommendation.condition,
-  };
-  const probability = lead.precipitationProbability;
-  const dayWord = leadIsToday ? "오늘" : "내일";
+  const tomorrow = forecast.recommendation;
   const timeline = forecast.timeline;
-  // Lead with when the rain arrives when the series says it does; otherwise the
-  // heading stays on the probability rather than inventing an arrival time.
-  const heroHeading = timeline?.onsetLabel
-    ? `${timeline.onsetLabel}부터 비 소식`
-    : `${dayWord} 비가 올까요?`;
-  // Emphasis is tied to the same threshold as onset, so a dry day never gets a
-  // highlighted "peak" that is really just its least-dry hour.
-  const peakProbability = timeline?.onsetLabel
-    ? Math.max(...timeline.blocks.map((block) => block.precipMax ?? -1))
-    : null;
+  const blocks = timeline?.blocks ?? [];
+  const run = timeline?.reading.firstRun ?? null;
+  const laterRun = timeline?.reading.laterRun ?? null;
+  const peak = timeline?.reading.peak ?? null;
+
+  // Which KST day each block belongs to, counted off the date dividers the view
+  // model already marked. Lets the sentence say "내일 6시" when the run opens
+  // today and closes after midnight.
+  const dayOffsets: number[] = [];
+  let dayOffset = 0;
+  for (const block of blocks) {
+    if (block.dayTag) dayOffset += 1;
+    dayOffsets.push(dayOffset);
+  }
+
+  const spread = forecast.influence
+    .map((provider) => provider.probability)
+    .filter((probability): probability is number => probability !== null);
+  const influenceMax = Math.max(...forecast.influence.map((p) => p.influence), 0);
 
   // The chooser this replaced is gone from the DOM, so without this the whole
   // swap leaves focus on <body> and a keyboard user restarts from the top.
@@ -808,214 +915,279 @@ function ForecastDashboard({ forecast, selection, onReset }: {
 
   return (
     <main className="local-dashboard">
-      <div className="local-dashboard-topline">
-        <div className="local-topline-place">
-          <span>{forecast.locationName}</span>
-          {/* With a resolved place name, "현재 기기 위치" says how we got it.
-              Without one it only repeats the name — "현재 위치 · 현재 기기 위치"
-              tells the reader nothing — so show the accuracy instead. */}
-          <small>
+      <div className="local-strip">
+        <div className="local-strip-place">
+          <span className="local-strip-pin" aria-hidden><LocationMark /></span>
+          <b>{forecast.locationName}</b>
+          {/* With a resolved place name, the source says how we got it. Without
+              one it only repeats the name — "현재 위치 · 현재 기기 위치" tells the
+              reader nothing — so show the accuracy instead. */}
+          <span className="local-strip-meta">
             {forecast.locationName === DEVICE_PLACEHOLDER_NAME
               ? locationDescription.precision
-              : locationDescription.source}
-          </small>
+              : `${locationDescription.source} · ${locationDescription.precision}`}
+          </span>
         </div>
-        {forecast.current && (
-          <p className="local-now">
-            <span>지금</span>
-            <strong>{Math.round(forecast.current.temperature)}°</strong>
-            <small>{CONDITION_LABELS_KO[forecast.current.condition]}</small>
-          </p>
-        )}
-        <button type="button" onClick={onReset}>위치 바꾸기</button>
+        <div className="local-strip-now">
+          {forecast.current && (
+            <>
+              <span className="local-strip-temp">{Math.round(forecast.current.temperature)}°</span>
+              <span className="local-strip-meta">
+                {CONDITION_LABELS_KO[forecast.current.condition]} · KST
+              </span>
+            </>
+          )}
+          <button type="button" onClick={onReset}>위치 바꾸기</button>
+        </div>
       </div>
 
-      <section className="local-forecast-hero" aria-labelledby="forecast-heading">
-        <div className="local-forecast-intro">
-          <p className="local-eyebrow">
-            {formatDate(lead.date)} · {leadIsToday ? "TODAY" : "TOMORROW"}
+      <section className="local-answer" aria-labelledby="forecast-heading">
+        <p className="local-eyebrow">앞으로 24시간</p>
+        <h1 id="forecast-heading" ref={headingRef} tabIndex={-1}>
+          {timeline
+            ? <RainSentence run={run} endsTomorrow={run !== null && dayOffsets[run.endIndex] > 0} />
+            : <>{today ? "오늘" : "내일"} 비가 올까요?</>}
+        </h1>
+        {timeline && (
+          <p className="local-answer-sub">
+            {peak && <span>최대 <b className="is-wet">{Math.round(peak.probability)}%</b> · {peak.rangeLabel}</span>}
+            {run && <span>지속 <b>{run.durationHours}시간</b></span>}
+            {tomorrow.precipitationAmountMm !== null && (
+              <span>내일 예상 강수량 <b>{tomorrow.precipitationAmountMm.toFixed(1)} mm</b></span>
+            )}
+            <span>{timeline.threshold}% 넘는 시간대를 비 구간으로 봅니다</span>
           </p>
-          <h1 id="forecast-heading" ref={headingRef} tabIndex={-1}>{heroHeading}</h1>
-          <p className="local-hero-condition">{CONDITION_LABELS_KO[lead.condition]}</p>
-          <p className="local-action-copy">
-            {rainAction(probability, lead.precipitationAmountMm)}
-          </p>
-        </div>
+        )}
+        <p className="local-answer-action">
+          {rainAction(
+            (today ?? tomorrow).precipitationProbability,
+            (today ?? tomorrow).precipitationAmountMm,
+          )}
+          {laterRun && ` 이후 ${laterRun.startsTomorrow ? "내일 " : ""}${laterRun.startHour}시부터 다시 비 구간입니다.`}
+        </p>
+      </section>
 
-        <div className="local-rain-number" aria-label={`강수 확률 ${probabilityLabel(probability)}`}>
-          <span>{probability === null ? "—" : Math.round(probability)}</span>
-          {probability !== null && <small>%</small>}
-        </div>
+      {timeline && (
+        <section className="local-ribbon" aria-labelledby="ribbon-heading">
+          <div className="local-ribbon-head">
+            <h2 id="ribbon-heading" className="local-ribbon-src">
+              <i aria-hidden />시간대 강수확률 · {timeline.sourceName} 단독 예보
+            </h2>
+            <span className="local-ribbon-note">
+              3시간 블록 {blocks.length}개
+            </span>
+          </div>
 
-{timeline && (
-          <div className="local-timeline">
-            <div className="local-timeline-blocks">
-              {timeline.blocks.map((block) => {
-                const empty = block.precipMax === null;
-                const peak = !empty && block.precipMax === peakProbability;
+          <div className="local-ribbon-scroll">
+            <div className="local-ribbon-grid" style={{ "--cols": blocks.length } as CSSProperties}>
+              {blocks.map((block, index) => {
+                const probability = block.precipMax;
+                const empty = probability === null;
+                const isOnset = run !== null && index === run.startIndex;
+                const isPeak = probability !== null && peak !== null && probability === peak.probability;
+                const role = empty ? "dry" : isOnset ? "onset" : isPeak ? "peak" : block.wet ? "wet" : "dry";
                 return (
                   <div
-                    className={`local-timeline-block${peak ? " is-peak" : ""}${empty ? " is-empty" : ""}`}
+                    className={`local-ribbon-col${block.wet ? " is-wet" : ""}${block.dayTag ? " is-daybreak" : ""}`}
                     key={block.rangeLabel}
                   >
-                    <div className="local-timeline-track">
-                      {!empty && <i style={{ height: `${Math.round(block.precipMax as number)}%` }} />}
-                    </div>
-                    <span className="local-timeline-pct">
-                      {empty ? "—" : `${Math.round(block.precipMax as number)}%`}
+                    {block.dayTag && <span className="local-ribbon-daytag">{block.dayTag}</span>}
+                    <span className="local-ribbon-chead">
+                      <span className="local-ribbon-per">{block.label}</span>
+                      <span className="local-ribbon-rng">{block.rangeLabel}</span>
                     </span>
-                    <strong>{block.label}</strong>
-                    <small>{block.rangeLabel}</small>
+                    <span
+                      className={`local-ribbon-track${empty ? " is-na" : ""}`}
+                      style={{ "--threshold": `${timeline.threshold}%` } as CSSProperties}
+                    >
+                      {index === 0 && (
+                        <span className="local-ribbon-rule" aria-hidden>{timeline.threshold}%</span>
+                      )}
+                      {probability === null
+                        ? <span className="local-ribbon-na">미발표</span>
+                        : (
+                          <span
+                            className={`local-ribbon-bar${probability === 0 ? " is-zero" : ""}`}
+                            style={{ "--h": `${Math.round(probability)}%` } as CSSProperties}
+                          />
+                        )}
+                    </span>
+                    <span className="local-ribbon-cfoot">
+                      <span className={`local-ribbon-val${empty ? " is-na" : ""}`}>
+                        {probability === null ? "—" : <>{Math.round(probability)}<span>%</span></>}
+                      </span>
+                      <span className="local-ribbon-hint">{blockHint(block, role)}</span>
+                    </span>
                   </div>
                 );
               })}
             </div>
-            <p className="local-timeline-source">
-              시간대 강수 확률 · {timeline.sourceName} 단독 예보
-            </p>
+            <div className="local-ribbon-axis" aria-hidden>
+              {blocks.map((block) => <span key={block.rangeLabel}>{block.startHour}</span>)}
+              <span>{blocks[blocks.length - 1].endHour}시</span>
+            </div>
           </div>
-        )}
+          <p className="local-ribbon-swipe">← 옆으로 밀어 24시간 전체 보기</p>
+        </section>
+      )}
 
-        <div className="local-forecast-facts">
-          <div><span>예상 강수량</span><strong>{lead.precipitationAmountMm === null ? "—" : `${lead.precipitationAmountMm.toFixed(1)} mm`}</strong></div>
-          <div><span>낮 / 밤</span><strong>{lead.temperatureMax === null ? "—" : `${Math.round(lead.temperatureMax)}°`} / {lead.temperatureMin === null ? "—" : `${Math.round(lead.temperatureMin)}°`}</strong></div>
-          <div>
-            <span>계산 방식</span>
+      <div className="local-days">
+        {today && (
+          <section className="local-day" aria-labelledby="today-heading">
+            <div className="local-day-head">
+              <h2 id="today-heading" className="local-day-when">
+                오늘 <span>{formatDate(today.date)}</span>
+              </h2>
+              <span className="local-tag">{forecast.comparedProviderCount}개 서비스 동일 비중</span>
+            </div>
+            <p className="local-day-value">
+              {today.precipitationProbability === null
+                ? "—"
+                : <>{Math.round(today.precipitationProbability)}<span>%</span></>}
+            </p>
+            <p className="local-day-row">
+              <span>{today.precipitationAmountMm === null ? "—" : `${today.precipitationAmountMm.toFixed(1)} mm`}</span>
+              <span>{formatRange(today.temperatureMax, today.temperatureMin)}</span>
+              <span>{CONDITION_LABELS_KO[today.condition]}</span>
+            </p>
             {/* The learned profile scores next-day forecasts only, so today's
                 number is always a plain average — claiming otherwise would
                 assert an accuracy nothing has measured. */}
-            <strong>
-              {!leadIsToday && weighted
-                ? seeded
-                  ? "과거 기록 기반 추정 반영"
-                  : "최근 관측 성능 반영"
-                : "서비스 동일 비중 평균"}
-            </strong>
-          </div>
-        </div>
+            <p className="local-day-why">
+              오늘은 <b>성능 가중을 쓰지 않습니다.</b> 관측소 기록은 익일 예보만 채점하므로,
+              오늘 숫자에 얹으면 검증되지 않은 정확도 주장이 됩니다.
+            </p>
+          </section>
+        )}
 
-        <p className="local-hero-note">
-          강수 확률은 {dayWord} 하루 중 비가 올 가능성입니다. 비가 내리는 시간이나 지역
-          면적이 아닙니다.
-        </p>
-      </section>
-
-      {leadIsToday && (
-        <section className="local-tomorrow" aria-labelledby="tomorrow-heading">
-          <div className="local-tomorrow-head">
-            <p className="local-eyebrow">{formatDate(forecast.targetDate)} · TOMORROW</p>
-            <h2 id="tomorrow-heading">내일 비가 올까요?</h2>
+        <section
+          className={`local-day${weighted ? " is-weighted" : ""}`}
+          aria-labelledby="tomorrow-heading"
+        >
+          <div className="local-day-head">
+            <h2 id="tomorrow-heading" className="local-day-when">
+              내일 <span>{formatDate(forecast.targetDate)}</span>
+            </h2>
+            <span className={`local-tag${weighted ? " is-weighted" : ""}`}>
+              {forecast.comparedProviderCount}개 서비스{" "}
+              {weighted ? (seeded ? "과거 기록 가중" : "성능 가중") : "동일 비중"}
+            </span>
           </div>
-          <p className="local-tomorrow-figure">
-            <strong>{probabilityLabel(forecast.recommendation.precipitationProbability)}</strong>
-            <span>{CONDITION_LABELS_KO[forecast.recommendation.condition]}</span>
-            <small>
-              {forecast.recommendation.temperatureMax === null ? "—" : `${Math.round(forecast.recommendation.temperatureMax)}°`}
-              {" / "}
-              {forecast.recommendation.temperatureMin === null ? "—" : `${Math.round(forecast.recommendation.temperatureMin)}°`}
-            </small>
+          <p className="local-day-value">
+            {tomorrow.precipitationProbability === null
+              ? "—"
+              : <>{Math.round(tomorrow.precipitationProbability)}<span>%</span></>}
           </p>
-          <p className="local-tomorrow-note">
+          <p className="local-day-row">
+            <span>{tomorrow.precipitationAmountMm === null ? "—" : `${tomorrow.precipitationAmountMm.toFixed(1)} mm`}</span>
+            <span>{formatRange(tomorrow.temperatureMax, tomorrow.temperatureMin)}</span>
+            <span>{CONDITION_LABELS_KO[tomorrow.condition]}</span>
+          </p>
+          <p className="local-day-why">
             {seeded
-              ? "이 지역의 관측이 쌓이기 전이라, 과거 예보 기록으로 추정한 성능을 반영합니다."
+              ? "이 지역의 실시간 비교가 쌓이기 전이라, 과거 예보 기록으로 추정한 적중률을 일부만 반영했습니다."
               : learned
-                ? "내일 예보에만 최근 이 지역의 관측 성능을 반영합니다."
+                ? <>관측소 {forecast.evidence.station?.name ?? "근처 관측소"}의 <b>{forecast.evidence.comparisonSampleCount}일 기록</b>을 반영했습니다.</>
                 : "아직 이 지역의 성능 기록이 없어 서비스를 동일 비중으로 평균했습니다."}
+            {timeline && " 위 리본과는 계산도 출처도 다릅니다."}
           </p>
         </section>
-      )}
-
-      {forecast.outlook.length > 1 && (
-        <section className="local-outlook-section" aria-labelledby="outlook-heading">
-          <div className="local-section-heading local-outlook-heading">
-            <div>
-              <p className="local-eyebrow">{forecast.outlook.length} DAY OUTLOOK</p>
-              <h2 id="outlook-heading">그다음 날씨</h2>
-            </div>
-            <p>검증된 익일 범위 밖의 날짜는 서비스별 동일 비중으로 비교합니다.</p>
-          </div>
-          <div className="local-outlook-grid">
-            {forecast.outlook.map((day) => (
-              <div className="local-outlook-day" key={day.date}>
-                <span>{formatOutlookDate(day.date)}</span>
-                <strong>{probabilityLabel(day.precipitationProbability)}</strong>
-                <em>{CONDITION_LABELS_KO[day.condition]}</em>
-                <small>
-                  {day.temperatureMax === null ? "—" : `${Math.round(day.temperatureMax)}°`}
-                  {" / "}
-                  {day.temperatureMin === null ? "—" : `${Math.round(day.temperatureMin)}°`}
-                </small>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <div className="local-precision-summary" aria-label="예보 위치 정밀도">
-        <div><span>위치 기준</span><strong>{locationDescription.precision}</strong></div>
-        <div><span>기상청 단기예보</span><strong>5 km 격자</strong></div>
-        <div>
-          <span>비교 관측소</span>
-          <strong>
-            {forecast.evidence.station
-              ? `${forecast.evidence.station.name} · ${forecast.evidence.station.distanceKm.toFixed(1)} km`
-              : "아직 연결되지 않음"}
-          </strong>
-        </div>
       </div>
 
-      <section className="local-influence-section" aria-labelledby="influence-heading">
-        <div className="local-section-heading">
-          <div>
-            <p className="local-eyebrow">PROVIDER INFLUENCE</p>
-            <h2 id="influence-heading">이번 예보에<br />각 서비스가 미친 영향</h2>
+      <div className="local-evidence-cards">
+        <section className="local-card" aria-labelledby="station-heading">
+          <div className="local-card-head">
+            <h2 id="station-heading">관측소 대조</h2>
+            <b>{forecast.evidence.station?.name ?? "미연결"}</b>
           </div>
-          <p>{forecast.comparedProviderCount}개 서비스의 익일 강수 확률을 비교했습니다.</p>
-        </div>
+          <dl className="local-kv">
+            <dt>거리</dt>
+            <dd>
+              {forecast.evidence.station
+                ? `${forecast.evidence.station.distanceKm.toFixed(1)} km`
+                : "—"}
+            </dd>
+            <dt>비교 완료</dt>
+            <dd>{forecast.evidence.comparisonSampleCount}일</dd>
+            <dt>코호트</dt>
+            <dd>{forecast.cohortLabel}</dd>
+            <dt>기상청 격자</dt>
+            <dd>5 km</dd>
+            <dt>벤치마크</dt>
+            <dd>{benchmarkPair(forecast.evidence.benchmark)}</dd>
+          </dl>
+          <p className="local-card-why">
+            {forecast.evidence.emptyMessage ?? "관측소는 근처 기록일 뿐, 당신이 서 있는 위치가 아닙니다."}
+          </p>
+        </section>
 
-        {weighted ? (
-          <div className="local-influence-grid">
+        <section className="local-card" aria-labelledby="influence-heading">
+          <div className="local-card-head">
+            <h2 id="influence-heading">서비스 {forecast.comparedProviderCount}곳 · 내일</h2>
+            {spread.length > 1 && (
+              <b>편차 {Math.round(Math.min(...spread))}–{Math.round(Math.max(...spread))}%</b>
+            )}
+          </div>
+          <div className="local-prov">
             {forecast.influence.map((provider) => (
-              <div className="local-influence-row" key={provider.id}>
-                <div>
-                  <strong>{provider.name}</strong>
-                  <span>{probabilityLabel(provider.probability)}</span>
-                </div>
-                <div
-                  className="local-weight-track"
+              <div
+                className={`local-prow${weighted && provider.influence === influenceMax ? " is-best" : ""}`}
+                key={provider.id}
+              >
+                <span className="local-prow-n">{provider.name}</span>
+                <span
+                  className="local-meter"
+                  style={{ "--w": `${Math.round(provider.influence * 100)}%` } as CSSProperties}
                   aria-label={`${Math.round(provider.influence * 100)}% 영향`}
                 >
-                  <span style={{ width: `${provider.influence * 100}%` }} />
-                </div>
-                <b>{Math.round(provider.influence * 100)}%</b>
+                  <i />
+                </span>
+                <span className="local-prow-v">{probabilityLabel(provider.probability)}</span>
               </div>
             ))}
           </div>
-        ) : (
-          <>
-            {/* Equal weights make every bar identical, which reads as a chart
-                that failed to load. Say it in words and show the spread. */}
-            <p className="local-influence-note">
-              아직 이 지역의 성능 기록이 없어, 모든 서비스를 똑같은 비중으로
-              평균했습니다. 각 서비스가 내놓은 내일 강수 확률은 이렇습니다.
-            </p>
-            <div className="local-influence-grid is-equal">
-              {forecast.influence.map((provider) => (
-                <div className="local-influence-row is-equal" key={provider.id}>
-                  <strong>{provider.name}</strong>
-                  <b>{probabilityLabel(provider.probability)}</b>
+          <p className="local-card-why">
+            {weighted
+              ? <>막대는 이번 예보에서 각 서비스가 차지한 영향입니다. {seeded ? "과거 기록으로 추정한 적중률" : "최근 이 지역의 적중률"}에 따라 비중이 다릅니다.</>
+              : "아직 이 지역의 성능 기록이 없어, 모든 서비스를 똑같은 비중으로 평균했습니다."}
+          </p>
+        </section>
+
+        {forecast.outlook.length > 1 && (
+          <section className="local-card" aria-labelledby="outlook-heading">
+            <div className="local-card-head">
+              <h2 id="outlook-heading">{forecast.outlook.length}일 전망</h2>
+              <b>동일 비중</b>
+            </div>
+            <div className="local-week">
+              {forecast.outlook.map((day) => (
+                <div className="local-wd" key={day.date}>
+                  <span className="local-wd-d">{formatOutlookDate(day.date)}</span>
+                  <span className="local-wd-b">
+                    <i style={{ "--h": `${Math.round(day.precipitationProbability ?? 0)}%` } as CSSProperties} />
+                  </span>
+                  <span className="local-wd-v">{probabilityLabel(day.precipitationProbability)}</span>
                 </div>
               ))}
             </div>
-          </>
+            <p className="local-card-why">
+              성능 가중은 <b>내일 하루에만</b> 적용됩니다. 모레부터는 서비스를 그대로 평균한 값입니다.
+            </p>
+          </section>
         )}
-      </section>
+      </div>
 
       <PerformanceEvidence evidence={forecast.evidence} cohortLabel={forecast.cohortLabel} />
 
       <footer className="local-footer">
-        <p>예보 비교: Open-Meteo · MET Norway · 기상청 · Pirate Weather · WeatherAPI 중 응답한 서비스</p>
+        <p>출처 Open-Meteo · MET Norway · 기상청 · Pirate Weather · WeatherAPI 중 응답한 서비스 · 모든 시각 KST</p>
         <p>관측 검증: 기상청 ASOS · 사용자 위치는 서버에 저장하지 않음</p>
+        {timeline && (
+          <p>
+            시간대 확률은 {timeline.sourceName} 한 곳의 값이고, 오늘·내일 확률은 여러 곳을 섞은
+            값입니다. 같은 주장이 아닙니다.
+          </p>
+        )}
       </footer>
     </main>
   );
@@ -1153,7 +1325,6 @@ export default function LocalForecastExperience() {
 
   return (
     <div className="local-forecast-page">
-      <div className="local-atmosphere" aria-hidden><span /><span /><span /></div>
 
       {/* One region that outlives every view swap. Mounting the status inside
           the view that replaces it meant the arrival was never announced. */}
@@ -1187,24 +1358,61 @@ export default function LocalForecastExperience() {
           two announcers read one change out twice. */}
       {state.kind === "loading" && (
         <div className="local-loading is-overlay">
-          <span />
-          <p>{state.label}의 예보를 비교하고 있어요.</p>
+          <p className="local-loading-place">{state.label}</p>
+          <p className="local-loading-lead">
+            예보 <b>{COMPARED_PROVIDER_NAMES.length}곳</b>을 불러오는 중입니다
+          </p>
+          {/* Names, not a spinner: the wait is spent contacting these five, and
+              a neutral spinner hides the one honest thing happening. No
+              per-provider state — the API answers once, so a row that claimed
+              to know which of them had replied would be inventing it. */}
+          <p className="local-loading-names">{COMPARED_PROVIDER_NAMES.join(" · ")}</p>
+          <span className="local-loading-rule" aria-hidden />
+          <p className="local-loading-note">
+            응답하지 않는 서비스는 비교에서 빠집니다. 값을 지어내지 않습니다.
+          </p>
         </div>
       )}
 
       {state.kind === "error" && (
-        <div className="local-loading">
-          <p>{state.message}</p>
+        <div className="local-state-card">
+          {/* Two failures, two shapes. `retry` is null exactly when the same
+              request can never succeed, so that card offers no retry and says
+              why rather than leaving a button that is guaranteed to fail. */}
+          <p className="local-state-kicker">
+            {errorRetry ? "예보를 불러오지 못함" : "서비스 지역 밖"}
+          </p>
+          <h1 className="local-state-heading">{state.message}</h1>
+          <p className="local-state-body">
+            {errorRetry
+              ? "네트워크나 예보 서비스 쪽 문제일 수 있습니다. 다시 시도하면 같은 좌표로 다시 요청합니다."
+              : "오늘비는 대한민국 행정구역 안의 좌표만 예보합니다. 같은 좌표로 다시 요청해도 결과는 같으므로, 지역을 다시 고르는 것만 보여드립니다."}
+          </p>
           <div className="local-error-actions">
             {/* A provider being briefly down says nothing about the location,
                 so retrying the same one is the first thing to offer. */}
             {errorRetry && (
-              <button type="button" onClick={() => void chooseLocation(errorRetry, false)}>
+              <button
+                type="button"
+                className="is-primary"
+                onClick={() => void chooseLocation(errorRetry, false)}
+              >
                 다시 시도
               </button>
             )}
-            <button type="button" onClick={() => returnToChooser(false)}>다른 위치 선택</button>
+            <button
+              type="button"
+              className={errorRetry ? undefined : "is-primary"}
+              onClick={() => returnToChooser(false)}
+            >
+              {errorRetry ? "위치 바꾸기" : "지역 다시 고르기"}
+            </button>
           </div>
+          <p className="local-state-why">
+            {errorRetry
+              ? "저장된 위치는 지우지 않았습니다."
+              : "이 좌표는 기기에 저장하지 않았습니다."}
+          </p>
         </div>
       )}
 
