@@ -1096,7 +1096,7 @@ test("the answer sentence names both ends of the rain window", async () => {
   // knows when it starts and when it stops.
   assert.equal(
     view.container.querySelector("#forecast-heading")?.textContent,
-    "비는 오후 12시부터, 21시까지",
+    "비는 오후 12시부터, 밤 9시까지",
   );
   assert.equal(view.container.querySelectorAll(".local-ribbon-col").length, 3);
   await view.cleanup();
@@ -1121,7 +1121,7 @@ test("a run that never stops inside the series does not claim an end time", asyn
 
   const heading = view.container.querySelector("#forecast-heading")?.textContent ?? "";
   assert.match(heading, /예보 끝까지 이어집니다/);
-  assert.doesNotMatch(heading, /21시까지/, "nothing published showed the rain stopping");
+  assert.doesNotMatch(heading, /9시까지/, "nothing published showed the rain stopping");
   await view.cleanup();
 });
 

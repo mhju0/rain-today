@@ -1023,8 +1023,15 @@ html {
 }
 
 .local-evidence-section {
-  padding: var(--s-band) 0 0;
+  padding: 2.5rem 0 0;
   border-top: 1px solid var(--local-line);
+  margin-top: 2.5rem;
+}
+
+.local-evidence-section .local-section-heading h2 {
+  font-size: 1.45rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
 
 .local-section-heading {
@@ -1091,7 +1098,7 @@ html {
 }
 
 .local-evidence-meta {
-  margin-top: clamp(3rem, 7vw, 5.5rem);
+  margin-top: 1.5rem;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   border-top: 1px solid var(--local-line);
@@ -1099,7 +1106,7 @@ html {
 }
 
 .local-evidence-meta > div {
-  min-height: 7rem;
+  min-height: 5rem;
   padding: 1.5rem 1.5rem 1.5rem 0;
   display: flex;
   flex-direction: column;
@@ -1118,7 +1125,7 @@ html {
 }
 
 .local-score-table {
-  margin-top: 2.5rem;
+  margin-top: 1.75rem;
 }
 
 .local-score-row {
@@ -1232,7 +1239,7 @@ html {
    "위치 바꾸기" button. */
 
 .local-dashboard {
-  --local-track: 190px;
+  --local-track: 160px;
   display: flex;
   flex-direction: column;
   font-variant-numeric: tabular-nums;
@@ -1761,7 +1768,7 @@ html {
 
 .local-prow {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 44px 34px;
+  grid-template-columns: minmax(0, 7rem) minmax(2.5rem, 1fr) 2.25rem;
   gap: 0.5rem;
   align-items: center;
   font-size: 0.72rem;
@@ -1863,6 +1870,23 @@ html {
     max-width: 35rem;
   }
 
+  .local-dashboard {
+    --local-track: 140px;
+  }
+
+  /* Eight one-line hints are unreadable once a column is under ~90px, and they
+     are the one thing on this page nobody needs in order to get the answer. */
+  .local-ribbon-hint {
+    display: none;
+  }
+
+  .local-evidence-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .local-evidence-cards > :last-child {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 640px) {
@@ -1904,7 +1928,7 @@ html {
   }
 
   .local-dashboard {
-    --local-track: 136px;
+    --local-track: 122px;
   }
 
   /* The location strip is the only navigation on a page about eleven phone

@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { CONDITION_LABELS_KO } from "@/lib/conditions";
+import { periodNameForHour } from "@/lib/forecast/blocks";
 import type { TimelineReading } from "@/lib/forecast/rainWindow";
 import type { LocalForecastTimelineBlock, LocalForecastView } from "@/lib/localForecastView";
 import {
@@ -66,13 +67,19 @@ function formatDate(date: string | null): string {
   }).format(new Date(`${date}T12:00:00+09:00`));
 }
 
+/**
+ * "20 목" — six of these share one card, so the month is dropped. The card
+ * already says these are the days after tomorrow, and a full "8. 20. (목)"
+ * overflows its column at every width.
+ */
 function formatOutlookDate(date: string): string {
-  return new Intl.DateTimeFormat("ko-KR", {
+  const weekday = new Intl.DateTimeFormat("ko-KR", {
     timeZone: "Asia/Seoul",
-    weekday: "short",
-    month: "numeric",
-    day: "numeric",
+    weekday: "narrow",
   }).format(new Date(`${date}T12:00:00+09:00`));
+  // Off the ISO date rather than Intl: ko-KR renders `day: "numeric"` as "20일",
+  // and "20일 목" is a third wider than the column it has to sit in.
+  return `${Number(date.slice(8, 10))} ${weekday}`;
 }
 
 /**
@@ -788,6 +795,16 @@ function blockHint(
   return "기준 아래입니다.";
 }
 
+/**
+ * "오후 1시", "자정" — a Korean period name pairs with a 12-hour number, so the
+ * raw 24-hour clock the blocks carry ("오후 13시") reads as a mistake.
+ */
+function clockLabel(hour: number): string {
+  if (hour === 0) return "자정";
+  const period = periodNameForHour(hour);
+  return `${period} ${hour % 12 === 0 ? 12 : hour % 12}시`;
+}
+
 /** The rain window as the sentence the page leads with. */
 function RainSentence({ run, endsTomorrow }: {
   run: TimelineReading["firstRun"];
@@ -796,7 +813,7 @@ function RainSentence({ run, endsTomorrow }: {
   if (!run) return <>앞으로 24시간, <b>비 소식은 없습니다</b></>;
   const onset = run.startIndex === 0
     ? "지금부터"
-    : `${run.startsTomorrow ? "내일 " : ""}${run.startLabel} ${run.startHour}시부터`;
+    : `${run.startsTomorrow ? "내일 " : ""}${clockLabel(run.startHour)}부터`;
   if (!run.endsWithinWindow) {
     return <>비는 <b>{onset}</b><span className="local-answer-dim">, </span>예보 끝까지 이어집니다</>;
   }
@@ -804,7 +821,7 @@ function RainSentence({ run, endsTomorrow }: {
     <>
       비는 <b>{onset}</b>
       <span className="local-answer-dim">, </span>
-      <b>{endsTomorrow && !run.startsTomorrow ? "내일 " : ""}{run.endHour}시까지</b>
+      <b>{endsTomorrow && !run.startsTomorrow ? "내일 " : ""}{clockLabel(run.endHour)}까지</b>
     </>
   );
 }
