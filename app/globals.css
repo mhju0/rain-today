@@ -723,26 +723,29 @@ html {
   height: 0.38rem;
   border-radius: 50%;
   background: var(--local-accent);
-  box-shadow: 0 0 1rem rgb(158 217 210 / 0.8);
+  box-shadow: 0 0 1rem rgb(76 194 255 / 0.5);
 }
 
 .local-chooser {
   width: min(100% - 2.5rem, 1180px);
-  min-height: calc(100svh - 5.5rem);
   margin: 0 auto;
-  padding: clamp(4rem, 10vh, 8rem) 0;
+  padding: clamp(2.5rem, 6vh, 4.5rem) 0 4rem;
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(20rem, 0.8fr);
-  gap: clamp(3rem, 9vw, 9rem);
-  align-items: center;
+  grid-template-columns: minmax(0, 1.15fr) minmax(20rem, 0.85fr);
+  gap: clamp(2rem, 5vw, 4rem);
+  /* Top-aligned, not centred: two columns of different heights each floating at
+     their own centre read as two unrelated blocks. */
+  align-items: start;
 }
 
 .local-eyebrow {
+  font-family: var(--local-mono);
   color: var(--local-accent);
-  font-size: var(--t-label);
-  font-weight: 650;
-  letter-spacing: 0.2em;
+  font-size: 0.68rem;
+  font-weight: 400;
+  letter-spacing: 0.18em;
   line-height: 1.4;
+  text-transform: uppercase;
 }
 
 .local-chooser-copy h1,
@@ -753,65 +756,136 @@ html {
 }
 
 .local-chooser-copy h1 {
-  margin-top: 1.4rem;
+  margin-top: 1rem;
   /* The copy carries its own <br>, so balancing fights it: the algorithm split
      "여기서는 어떨까요?" across two more lines. `ch` is also the wrong unit here
      — it is the width of "0", about half a Hangul glyph — so the width is set
      in `em`, which tracks Hangul's roughly square advance. */
   text-wrap: initial;
   max-width: 12em;
-  font-size: clamp(3.4rem, 7vw, 7rem);
-  font-weight: 360;
-  line-height: 0.98;
+  /* Was clamped to 7rem, which rendered ~74px — larger than anything on the
+     dashboard that follows it. One type system across both screens. */
+  font-size: clamp(2.4rem, 4.6vw, 3.6rem);
+  font-weight: 300;
+  line-height: 1.08;
 }
 
-.local-chooser-copy > p:last-child {
-  max-width: 35rem;
-  margin-top: 2rem;
-  color: #c3ccd0;
-  font-size: clamp(1rem, 1.5vw, 1.16rem);
-  line-height: 1.85;
+.local-chooser-copy h1 b {
+  font-weight: 650;
+}
+
+.local-chooser-copy > p {
+  max-width: 26em;
+  margin-top: 1.15rem;
+  color: var(--local-ink-2);
+  font-size: var(--t-value);
+  line-height: 1.75;
   text-wrap: pretty;
 }
 
+/* The three facts the dashboard's evidence cards end on, said up front. */
+.local-chooser-facts {
+  margin: 1.9rem 0 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--local-line);
+  border-bottom: 1px solid var(--local-line);
+}
+
+.local-chooser-facts > div {
+  padding: 0.9rem 0.9rem 1rem 0;
+  display: grid;
+  gap: 0.3rem;
+  align-content: start;
+}
+
+.local-chooser-facts > div + div {
+  padding-left: 0.9rem;
+  border-left: 1px solid var(--local-line);
+}
+
+.local-chooser-facts dt {
+  font-family: var(--local-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--local-muted);
+}
+
+.local-chooser-facts dd {
+  margin: 0;
+  font-family: var(--local-mono);
+  font-size: 1.06rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--local-ink);
+}
+
+.local-chooser-facts small {
+  font-size: 0.68rem;
+  line-height: 1.5;
+  color: var(--local-dim);
+}
+
 .local-location-actions {
-  padding-top: 1rem;
+  display: grid;
+  gap: 0.75rem;
+  align-content: start;
+  padding: 1.15rem;
+  border: 1px solid var(--local-line);
+  border-radius: 3px;
+  background: var(--local-panel);
+}
+
+.local-panel-title {
+  font-family: var(--local-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--local-muted);
 }
 
 .local-primary-button {
   width: 100%;
-  min-height: 4.35rem;
+  min-height: 3.25rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.8rem;
-  border: 1px solid rgb(193 229 225 / 0.5);
-  background: #d7ece7;
-  color: #0b2225;
-  font-size: 0.96rem;
-  font-weight: 680;
+  gap: 0.6rem;
+  border: 1px solid var(--local-accent-deep);
+  border-radius: 3px;
+  background: rgb(76 194 255 / 0.08);
+  color: var(--local-accent);
+  font-size: 0.88rem;
+  font-weight: 650;
   cursor: pointer;
-  transition: transform 180ms ease, background 180ms ease;
+  transition: background 180ms ease, border-color 180ms ease;
 }
 
 .local-primary-button:hover {
-  transform: translateY(-2px);
-  background: #edf7f3;
+  border-color: var(--local-accent);
+  background: rgb(76 194 255 / 0.15);
+}
+
+.local-primary-button:disabled {
+  cursor: progress;
+  opacity: 0.7;
 }
 
 .local-button-icon,
 .local-search-form > svg {
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 1rem;
+  height: 1rem;
 }
 
 .local-divider {
-  margin: 2.1rem 0 1.3rem;
   display: flex;
   align-items: center;
-  gap: 0.9rem;
-  color: var(--local-muted);
-  font-size: 0.72rem;
+  gap: 0.75rem;
+  font-family: var(--local-mono);
+  color: var(--local-dim);
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
 }
 
 .local-divider::before,
@@ -819,22 +893,24 @@ html {
   content: "";
   flex: 1;
   height: 1px;
-  background: var(--local-line);
+  background: var(--local-line-2);
 }
 
 .local-search-form {
-  min-height: 4rem;
+  min-height: 3.25rem;
+  padding: 0 0.85rem;
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 0.8rem;
-  border-bottom: 1px solid rgb(210 224 226 / 0.42);
-  transition: border-color 160ms ease, box-shadow 160ms ease;
+  gap: 0.65rem;
+  border: 1px solid var(--local-line-2);
+  border-radius: 3px;
+  background: var(--local-panel-2);
+  transition: border-color 160ms ease;
 }
 
 .local-search-form:focus-within {
-  border-bottom-color: var(--local-accent);
-  box-shadow: 0 1px 0 rgb(158 217 210 / 0.25);
+  border-color: var(--local-accent-deep);
 }
 
 .local-search-form > svg {
@@ -843,21 +919,21 @@ html {
 
 .local-search-form input {
   min-width: 0;
-  height: 4rem;
+  height: 3.25rem;
   outline: none;
   color: var(--local-ink);
-  font-size: 1rem;
+  font-size: 0.9rem;
 }
 
 .local-search-form input::placeholder {
-  color: #788890;
+  color: var(--local-dim);
 }
 
 .local-search-form button {
   min-height: 2.75rem;
-  padding: 0 0.25rem 0 1rem;
+  padding: 0 0.1rem 0 0.65rem;
   color: var(--local-accent);
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 650;
   cursor: pointer;
 }
@@ -887,14 +963,22 @@ html {
 .local-form-status button {
   flex: 0 0 auto;
   padding: 0.8rem 0 0.2rem;
-  border-bottom: 1px solid rgb(158 217 210 / 0.55);
+  border-bottom: 1px solid var(--local-accent-deep);
   color: var(--local-accent);
   font-size: 0.72rem;
   cursor: pointer;
 }
 
 .local-privacy-note {
-  margin-top: 1.6rem;
+  margin-top: 0.25rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--local-line);
+  display: grid;
+  gap: 0.4rem;
+  font-family: var(--local-mono);
+  font-size: 0.62rem;
+  line-height: 1.75;
+  color: var(--local-dim);
 }
 
 .local-search {
@@ -970,44 +1054,105 @@ html {
   color: #84969d;
 }
 
+.local-loading-place {
+  font-family: var(--local-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--local-accent);
+}
+
+.local-loading-lead {
+  max-width: 24em;
+  font-size: clamp(1.25rem, 2.6vw, 1.7rem);
+  font-weight: 300;
+  letter-spacing: -0.03em;
+  line-height: 1.25;
+}
+
+.local-loading-lead b {
+  font-weight: 650;
+}
+
+.local-loading-names {
+  font-family: var(--local-mono);
+  font-size: 0.72rem;
+  line-height: 1.7;
+  color: var(--local-ink-2);
+}
+
+.local-loading-rule {
+  height: 1px;
+  background: var(--local-line);
+}
+
+.local-loading-note {
+  font-family: var(--local-mono);
+  font-size: 0.66rem;
+  line-height: 1.7;
+  color: var(--local-dim);
+}
+
+/* One card for a failure, shaped by whether the same request could ever work. */
+.local-state-card {
+  width: min(100% - 2.5rem, 42rem);
+  margin: clamp(2.5rem, 8vh, 5rem) auto;
+  padding: 1.35rem 1.5rem 1.5rem;
+  display: grid;
+  gap: 0.7rem;
+  border: 1px solid var(--local-line);
+  border-left: 2px solid var(--local-amber);
+  border-radius: 3px;
+  background: var(--local-panel);
+}
+
+.local-state-kicker {
+  font-family: var(--local-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--local-amber);
+}
+
+.local-state-heading {
+  font-size: 1.2rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.4;
+}
+
+.local-state-body {
+  max-width: 34em;
+  font-size: 0.85rem;
+  line-height: 1.7;
+  color: var(--local-ink-2);
+}
+
+.local-state-why {
+  margin-top: 0.15rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--local-line);
+  font-family: var(--local-mono);
+  font-size: 0.66rem;
+  line-height: 1.7;
+  color: var(--local-dim);
+}
+
 .local-loading {
   min-height: calc(100svh - 5.5rem);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1.3rem;
-  padding: 2rem;
-  color: #c7d0d4;
-  text-align: center;
+  display: grid;
+  gap: 0.85rem;
+  align-content: center;
+  justify-items: start;
+  width: min(100% - 2.5rem, 40rem);
+  margin: 0 auto;
+  padding: 2rem 0;
+  color: var(--local-ink);
 }
 
-.local-loading > span {
-  width: 3rem;
-  height: 1px;
-  overflow: hidden;
-  background: rgb(255 255 255 / 0.15);
-}
-
-.local-loading > span::after {
-  content: "";
-  display: block;
-  width: 50%;
-  height: 100%;
-  background: var(--local-accent);
-  animation: local-loading 900ms ease-in-out infinite alternate;
-}
-
-@keyframes local-loading {
-  from { transform: translateX(0); }
-  to { transform: translateX(100%); }
-}
-
-.local-loading button {
-  min-height: 2.75rem;
-  border-bottom: 1px solid var(--local-accent);
-  color: var(--local-accent);
-  cursor: pointer;
+.local-loading-rule {
+  align-self: stretch;
+  justify-self: stretch;
 }
 
 .local-dashboard {
@@ -1093,7 +1238,7 @@ html {
 }
 
 .local-status-pill.is-active {
-  border-color: rgb(158 217 210 / 0.42);
+  border-color: var(--local-accent-deep);
   color: var(--local-accent);
 }
 
@@ -1165,7 +1310,7 @@ html {
 .local-score-scroll {
   overflow-x: auto;
   scrollbar-width: thin;
-  scrollbar-color: rgb(158 217 210 / 0.4) transparent;
+  scrollbar-color: rgb(76 194 255 / 0.35) transparent;
 }
 
 .local-score-scroll::-webkit-scrollbar {
@@ -1174,7 +1319,7 @@ html {
 
 .local-score-scroll::-webkit-scrollbar-thumb {
   border-radius: 3px;
-  background: rgb(158 217 210 / 0.4);
+  background: rgb(76 194 255 / 0.35);
 }
 
 .local-score-row strong {
@@ -1859,7 +2004,7 @@ html {
 
   .local-chooser {
     grid-template-columns: 1fr;
-    align-content: center;
+    align-content: start;
   }
 
   .local-chooser-copy h1 {
@@ -1913,12 +2058,28 @@ html {
   }
 
   .local-chooser-copy h1 {
-    font-size: clamp(3.3rem, 16vw, 5rem);
+    font-size: clamp(2rem, 8.6vw, 2.6rem);
   }
 
-  .local-chooser-copy > p:last-child {
-    margin-top: 1.5rem;
+  .local-chooser-copy > p {
+    margin-top: 1rem;
     font-size: 0.94rem;
+  }
+
+  /* Three facts across a 390px screen leaves ~110px a column, which breaks the
+     provider list into a ragged stack. One per row instead. */
+  .local-chooser-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .local-chooser-facts > div {
+    padding: 0.8rem 0;
+  }
+
+  .local-chooser-facts > div + div {
+    padding-left: 0;
+    border-left: 0;
+    border-top: 1px solid var(--local-line);
   }
 
   .local-search-results li {
@@ -2010,10 +2171,6 @@ html {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .local-loading > span::after {
-    animation: none;
-  }
-
   .local-primary-button {
     transition: none;
   }
@@ -2085,10 +2242,47 @@ html {
 }
 
 .local-error-actions {
+  margin-top: 0.15rem;
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.75rem 1.5rem;
+  gap: 0.55rem;
+}
+
+/* These lost their styling when the old centred loading/error block went; they
+   are controls, so they have to look like the ones on the chooser. */
+.local-error-actions button {
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  border: 1px solid var(--local-line-2);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--local-ink-2);
+  font-size: 0.8rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: border-color 180ms ease, color 180ms ease, background 180ms ease;
+}
+
+.local-error-actions button:hover {
+  border-color: var(--local-accent-deep);
+  color: var(--local-ink);
+}
+
+.local-error-actions button.is-primary {
+  border-color: var(--local-accent-deep);
+  background: rgb(76 194 255 / 0.08);
+  color: var(--local-accent);
+}
+
+.local-error-actions button.is-primary:hover {
+  border-color: var(--local-accent);
+  background: rgb(76 194 255 / 0.15);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .local-error-actions button {
+    transition: none;
+  }
 }
 
 /* The chooser stays mounted under the loading overlay. Replacing the page with
@@ -2103,8 +2297,16 @@ html {
   position: fixed;
   inset: 0;
   z-index: 5;
-  background: color-mix(in srgb, var(--local-bg) 55%, transparent);
-  backdrop-filter: blur(3px);
+  width: auto;
+  padding-inline: clamp(1.25rem, 6vw, 6rem);
+  justify-content: center;
+  background: color-mix(in srgb, var(--local-bg) 88%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+/* The stack is capped so the lead does not run the full width of a desktop. */
+.local-loading.is-overlay > * {
+  width: min(100%, 34rem);
 }
 
 @media (prefers-reduced-motion: reduce) {

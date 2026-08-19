@@ -27,6 +27,26 @@ interface ChosenForecastLocation {
   selection: ForecastLocationSelection;
 }
 
+/**
+ * The forecast providers, in the order CLAUDE.md pins them. The chooser states
+ * the count before a visitor commits a coordinate, so it counts this list
+ * rather than carrying a number that can drift away from it.
+ */
+export const COMPARED_PROVIDER_NAMES = [
+  "Open-Meteo",
+  "MET Norway",
+  "기상청",
+  "Pirate Weather",
+  "WeatherAPI",
+] as const;
+
+/**
+ * Stations in the generated ASOS catalog. Held as a literal because the catalog
+ * itself is a large generated module that has no business in the client bundle;
+ * a test asserts this stays equal to `FALLBACK_STATION_CATALOG.length`.
+ */
+export const VERIFICATION_STATION_COUNT = 97;
+
 const STORED_LOCATION_KEY = "raintoday.last-location.v1";
 /** Pre-rename key. Read once so a returning visitor keeps their place. */
 const LEGACY_LOCATION_KEY = "seoulsky.last-location.v1";
@@ -394,18 +414,39 @@ export function LocationChooser({ onChoose, autoFocus = false, busy = false }: {
       inert={busy || undefined}
     >
       <div className="local-chooser-copy">
-        <p className="local-eyebrow">KOREA · LOCAL RAIN FORECAST</p>
+        <p className="local-eyebrow">대한민국 로컬 강수 예보</p>
         {/* Day-agnostic on purpose: the forecast now opens on today and carries
             tomorrow beside it, so naming one day in the promise would be wrong
             again the moment the other is on screen. */}
-        <h1 id="location-heading">비, 여기서는<br />어떨까요?</h1>
+        <h1 id="location-heading">비, <b>여기서는</b><br />어떨까요?</h1>
         <p>
           여러 날씨 서비스를 한곳에서 비교하고, 가까운 관측소에서 최근 실제로
           얼마나 맞았는지에 따라 예보의 영향을 조정합니다.
         </p>
+
+        {/* The same three facts the dashboard's evidence cards end on, said
+            before the visitor commits a coordinate rather than only after. */}
+        <dl className="local-chooser-facts">
+          <div>
+            <dt>비교하는 서비스</dt>
+            <dd>{COMPARED_PROVIDER_NAMES.length}곳</dd>
+            <small>{COMPARED_PROVIDER_NAMES.join(" · ")}</small>
+          </div>
+          <div>
+            <dt>검증 관측소</dt>
+            <dd>{VERIFICATION_STATION_COUNT}개</dd>
+            <small>기상청 ASOS · 익일 예보만 채점합니다</small>
+          </div>
+          <div>
+            <dt>시간축</dt>
+            <dd>24시간</dd>
+            <small>3시간 블록 8개로 비가 시작되고 그치는 때</small>
+          </div>
+        </dl>
       </div>
 
       <div className="local-location-actions">
+        <p className="local-panel-title">어디의 비를 볼까요</p>
         <button
           className="local-primary-button"
           type="button"
@@ -557,13 +598,15 @@ export function LocationChooser({ onChoose, autoFocus = false, busy = false }: {
         </div>
         </div>
 
-        <p className="local-privacy-note">
-          현재 위치 좌표는 예보를 위해 서버와 날씨 제공사에 전송되며, 계정이나 DB에
-          저장하지 않습니다. 다시 열었을 때 바로 보여드리려고 마지막으로 선택한 위치만
-          이 기기에 저장합니다. 예보 데이터는 좌표 기반으로 서버 메모리에 잠시 캐시될
-          수 있습니다. 지역 검색어는 Kakao에 전달되며, 검색 응답은 저장하지 않습니다.
-          <span>검색 결과는 행정구역 또는 법정구역 대표 위치 · 지역 검색 Kakao Map</span>
-        </p>
+        <div className="local-privacy-note">
+          <p>
+            현재 위치 좌표는 예보를 위해 서버와 날씨 제공사에 전송되며, 계정이나 DB에
+            저장하지 않습니다. 다시 열었을 때 바로 보여드리려고 마지막으로 선택한 위치만
+            이 기기에 저장합니다. 예보 데이터는 좌표 기반으로 서버 메모리에 잠시 캐시될
+            수 있습니다. 지역 검색어는 Kakao에 전달되며, 검색 응답은 저장하지 않습니다.
+          </p>
+          <p>검색 결과는 행정구역 또는 법정구역 대표 위치 · 지역 검색 Kakao Map</p>
+        </div>
       </div>
     </section>
   );
@@ -1315,24 +1358,61 @@ export default function LocalForecastExperience() {
           two announcers read one change out twice. */}
       {state.kind === "loading" && (
         <div className="local-loading is-overlay">
-          <span />
-          <p>{state.label}의 예보를 비교하고 있어요.</p>
+          <p className="local-loading-place">{state.label}</p>
+          <p className="local-loading-lead">
+            예보 <b>{COMPARED_PROVIDER_NAMES.length}곳</b>을 불러오는 중입니다
+          </p>
+          {/* Names, not a spinner: the wait is spent contacting these five, and
+              a neutral spinner hides the one honest thing happening. No
+              per-provider state — the API answers once, so a row that claimed
+              to know which of them had replied would be inventing it. */}
+          <p className="local-loading-names">{COMPARED_PROVIDER_NAMES.join(" · ")}</p>
+          <span className="local-loading-rule" aria-hidden />
+          <p className="local-loading-note">
+            응답하지 않는 서비스는 비교에서 빠집니다. 값을 지어내지 않습니다.
+          </p>
         </div>
       )}
 
       {state.kind === "error" && (
-        <div className="local-loading">
-          <p>{state.message}</p>
+        <div className="local-state-card">
+          {/* Two failures, two shapes. `retry` is null exactly when the same
+              request can never succeed, so that card offers no retry and says
+              why rather than leaving a button that is guaranteed to fail. */}
+          <p className="local-state-kicker">
+            {errorRetry ? "예보를 불러오지 못함" : "서비스 지역 밖"}
+          </p>
+          <h1 className="local-state-heading">{state.message}</h1>
+          <p className="local-state-body">
+            {errorRetry
+              ? "네트워크나 예보 서비스 쪽 문제일 수 있습니다. 다시 시도하면 같은 좌표로 다시 요청합니다."
+              : "오늘비는 대한민국 행정구역 안의 좌표만 예보합니다. 같은 좌표로 다시 요청해도 결과는 같으므로, 지역을 다시 고르는 것만 보여드립니다."}
+          </p>
           <div className="local-error-actions">
             {/* A provider being briefly down says nothing about the location,
                 so retrying the same one is the first thing to offer. */}
             {errorRetry && (
-              <button type="button" onClick={() => void chooseLocation(errorRetry, false)}>
+              <button
+                type="button"
+                className="is-primary"
+                onClick={() => void chooseLocation(errorRetry, false)}
+              >
                 다시 시도
               </button>
             )}
-            <button type="button" onClick={() => returnToChooser(false)}>다른 위치 선택</button>
+            <button
+              type="button"
+              className={errorRetry ? undefined : "is-primary"}
+              onClick={() => returnToChooser(false)}
+            >
+              {errorRetry ? "위치 바꾸기" : "지역 다시 고르기"}
+            </button>
           </div>
+          <p className="local-state-why">
+            {errorRetry
+              ? "저장된 위치는 지우지 않았습니다."
+              : "이 좌표는 기기에 저장하지 않았습니다."}
+          </p>
         </div>
       )}
 

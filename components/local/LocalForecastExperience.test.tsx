@@ -25,7 +25,12 @@ Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", {
 
 const { act } = await import("react");
 const { createRoot } = await import("react-dom/client");
-const { LocationChooser, default: LocalForecastExperience } = await import("./LocalForecastExperience");
+const {
+  LocationChooser,
+  COMPARED_PROVIDER_NAMES,
+  VERIFICATION_STATION_COUNT,
+  default: LocalForecastExperience,
+} = await import("./LocalForecastExperience");
 
 function kakaoResult(input: {
   id: string;
@@ -1260,4 +1265,27 @@ test("seed evidence shows the wet-day miss rate rather than claiming measured pe
   // borrow it, and the heading must not claim this is recent local measurement.
   assert.ok(!evidence.includes("최근 예보일수록 크게 반영"));
   assert.match(evidence, /기간 전체를 같은 비중으로 반영/);
+});
+
+// --- the chooser's three claims ---------------------------------------------
+
+test("the station count on the chooser tracks the generated catalog", async () => {
+  const { FALLBACK_STATION_CATALOG } = await import("@/lib/performance/stationCatalog");
+  // The chooser prints this number before anyone commits a coordinate, and the
+  // catalog is a large generated module that must not reach the client bundle —
+  // so the literal is guarded here rather than imported there.
+  assert.equal(VERIFICATION_STATION_COUNT, FALLBACK_STATION_CATALOG.length);
+});
+
+test("the chooser counts the providers it names rather than carrying a number", async () => {
+  // A stored location from an earlier test would skip the chooser entirely and
+  // leave every assertion below reading an empty string.
+  window.localStorage.clear();
+  const view = await mountExperience(async () => Response.json(forecastPayload()));
+  const facts = view.container.querySelector(".local-chooser-facts")?.textContent ?? "";
+  assert.match(facts, new RegExp(`${COMPARED_PROVIDER_NAMES.length}곳`));
+  // Every provider the count claims must actually be listed beside it.
+  for (const name of COMPARED_PROVIDER_NAMES) assert.match(facts, new RegExp(name));
+  assert.match(facts, new RegExp(`${VERIFICATION_STATION_COUNT}개`));
+  await view.cleanup();
 });
