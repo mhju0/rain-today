@@ -251,7 +251,7 @@ test("device accuracy is displayed but not sent to the forecast API", async () =
     await Promise.resolve();
   });
 
-  assert.match(container.querySelector(".local-precision-summary")?.textContent ?? "", /약 30 m/);
+  assert.match(container.querySelector(".local-strip-place")?.textContent ?? "", /약 30 m/);
   // The horizontal-accuracy estimate is shown to the user but must never reach
   // the server, so assert on the whole body rather than on one absent key.
   assert.deepEqual(
@@ -536,11 +536,13 @@ test("observed conditions and tomorrow's condition both reach the screen", async
   );
   const view = await mountExperience(async () => Response.json(forecastPayload()));
 
-  assert.match(view.container.querySelector(".local-now")?.textContent ?? "", /27°/);
-  assert.match(view.container.querySelector(".local-now")?.textContent ?? "", /구름 조금/);
-  // The hero is today's sky; tomorrow's lives in its own block below.
-  assert.equal(view.container.querySelector(".local-hero-condition")?.textContent, "비");
-  assert.match(view.container.querySelector(".local-tomorrow")?.textContent ?? "", /이슬비/);
+  assert.match(view.container.querySelector(".local-strip-now")?.textContent ?? "", /27°/);
+  assert.match(view.container.querySelector(".local-strip-now")?.textContent ?? "", /구름 조금/);
+  // The two day cards are two different calculations, so each carries its own
+  // sky rather than sharing one condition line.
+  const cards = view.container.querySelectorAll(".local-day");
+  assert.match(cards[0].textContent ?? "", /비/);
+  assert.match(cards[1].textContent ?? "", /이슬비/);
   await view.cleanup();
 });
 
@@ -628,7 +630,7 @@ test("Back returns to a device forecast whose URL is identical to the chooser's"
   });
   assert.ok(view.container.querySelector("#forecast-heading"), "forecast showing");
 
-  const reset = [...view.container.querySelectorAll(".local-dashboard-topline button")][0];
+  const reset = [...view.container.querySelectorAll(".local-strip-now button")][0];
   await act(async () => {
     (reset as HTMLButtonElement).click();
     await Promise.resolve();
@@ -740,7 +742,7 @@ test("dismissing someone else's link leaves this device's saved location alone",
   });
   const view = await mountExperience(async () => Response.json(forecastPayload()));
 
-  const reset = [...view.container.querySelectorAll(".local-dashboard-topline button")][0];
+  const reset = [...view.container.querySelectorAll(".local-strip-now button")][0];
   await act(async () => {
     (reset as HTMLButtonElement).click();
     await Promise.resolve();
@@ -820,13 +822,11 @@ test("the headline number is today's, not tomorrow's", async () => {
   const view = await mountExperience(async () => Response.json(forecastPayload()));
 
   assert.equal(view.container.querySelector("#forecast-heading")?.textContent, "오늘 비가 올까요?");
-  // 85 is today; 41 is tomorrow. Someone opening a weather app is asking about today.
-  assert.match(view.container.querySelector(".local-rain-number")?.textContent ?? "", /85/);
-  assert.match(
-    view.container.querySelector(".local-rain-number")?.getAttribute("aria-label") ?? "",
-    /85%/,
-  );
-  assert.match(view.container.querySelector(".local-tomorrow")?.textContent ?? "", /41%/);
+  // 85 is today; 41 is tomorrow. Today leads because the two cards are read in
+  // order, and someone opening a weather app is asking about today first.
+  const values = [...view.container.querySelectorAll(".local-day-value")];
+  assert.match(values[0].textContent ?? "", /85%/);
+  assert.match(values[1].textContent ?? "", /41%/);
   await view.cleanup();
 });
 
@@ -844,14 +844,12 @@ test("today's number is never presented as performance-weighted", async () => {
     Response.json(forecastPayload({ blendMode: "learned" })),
   );
 
-  assert.match(
-    view.container.querySelector(".local-forecast-facts")?.textContent ?? "",
-    /동일 비중/,
-  );
-  assert.match(
-    view.container.querySelector(".local-tomorrow-note")?.textContent ?? "",
-    /내일 예보에만/,
-  );
+  const tags = [...view.container.querySelectorAll(".local-tag")];
+  assert.match(tags[0].textContent ?? "", /동일 비중/);
+  assert.doesNotMatch(tags[0].textContent ?? "", /성능 가중/);
+  // Only tomorrow's card may claim the weighting, and it must say so on itself
+  // rather than leaving the reader to infer which number it applies to.
+  assert.match(tags[1].textContent ?? "", /성능 가중/);
   await view.cleanup();
 });
 
@@ -866,12 +864,10 @@ test("the hero falls back to tomorrow when today is no longer published", async 
   const view = await mountExperience(async () => Response.json(forecastPayload({ today: null })));
 
   assert.equal(view.container.querySelector("#forecast-heading")?.textContent, "내일 비가 올까요?");
-  assert.match(view.container.querySelector(".local-rain-number")?.textContent ?? "", /41/);
-  assert.equal(
-    view.container.querySelector(".local-tomorrow"),
-    null,
-    "no duplicate tomorrow block when tomorrow is already the hero",
-  );
+  const cards = view.container.querySelectorAll(".local-day");
+  assert.equal(cards.length, 1, "no empty 오늘 card when nobody still publishes today");
+  assert.match(cards[0].textContent ?? "", /내일/);
+  assert.match(view.container.querySelector(".local-day-value")?.textContent ?? "", /41%/);
   await view.cleanup();
 });
 
@@ -887,7 +883,7 @@ test("an unnamed device fix shows its accuracy rather than repeating itself", as
     Response.json(forecastPayload({ locationName: "현재 위치" })),
   );
 
-  const place = view.container.querySelector(".local-topline-place")?.textContent ?? "";
+  const place = view.container.querySelector(".local-strip-place")?.textContent ?? "";
   // "현재 위치 · 현재 기기 위치" told the reader nothing they did not already see.
   assert.doesNotMatch(place, /현재 기기 위치/);
   assert.match(place, /약 20 m/);
@@ -906,7 +902,7 @@ test("a resolved place name keeps the provenance label", async () => {
     Response.json(forecastPayload({ locationName: "서울특별시 강남구 역삼1동" })),
   );
 
-  const place = view.container.querySelector(".local-topline-place")?.textContent ?? "";
+  const place = view.container.querySelector(".local-strip-place")?.textContent ?? "";
   assert.match(place, /서울특별시 강남구 역삼1동/);
   assert.match(place, /현재 기기 위치/, "with a real name, how we got it is useful");
   await view.cleanup();
@@ -1064,71 +1060,117 @@ const SEED_LOCATION = JSON.stringify({
   elevationM: null, selection: { kind: "device", accuracyM: 18 },
 });
 
+/**
+ * A ribbon fixture. `reading` is what the view model derives from the blocks;
+ * it is passed explicitly so a test can state the window it means to render
+ * without re-deriving it here.
+ */
 function timeline(overrides: Record<string, unknown> = {}) {
   return {
     sourceName: "Open-Meteo",
-    onsetLabel: "오후",
+    threshold: 40,
     blocks: [
-      { label: "지금", rangeLabel: "9–12시", precipMax: 10, condition: "cloudy" },
-      { label: "오후", rangeLabel: "12–15시", precipMax: 75, condition: "rain" },
-      { label: "저녁", rangeLabel: "18–21시", precipMax: 40, condition: "rain" },
+      { label: "지금", rangeLabel: "9–12시", startHour: 9, endHour: 12, precipMax: 10, condition: "cloudy", wet: false, dayTag: null },
+      { label: "오후", rangeLabel: "12–15시", startHour: 12, endHour: 15, precipMax: 75, condition: "rain", wet: true, dayTag: null },
+      { label: "저녁", rangeLabel: "18–21시", startHour: 18, endHour: 21, precipMax: 40, condition: "rain", wet: true, dayTag: null },
     ],
+    reading: {
+      firstRun: {
+        startIndex: 1, endIndex: 2, startHour: 12, endHour: 21, startLabel: "오후",
+        startsTomorrow: false, durationHours: 6, endsWithinWindow: true, peakProbability: 75,
+      },
+      laterRun: null,
+      peak: { probability: 75, rangeLabel: "12–15시", startsTomorrow: false },
+    },
     ...overrides,
   };
 }
 
-test("the hero leads with when the rain starts, not just whether", async () => {
+test("the answer sentence names both ends of the rain window", async () => {
   window.localStorage.setItem("raintoday.last-location.v1", SEED_LOCATION);
   const view = await mountExperience(async () =>
     Response.json(forecastPayload({ timeline: timeline() })),
   );
 
   // "오늘 비가 올까요?" answers a question the number already answers; the series
-  // knows something the number cannot say.
-  assert.equal(view.container.querySelector("#forecast-heading")?.textContent, "오후부터 비 소식");
-  assert.equal(view.container.querySelectorAll(".local-timeline-block").length, 3);
+  // knows when it starts and when it stops.
+  assert.equal(
+    view.container.querySelector("#forecast-heading")?.textContent,
+    "비는 오후 12시부터, 21시까지",
+  );
+  assert.equal(view.container.querySelectorAll(".local-ribbon-col").length, 3);
   await view.cleanup();
 });
 
-test("the strip says whose forecast it is, because it is not the blend", async () => {
+test("a run that never stops inside the series does not claim an end time", async () => {
+  window.localStorage.setItem("raintoday.last-location.v1", SEED_LOCATION);
+  const view = await mountExperience(async () =>
+    Response.json(forecastPayload({
+      timeline: timeline({
+        reading: {
+          firstRun: {
+            startIndex: 1, endIndex: 2, startHour: 12, endHour: 21, startLabel: "오후",
+            startsTomorrow: false, durationHours: 6, endsWithinWindow: false, peakProbability: 75,
+          },
+          laterRun: null,
+          peak: { probability: 75, rangeLabel: "12–15시", startsTomorrow: false },
+        },
+      }),
+    })),
+  );
+
+  const heading = view.container.querySelector("#forecast-heading")?.textContent ?? "";
+  assert.match(heading, /예보 끝까지 이어집니다/);
+  assert.doesNotMatch(heading, /21시까지/, "nothing published showed the rain stopping");
+  await view.cleanup();
+});
+
+test("the ribbon says whose forecast it is, because it is not the blend", async () => {
   window.localStorage.setItem("raintoday.last-location.v1", SEED_LOCATION);
   const view = await mountExperience(async () =>
     Response.json(forecastPayload({ timeline: timeline({ sourceName: "기상청" }) })),
   );
 
   assert.match(
-    view.container.querySelector(".local-timeline-source")?.textContent ?? "",
+    view.container.querySelector(".local-ribbon-src")?.textContent ?? "",
     /기상청/,
-    "attributing the strip to the blend would overstate what the bars are",
+    "attributing the ribbon to the blend would overstate what the bars are",
   );
   await view.cleanup();
 });
 
-test("only the wettest block is emphasised, and only once rain is actually likely", async () => {
+test("the rain window is marked on the ribbon, and only once rain is actually likely", async () => {
   window.localStorage.setItem("raintoday.last-location.v1", SEED_LOCATION);
   const dry = await mountExperience(async () =>
     Response.json(forecastPayload({
       timeline: timeline({
-        onsetLabel: null,
         blocks: [
-          { label: "지금", rangeLabel: "9–12시", precipMax: 5, condition: "cloudy" },
-          { label: "오후", rangeLabel: "12–15시", precipMax: 22, condition: "cloudy" },
+          { label: "지금", rangeLabel: "9–12시", startHour: 9, endHour: 12, precipMax: 5, condition: "cloudy", wet: false, dayTag: null },
+          { label: "오후", rangeLabel: "12–15시", startHour: 12, endHour: 15, precipMax: 22, condition: "cloudy", wet: false, dayTag: null },
         ],
+        reading: {
+          firstRun: null,
+          laterRun: null,
+          peak: { probability: 22, rangeLabel: "12–15시", startsTomorrow: false },
+        },
       }),
     })),
   );
-  // Accenting the least-dry hour of a dry day reads as a rain warning.
-  assert.equal(dry.container.querySelectorAll(".local-timeline-block.is-peak").length, 0);
-  assert.equal(dry.container.querySelector("#forecast-heading")?.textContent, "오늘 비가 올까요?");
+  // Marking the least-dry hour of a dry day reads as a rain warning.
+  assert.equal(dry.container.querySelectorAll(".local-ribbon-col.is-wet").length, 0);
+  assert.match(
+    dry.container.querySelector("#forecast-heading")?.textContent ?? "",
+    /비 소식은 없습니다/,
+  );
   await dry.cleanup();
 
   window.localStorage.setItem("raintoday.last-location.v1", SEED_LOCATION);
   const wet = await mountExperience(async () =>
     Response.json(forecastPayload({ timeline: timeline() })),
   );
-  const peaks = wet.container.querySelectorAll(".local-timeline-block.is-peak");
-  assert.equal(peaks.length, 1);
-  assert.match(peaks[0].textContent ?? "", /75%/);
+  const marked = wet.container.querySelectorAll(".local-ribbon-col.is-wet");
+  assert.equal(marked.length, 2, "every block the rain covers is marked, not just the peak");
+  assert.match(marked[0].textContent ?? "", /75%/);
   await wet.cleanup();
 });
 
@@ -1138,27 +1180,43 @@ test("a block nobody forecast is drawn empty rather than as a confident 0%", asy
     Response.json(forecastPayload({
       timeline: timeline({
         blocks: [
-          { label: "지금", rangeLabel: "9–12시", precipMax: null, condition: "cloudy" },
-          { label: "오후", rangeLabel: "12–15시", precipMax: 75, condition: "rain" },
+          { label: "지금", rangeLabel: "9–12시", startHour: 9, endHour: 12, precipMax: null, condition: "cloudy", wet: false, dayTag: null },
+          { label: "오후", rangeLabel: "12–15시", startHour: 12, endHour: 15, precipMax: 75, condition: "rain", wet: true, dayTag: null },
         ],
       }),
     })),
   );
 
-  const first = view.container.querySelector(".local-timeline-block");
-  assert.ok(first?.classList.contains("is-empty"));
+  const first = view.container.querySelector(".local-ribbon-col");
+  assert.ok(first?.querySelector(".local-ribbon-track.is-na"), "a gap is hatched, not filled");
   assert.match(first?.textContent ?? "", /—/);
-  assert.equal(first?.querySelector("i"), null, "an empty block must draw no bar at all");
+  assert.equal(
+    first?.querySelector(".local-ribbon-bar"),
+    null,
+    "an unpublished block must draw no bar at all",
+  );
+  // A published 0% is a real statement and keeps a real, if thin, bar.
+  const zero = await mountExperience(async () =>
+    Response.json(forecastPayload({
+      timeline: timeline({
+        blocks: [
+          { label: "지금", rangeLabel: "9–12시", startHour: 9, endHour: 12, precipMax: 0, condition: "clear", wet: false, dayTag: null },
+        ],
+      }),
+    })),
+  );
+  assert.ok(zero.container.querySelector(".local-ribbon-bar.is-zero"));
+  await zero.cleanup();
   await view.cleanup();
 });
 
-test("no hourly series leaves the hero on the probability, with no strip", async () => {
+test("no hourly series leaves the answer on the probability, with no ribbon", async () => {
   window.localStorage.setItem("raintoday.last-location.v1", SEED_LOCATION);
   const view = await mountExperience(async () =>
     Response.json(forecastPayload({ timeline: null })),
   );
 
-  assert.equal(view.container.querySelector(".local-timeline"), null);
+  assert.equal(view.container.querySelector(".local-ribbon"), null);
   assert.equal(view.container.querySelector("#forecast-heading")?.textContent, "오늘 비가 올까요?");
   await view.cleanup();
 });
@@ -1197,7 +1255,7 @@ test("seed evidence shows the wet-day miss rate rather than claiming measured pe
   // The whole point of a separate seed mode: this is a retrospective estimate,
   // so the page must not claim it measured this station's recent performance.
   assert.ok(!evidence.includes("최근 관측 성능 반영"), "seed must not read as measured skill");
-  assert.match(evidence, /과거 예보 기록으로 추정한 성능을 반영합니다/);
+  assert.match(evidence, /과거 예보 기록으로 추정한 적중률을 일부만 반영했습니다/);
   // The recency half-life is a live-capture rule; a flat archive sample must not
   // borrow it, and the heading must not claim this is recent local measurement.
   assert.ok(!evidence.includes("최근 예보일수록 크게 반영"));
