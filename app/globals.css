@@ -943,12 +943,38 @@ html {
   margin-top: 1.6rem;
 }
 
+.local-search {
+  position: relative;
+}
+
+/* Out of flow on purpose. In the flow, every keystroke that changed the match
+   count resized the document — 879px to 1057px for a seven-result query — and
+   iOS Safari responded by rescrolling beneath the open keyboard, so the page
+   walked as you typed. As a popup it overlays what follows, which is what a
+   combobox popup is supposed to do, and the document height stops moving. */
+/* Everything that appears and disappears while typing lives here: the searching
+   line, the error and retry row, and the result list. All of it is out of flow,
+   so the document height no longer depends on what the query matched. */
+.local-search-popup {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  background: var(--local-bg);
+}
+
+.local-search-popup:empty {
+  display: none;
+}
+
 .local-search-results {
   margin-top: 0.65rem;
   max-height: min(19rem, 42svh);
   overflow-y: auto;
   overscroll-behavior: contain;
   border-top: 1px solid var(--local-line);
+  box-shadow: 0 18px 40px rgb(3 8 12 / 0.55);
 }
 
 .local-search-results li {

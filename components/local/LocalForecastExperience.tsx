@@ -411,6 +411,11 @@ export function LocationChooser({ onChoose, autoFocus = false, busy = false }: {
 
         <div className="local-divider"><span>또는 지역 직접 찾기</span></div>
 
+        {/* The combobox and its popup share a positioning context so the result
+            list can leave the flow. In the flow it resized the document on every
+            keystroke, and iOS Safari answered that by rescrolling under the
+            keyboard — the page visibly walked while you typed. */}
+        <div className="local-search">
         <form
           className="local-search-form"
           onSubmit={(event) => {
@@ -492,6 +497,7 @@ export function LocationChooser({ onChoose, autoFocus = false, busy = false }: {
           </button>
         </form>
 
+        <div className="local-search-popup">
         {searching && (
           <p className="local-form-message" role="status">지역 검색 중…</p>
         )}
@@ -540,6 +546,8 @@ export function LocationChooser({ onChoose, autoFocus = false, busy = false }: {
             </li>
           ))}
         </ul>
+        </div>
+        </div>
 
         <p className="local-privacy-note">
           현재 위치 좌표는 예보를 위해 서버와 날씨 제공사에 전송되며, 계정이나 DB에
