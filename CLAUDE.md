@@ -26,7 +26,7 @@ The application works without environment variables. Copy `.env.example` to `.en
 - `lib/cache.ts` provides process-local single-flight TTL caching with stale-on-error fallback.
 - The scheduled reliability CLI delegates restore, optional recovery, isolated cycle execution, validation, and publication to `runReliabilityStateTransaction`.
 - `GitStateTarget` owns the public `reliability-state` branch. The web runtime reads only its raw learned-weights file; `vercel.json` prevents state commits from creating deployments.
-- `public/sky/manifest.json` is the still-image manifest for the retired scene. Nothing on the live route reads it.
+- `public/sky/` is gone. The 37 still-image plates and their manifest were archived out of the repo on 2026-08-19 once the redesign left them with no consumer; they remain in git history and in the owner's local archive. `components/atmosphere/scene/SkyImageContext.tsx` still fetches `/sky/manifest.json`, so that tree cannot be re-routed without restoring the assets first.
 
 ## Invariants
 
@@ -39,7 +39,7 @@ The application works without environment variables. Copy `.env.example` to `.en
 - Preserve the RadarDelivery boundary: allow only real five-minute keys in the recent observed window; keep its default per-process limit of two active renders and eight queued renders; coalesce same-key requests; and propagate cancellation. Timeline discovery may scan from the nominal newest key through six older five-minute keys only while KMA explicitly classifies candidates as not yet published; the first deliverable key anchors all 13 frames. Busy, cancelled, timeout, malformed, and terminal failures stop discovery. Discovery is not a promise that other frames are cached. Keep produced PNGs immutable, process-local cache entries defensive and window-pruned, delivery-owned busy retry metadata serialized by the HTTP adapter, and failure responses non-cacheable.
 - Do not move per-second clock state into `WeatherFieldProvider`; that would repaint the scene every second.
 - Raw weather values must pass through the clamped visual mapping in `lib/atmosphere/weatherVisualConfig.ts` before reaching the shader.
-- A clear or partly-cloudy sky must never select a rain or snow plate. Time anchor is the hard axis in `lib/cinematic/skyImageField.ts`. (Unrouted, with `components/atmosphere/`.)
+- A clear or partly-cloudy sky must never select a rain or snow plate. Time anchor is the hard axis in `lib/cinematic/skyImageField.ts`. (Unrouted, and its plates are no longer in the repo; the rule holds for the code, which is still tested on synthetic fixtures.)
 - The ribbon's bars are a plain 0–100% scale with the umbrella threshold drawn at the probability it names — never a compressed scale that would put the mark somewhere other than its own value. A block with no published probability is hatched and unfilled; a published 0% keeps a real, thin bar. The rain window comes from `readTimeline`, and an unpublished block ends a run rather than extending it, so the page claims an end time only when a later block proved one.
 - The ribbon is one provider's hourly series while the 오늘 / 내일 numbers are a multi-provider blend. Keep them attributed apart; never let the ribbon read as consensus. Performance weighting applies to tomorrow only.
 - Missing providers, images, WebGL, or radar must leave an honest fallback rather than a blank scene or fabricated value.
