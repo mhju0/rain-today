@@ -1034,7 +1034,7 @@ html {
 }
 
 .local-search-results li[aria-selected="true"] {
-  background: rgb(215 236 231 / 0.05);
+  background: rgb(76 194 255 / 0.09);
 }
 
 .local-search-results span {
