@@ -78,9 +78,11 @@ try {
   // Seed rows reference performance_stations, so the catalog must exist first.
   // Only the apihub catalog is authoritative about which stations are ACTIVE; a
   // fallback list is merged in so it cannot retire what the live pipeline knows.
+  // Sync the WHOLE catalog either way: --station narrows what gets backfilled, and
+  // syncing that subset would declare every other station retired.
   const catalog = catalogIsAuthoritative
-    ? stations
-    : mergeStationCatalog(await store.listStations(), stations);
+    ? allStations
+    : mergeStationCatalog(await store.listStations(), allStations);
   await store.syncStations(catalog, new Date().toISOString().slice(0, 10));
 
   const result = await runSeedBackfill({
