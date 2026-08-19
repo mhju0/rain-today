@@ -112,3 +112,41 @@ test("KMA station catalog decodes the EUC-KR names apihub actually serves", asyn
     else process.env.KMA_APIHUB_KEY = previousCatalogKey;
   }
 });
+
+test("KMA station catalog retries a dropped connection but not a refusal", async () => {
+  const previousCatalogKey = process.env.KMA_APIHUB_KEY;
+  process.env.KMA_APIHUB_KEY = "test-key";
+  const body = "90 128.5647 38.2509 11 17.5 18.7 1.7 10.0 0.4 90 속초 Sokcho 90 11D20401 5121025021 0";
+
+  try {
+    let transportAttempts = 0;
+    const flaky = async () => {
+      transportAttempts += 1;
+      if (transportAttempts < 3) throw new TypeError("fetch failed");
+      return new Response(body, { status: 200, headers: { "content-type": "text/plain" } });
+    };
+    const stations = await fetchKmaAsosStations(
+      new Date("2026-08-13T06:00:00+09:00"),
+      flaky as unknown as typeof fetch,
+    );
+    assert.equal(transportAttempts, 3);
+    assert.deepEqual(stations.map((station) => station.id), ["90"]);
+
+    let refusedAttempts = 0;
+    const refused = async () => {
+      refusedAttempts += 1;
+      return new Response("denied", { status: 403 });
+    };
+    await assert.rejects(
+      () => fetchKmaAsosStations(
+        new Date("2026-08-13T06:00:00+09:00"),
+        refused as unknown as typeof fetch,
+      ),
+      /HTTP 403/,
+    );
+    assert.equal(refusedAttempts, 1, "a refusal is terminal and must not be retried");
+  } finally {
+    if (previousCatalogKey === undefined) delete process.env.KMA_APIHUB_KEY;
+    else process.env.KMA_APIHUB_KEY = previousCatalogKey;
+  }
+});

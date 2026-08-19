@@ -6,6 +6,7 @@ const STATION_CATALOG_URL = "https://apihub.kma.go.kr/api/typ01/url/stn_inf.php"
 const ASOS_DAILY_URL =
   "https://apis.data.go.kr/1360000/AsosDalyInfoService/getWthrDataList";
 const MAX_STATION_CATALOG_BYTES = 1024 * 1024;
+const STATION_CATALOG_ATTEMPTS = 3;
 const MAX_ASOS_OBSERVATION_BYTES = 256 * 1024;
 
 function koreanDate(date: Date): string {
@@ -77,6 +78,25 @@ export function parseKmaStationCatalog(body: string, at: Date): ObservationStati
 }
 
 /**
+ * The catalog is the one call the cohort cannot continue without: it runs before any
+ * station is read, so a single dropped connection used to discard the whole run.
+ * Scheduled runners reach apihub only intermittently, so retry a thrown transport
+ * error — a connect failure or a timeout. A refusal is the server's actual answer and
+ * is never retried.
+ */
+async function fetchCatalog(url: string, fetchImpl: typeof fetch): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < STATION_CATALOG_ATTEMPTS; attempt += 1) {
+    try {
+      return await fetchImpl(url, { signal: AbortSignal.timeout(15_000) });
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
+
+/**
  * apihub serves the typ01 catalog as EUC-KR, not UTF-8. Decoding it as UTF-8 turns
  * every Korean station name into replacement characters, and those names are shown
  * to the reader, so honour the declared charset and fall back to EUC-KR.
@@ -103,9 +123,7 @@ export async function fetchKmaAsosStations(
     help: "0",
     authKey: key,
   });
-  const response = await fetchImpl(`${STATION_CATALOG_URL}?${params}`, {
-    signal: AbortSignal.timeout(15_000),
-  });
+  const response = await fetchCatalog(`${STATION_CATALOG_URL}?${params}`, fetchImpl);
   if (!response.ok) throw new Error(`KMA station catalog returned HTTP ${response.status}`);
   const catalog = await readResponseBytes(response, { maxBytes: MAX_STATION_CATALOG_BYTES });
   const stations = parseKmaStationCatalog(decodeCatalog(response, catalog), at);
