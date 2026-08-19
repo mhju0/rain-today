@@ -81,3 +81,34 @@ test("KMA performance readers reject oversized upstream bodies", async () => {
     else process.env.KMA_OBSERVATION_API_KEY = previousObservationKey;
   }
 });
+
+test("KMA station catalog decodes the EUC-KR names apihub actually serves", async () => {
+  const previousCatalogKey = process.env.KMA_APIHUB_KEY;
+  process.env.KMA_APIHUB_KEY = "test-key";
+  // apihub serves typ01 text as EUC-KR: 속초 is bc d3 c3 ca, 서울 is bc ad bf ef.
+  const row = (id: string, lon: string, lat: string, name: number[]): number[] => [
+    ...[...`${id} ${lon} ${lat} 11 17.5 18.7 1.7 10.0 0.4 ${id} `].map((c) => c.charCodeAt(0)),
+    ...name,
+    ...[...` Sokcho ${id} 11D20401 5121025021 0\n`].map((c) => c.charCodeAt(0)),
+  ];
+  const body = new Uint8Array([
+    ...row("90", "128.5647", "38.2509", [0xbc, 0xd3, 0xc3, 0xca]),
+    ...row("108", "126.9658", "37.5714", [0xbc, 0xad, 0xbf, 0xef]),
+  ]);
+  const respond = async () =>
+    new Response(body, {
+      status: 200,
+      headers: { "content-type": "text/plain;charset=EUC-KR" },
+    });
+
+  try {
+    const stations = await fetchKmaAsosStations(
+      new Date("2026-08-13T06:00:00+09:00"),
+      respond as typeof fetch,
+    );
+    assert.deepEqual(stations.map((station) => station.name), ["속초", "서울"]);
+  } finally {
+    if (previousCatalogKey === undefined) delete process.env.KMA_APIHUB_KEY;
+    else process.env.KMA_APIHUB_KEY = previousCatalogKey;
+  }
+});

@@ -76,6 +76,20 @@ export function parseKmaStationCatalog(body: string, at: Date): ObservationStati
   });
 }
 
+/**
+ * apihub serves the typ01 catalog as EUC-KR, not UTF-8. Decoding it as UTF-8 turns
+ * every Korean station name into replacement characters, and those names are shown
+ * to the reader, so honour the declared charset and fall back to EUC-KR.
+ */
+function decodeCatalog(response: Response, bytes: Uint8Array): string {
+  const declared = /charset=([\w-]+)/i.exec(response.headers.get("content-type") ?? "")?.[1];
+  try {
+    return new TextDecoder(declared ?? "euc-kr").decode(bytes);
+  } catch {
+    return new TextDecoder("euc-kr").decode(bytes);
+  }
+}
+
 export async function fetchKmaAsosStations(
   at: Date,
   fetchImpl: typeof fetch = fetch,
@@ -94,7 +108,7 @@ export async function fetchKmaAsosStations(
   });
   if (!response.ok) throw new Error(`KMA station catalog returned HTTP ${response.status}`);
   const catalog = await readResponseBytes(response, { maxBytes: MAX_STATION_CATALOG_BYTES });
-  const stations = parseKmaStationCatalog(new TextDecoder().decode(catalog), at);
+  const stations = parseKmaStationCatalog(decodeCatalog(response, catalog), at);
   if (stations.length === 0) throw new Error("KMA station catalog contained no usable ASOS rows");
   return stations;
 }
