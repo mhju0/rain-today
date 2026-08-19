@@ -88,22 +88,58 @@ operationally. That cannot be answered until the subscription exists and real ro
 be inspected. **Coverage is not the same as trustworthy coverage**, and AWS should not
 be adopted on the strength of the distance numbers alone.
 
+## Result: where people actually are
+
+The area-weighted figures above are the wrong denominator for a product decision, so the
+same measurement was repeated over 36 real administrative centres — the largest cities
+and 구, plus the island cases that stress the tail (울릉군, 옹진군, 제주시, 서귀포시,
+강화군, 목포시, 통영시, 여수시). Coordinates came from the live Kakao adapter, so these
+are the points the product would actually resolve.
+
+| | Area-weighted land | Populated places |
+|---|---|---|
+| median | 14.9 km | **5.2 km** |
+| ≤ 10 km | 25.0% | 67% |
+| ≤ 25 km | 90.0% | **97%** |
+| ≤ 50 km | 99.9% | **100%** |
+| max | 76.1 km | **30.2 km** |
+
+The furthest are 평택 30.2 km (→ 천안), 남양주 23.2 km and 성남 22.0 km (both → 서울),
+용인 17.3 km (→ 수원). **No populated place in Korea is more than about 30 km from an
+ASOS station**, and the 76 km tail is uninhabited shoreline and open water.
+
+The island worry in #29 does not survive contact with this data: 울릉군, 옹진군, 제주시,
+서귀포시 and 강화군 all resolve close to a station. What is far from a station is terrain,
+not people.
+
 ## Recommendation
 
-1. **Do not loosen anything.** The measurements give no argument for a threshold above
-   100 km, and #29's non-goals rule it out anyway.
-2. **Tightening to 50 km costs 0.1% of land area** and would make the threshold
-   meaningful for the first time, since it would actually fire — for island and remote
-   coastal users, who would fall back to equal weights with honest language rather than
-   being weighted by a station up to 76 km away.
-3. **Do not tighten to 25 km on ASOS alone.** It would strand 10% of land area, and the
-   user-facing state would be "local evidence unavailable" across large rural regions.
-4. **Treat AWS as the unlock for a 25 km rule**, gated on subscribing to the AWS
-   observation service and verifying field quality — not on these distance figures.
-5. **Elevation stays unresolved.** [Verified] `findStationMatch` only applies the
-   elevation gate when both elevations are known, and browser GPS altitude is usually
-   absent, so the gate is frequently inert. Quantifying that needs a DEM the repository
-   does not have.
+1. **Do not loosen anything.** #29's non-goals rule it out and nothing here argues for it.
+2. **Do not tighten the distance threshold either.** A 50 km rule would fire for nobody —
+   100% of populated places are already inside it — so it would buy zero protection while
+   adding a failure mode for anyone standing somewhere genuinely remote. A 25 km rule
+   would fire for roughly 3% of populated places, including 평택 and 남양주, which is a
+   real cost for no demonstrated benefit. **The distance threshold is not the problem.**
+3. **Fix the language instead.** The honest defect is that evidence from 30 km away is
+   presented the same way as evidence from 5 km. #29 already asks for the four-state
+   vocabulary; introduce the *regional* tier and let distance choose the wording rather
+   than the eligibility:
+   - **local** (≤ 25 km) — 97% of populated places; "recent performance near you"
+   - **regional** (25–100 km) — same weights, same station, but says so
+   - **collecting** — station matched, evidence below `minimumSamples`
+   - **unavailable** — no eligible station; equal weights
+   This costs no user their evidence, and makes the claim true at every distance.
+4. **Deprioritise AWS.** The 25% → 89% headline is area-weighted and overstates the user
+   impact badly: at populated places it would move the median from about 5.2 km to
+   roughly 3 km. That is not worth a new subscription against unverified quality control
+   on unmanned sites. Revisit only if the *regional* tier turns out to fire often enough
+   to annoy real users.
+5. **Elevation is the real unquantified risk, not distance.** [Verified]
+   `findStationMatch` applies the elevation gate only when both elevations are known, and
+   browser GPS altitude is usually absent, so the gate is frequently inert. A valley user
+   can silently match a mountain station — 대관령 sits at 772 m — which distorts
+   precipitation far more than a few extra kilometres of horizontal distance. Quantifying
+   it needs a DEM the repository does not have.
 
 ## Still open in #29
 
