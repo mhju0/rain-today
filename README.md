@@ -13,7 +13,7 @@ The interface is Korean, for Korean users. The captions below describe what each
 
 ![The chooser: pick the device location, or search a Korean administrative area](public/screenshots/landing.webp)
 
-*Nothing is requested until the visitor asks. The app never prompts for location automatically or infers it from an IP address.*
+*Nothing is requested until the visitor asks — the app never prompts for location automatically or infers it from an IP address. The three figures beside the two ways in are the same evidence the forecast ends on, stated before anyone commits a coordinate.*
 
 ![The rain window as a sentence, above the 24-hour time axis](public/screenshots/forecast.webp)
 
