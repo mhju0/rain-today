@@ -293,3 +293,8 @@
 {"date":"2026-08-21","source":"kma","region":"seoul","pop":60,"predicted_mm":null,"loggedAt":"2026-08-19T21:33:39.995Z"}
 {"date":"2026-08-21","source":"pirate-weather","region":"seoul","pop":90,"predicted_mm":null,"loggedAt":"2026-08-19T21:33:39.995Z"}
 {"date":"2026-08-21","source":"weather-api","region":"seoul","pop":75,"predicted_mm":2.48,"loggedAt":"2026-08-19T21:33:39.995Z"}
+{"date":"2026-08-22","source":"open-meteo","region":"seoul","pop":98,"predicted_mm":51.5,"loggedAt":"2026-08-20T21:36:33.979Z"}
+{"date":"2026-08-22","source":"met-norway","region":"seoul","pop":null,"predicted_mm":null,"loggedAt":"2026-08-20T21:36:33.979Z"}
+{"date":"2026-08-22","source":"kma","region":"seoul","pop":60,"predicted_mm":null,"loggedAt":"2026-08-20T21:36:33.979Z"}
+{"date":"2026-08-22","source":"pirate-weather","region":"seoul","pop":100,"predicted_mm":null,"loggedAt":"2026-08-20T21:36:33.979Z"}
+{"date":"2026-08-22","source":"weather-api","region":"seoul","pop":92,"predicted_mm":9.3,"loggedAt":"2026-08-20T21:36:33.979Z"}
