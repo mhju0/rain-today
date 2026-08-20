@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import type { QualitySettings } from "@/components/three/quality";
 
 /**
- * The live weather FX overlay — layer (c) of the /sky scene. A single 2D canvas
+ * The live weather FX overlay — layer (c) of the retired scene. A single 2D canvas
  * over the still color-field plate, driven by the LIVE weather: rain streaks,
  * snowfall, a random lightning flash in thunderstorms, a drifting fog veil, and
  * sun god-rays. It is GPU-cheap (one canvas, one rAF loop, capped particle

@@ -75,10 +75,10 @@ function applyReviewCond(snapshot: SkySnapshot | null, cond?: WeatherCondition):
 }
 
 /**
- * The single page shell for the weather experience at /sky. It owns one live
+ * The single page shell for the retired weather experience. It owns one live
  * data source and ONE persistent {@link SceneStage} (the still landmark plate,
  * live FX, and the procedural atmospheric-field fallback). Both are created once
- * in the /sky layout and never remount, because the
+ * in that layout and never remount, because the
  * experience is a single non-navigating scroll. The readable foreground (the
  * scroll content) is passed in as `children` and reads the shared state from
  * {@link WeatherFieldProvider}.

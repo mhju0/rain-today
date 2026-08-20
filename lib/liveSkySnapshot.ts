@@ -46,7 +46,7 @@ export interface LiveSkySnapshotOptions {
 }
 
 /**
- * Assemble the public /sky snapshot. This is the live-data boundary; the route
+ * Assemble the public `/api/sky` snapshot. This is the live-data boundary; the route
  * is deliberately only an HTTP adapter around this function.
  */
 export async function readLiveSkySnapshot(

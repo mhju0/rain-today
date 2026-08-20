@@ -101,7 +101,7 @@ function weightedField(
  * Weighted precipitation consensus across forecast sources. Self-normalizes over
  * whichever sources actually contributed (a null field is skipped). A single
  * contributing source returns that source's value unchanged (the identity) — the
- * live /sky path supplies one forecast source, so this is byte-for-byte safe.
+ * live `/api/sky` path supplies one forecast source, so this is byte-for-byte safe.
  */
 export function fuseWeightedPrecip(
   contributions: readonly PrecipContribution[],

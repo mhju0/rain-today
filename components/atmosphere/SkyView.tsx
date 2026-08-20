@@ -10,7 +10,7 @@ import RadarSection from "./sections/RadarSection";
 import { useWeatherField, useWeatherView, useWeatherViewToggle } from "./WeatherFieldContext";
 
 /**
- * The readable HUD over the live scene at /sky. Two discrete, keyboard-toggled
+ * The readable HUD over the live scene. Two discrete, keyboard-toggled
  * views share the viewport (desktop only): D toggles between them, Esc returns to
  * the hero — the state lives in {@link WeatherExperienceShell}.
  *

@@ -1,9 +1,9 @@
 import LocalForecastExperience from "@/components/local/LocalForecastExperience";
 
 /**
- * The forecast is the site, so it is served at the root. It lived at `/sky`
- * while this was a cinematic Seoul sky scene; that scene is retired and the
- * name outlived the thing it named.
+ * The forecast is the site, so it is served at the root. It briefly lived
+ * under a path named for the cinematic Seoul sky scene this grew out of; that
+ * scene is retired, and the name outlived the thing it named.
  *
  * No page-level `metadata` export: the root layout already declares the same
  * title and description, and a second copy here could only drift from it.

@@ -11,7 +11,7 @@ import ImageField from "./ImageField";
 import { useSkyImage } from "./SkyImageContext";
 
 /**
- * The one persistent SCENE that lives behind the /sky scroll content. It mounts
+ * The one persistent SCENE that lives behind the scroll content. It mounts
  * ONCE in the experience shell and never remounts on scroll. The view fills the
  * viewport edge-to-edge — there is no frame around it. Back-to-front:
  *

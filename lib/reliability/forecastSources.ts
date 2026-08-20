@@ -19,7 +19,7 @@ import type { SourceDailyForecast } from "../skyFusion";
  * offline pipeline also uses) — no parallel fetch logic, no new providers, all
  * keys stay server-side.
  *
- * Three properties make this safe to put on the live /sky path:
+ * Three properties make this safe to put on the live `/api/sky` path:
  *  - **Shared TTL cache** (FORECAST_CACHE_TTL_MS): the whole collection is fetched
  *    at most once per window, so concurrent /api/sky requests reuse one cycle
  *    instead of fanning out 5 live upstream calls each.

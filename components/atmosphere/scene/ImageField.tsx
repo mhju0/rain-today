@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSkyImage } from "./SkyImageContext";
 
 /**
- * The still "atmospheric color field" — layer (b) of the /sky scene, in place of
+ * The still "atmospheric color field" — layer (b) of the retired scene, in place of
  * the video gallery. It renders the single selected landmark plate
  * full-bleed (`object-fit: cover`) and cross-dissolves (~700ms) whenever the
  * condition or time-anchor changes the plate. There is no video machinery: a

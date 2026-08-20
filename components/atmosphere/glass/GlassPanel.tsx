@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 
 /**
- * A frameless reading surface used across the /sky HUD. It has no fill, border or
+ * A frameless reading surface used across the scene HUD. It has no fill, border or
  * shadow — content sits etched directly over the cinematic scene, matching the
  * other data sections. Its remaining job is to re-scope `--color-white` to the
  * adaptive `--sky-panel-ink` (via `.sky-panel` in globals.css) so descendant text
