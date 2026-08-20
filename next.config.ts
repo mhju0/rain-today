@@ -21,9 +21,8 @@ const contentSecurityPolicy = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   // The forecast is served at the root. The retired weather routes redirect
-  // there as real HTTP redirects, independent of JS. `/sky` — the name the
-  // forecast carried while this was a cinematic sky scene — is simply gone, and
-  // answers 404 like any other unknown path.
+  // there as real HTTP redirects, independent of JS. Nothing else is served;
+  // unknown paths answer 404.
   async redirects() {
     return [
       { source: "/atmosphere", destination: "/", permanent: false },

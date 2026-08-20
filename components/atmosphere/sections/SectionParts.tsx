@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import type { WeatherStatus } from "@/hooks/useLiveSeoulWeather";
 
 /**
- * Shared chrome for the four /sky scroll sections — the section shell, the quiet
+ * Shared chrome for the four scroll sections — the section shell, the quiet
  * KO·EN heading, and the live-status badge. Pure presentation; the panels and the
  * data live in the section bodies. Every section flows in the normal document
  * scroll over the fixed scene, so reveal/parallax here never drives the scene.

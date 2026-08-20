@@ -64,7 +64,7 @@ export interface DailyForecast {
    * Forecast daily precipitation total (mm). Optional enrichment populated only
    * by sources that publish a clean daily amount (Open-Meteo, WeatherAPI); other
    * sources omit it. Consumed by the offline source-reliability batch
-   * (lib/reliability) as `predicted_mm`; the live /sky scene ignores it.
+   * (lib/reliability) as `predicted_mm`; the live `/api/sky` snapshot ignores it.
    */
   precipitationAmount?: number | null;
 }
@@ -174,7 +174,7 @@ export interface SkyRadar {
 
 /**
  * One KMA radar composite frame (기상청 레이더 합성영상) — the imagery shown in the
- * /sky radar scope. Observed-only (the composite has no nowcast), 5-min cadence.
+ * Radar scope. Observed-only (the composite has no nowcast), 5-min cadence.
  */
 export interface KmaRadarFrame {
   /** Composite time key, yyyyMMddHHmm in KST (the API's `time` param + proxy `t`). */
@@ -362,7 +362,7 @@ export interface SkySnapshot {
   /**
    * Next ~7 days of Open-Meteo daily forecast (high/low, condition, sun times).
    * Already computed by /api/sky for the sun-times pick, so it is shared here at
-   * no extra upstream cost; the /sky forecast section's 7-day row reads it
+   * no extra upstream cost; the retired forecast section's 7-day row reads it
    * directly instead of forcing the heavy /api/weather fetch early in the scroll.
    * Always present (possibly empty).
    */

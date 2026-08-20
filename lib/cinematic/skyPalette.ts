@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import type { WeatherCondition } from "@/lib/types";
 
 /**
- * The single source of truth for the /sky day↔night palette. It turns the
+ * The single source of truth for the retired scene's day↔night palette. It turns the
  * continuous sun state into the CSS custom properties that both the fixed
  * scroll-driven gradient layer and every `.sky-panel` read (see globals.css).
  *

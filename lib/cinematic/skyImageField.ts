@@ -1,7 +1,7 @@
 /**
  * Seoul-landmark STILL-IMAGE field — manifest schema + pure selection helpers.
  *
- * The scene at /sky composites one still "atmospheric color
+ * The retired scene composites one still "atmospheric color
  * field" plate per landmark × condition × time-anchor, continuously colour-graded
  * by the live sun phase (see buildImageGrade in skyPalette.ts). This module holds
  * only the plain-data shapes and the deterministic, side-effect-free selection

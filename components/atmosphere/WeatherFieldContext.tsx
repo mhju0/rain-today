@@ -62,7 +62,7 @@ export function useWeatherClock(): Date | null {
 }
 
 /**
- * Which of the two discrete /sky views is showing — the full-screen live "hero"
+ * Which of the two discrete scene views is showing — the full-screen live "hero"
  * (video + minimal readout) or the scrolling "data" dashboard. The shell owns the
  * state and flips it from the keyboard (D toggles, Esc → hero); {@link SkyView}
  * reads it here to cross-fade the two layers, and the shell uses it to pause the

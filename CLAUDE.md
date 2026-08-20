@@ -16,7 +16,7 @@ The application works without environment variables. Copy `.env.example` to `.en
 ## Architecture
 
 - `app/page.tsx` renders `LocalForecastExperience` — the location chooser and, once a coordinate is chosen, the forecast dashboard — plus the `<noscript>` notice. It carries no `metadata` export; the root layout owns the title and description.
-- `/atmosphere` and `/diagnostics` redirect to `/` through `next.config.ts`. `/sky` was removed on 2026-08-20 and 404s; it is not redirected, so links shared before that date no longer resolve.
+- `/atmosphere` and `/diagnostics` redirect to `/` through `next.config.ts`. No other route is served; unknown paths 404.
 - The dashboard is one vertical read with no ambient scene behind it: the rain window as a sentence, the horizontal 24-hour ribbon (eight 3-hour blocks), the 오늘 / 내일 cards, three evidence cards, then the scored per-provider table. Its only interactive control is "위치 바꾸기".
 - The chooser, the loading overlay, and the failure card share that vocabulary: one flat ground, mono meta, 3px corners, and the rain-blue accent as the only filled colour. Nothing on any of the four screens may reintroduce the retired teal palette.
 - `components/atmosphere/` (`SkyView`, the still-image field, `WeatherExperienceShell`) is no longer routed. It is kept, not deleted; do not wire it back in without being asked.

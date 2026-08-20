@@ -1,5 +1,5 @@
 /**
- * Tunable knobs for the /sky precipitation-radar section. The one place to adjust the
+ * Tunable knobs for the precipitation-radar section. The one place to adjust the
  * radar look — keep magic numbers here, not in the component.
  *
  * Source: high-resolution KMA reflectivity (apihub.kma.go.kr `nph-rdr_cmp1_api`, HSR
