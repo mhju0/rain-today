@@ -7,7 +7,7 @@
 
 오늘비 ("rain today") is a South Korea local rain forecast. It leads with when rain starts and stops at the user's chosen coordinate, shows the next 24 hours as a horizontal time axis, carries today and tomorrow as two separately-calculated figures, and — when sufficient prospective evidence exists — adjusts each provider's influence on the next-day figure using the Recent Performance Profile from its KMA Station Match.
 
-**Live demo:** [raintoday.vercel.app/sky](https://raintoday.vercel.app/sky)
+**Live demo:** [raintoday.vercel.app](https://raintoday.vercel.app)
 
 The interface is Korean, for Korean users. The captions below describe what each screen shows.
 
@@ -75,22 +75,22 @@ npm run performance:seed -- --start=2025-06-01 --end=2025-08-31
 
 ## User flow
 
-The primary route is `/sky`:
+The forecast is the site, so it is served at `/`:
 
 1. choose precise browser location or search for a Korean place;
-2. see tomorrow's recommended rain probability and practical umbrella guidance;
-3. see when rain is expected to arrive, as a time-of-day strip from a single named provider;
-4. inspect each provider's current probability and influence;
-5. inspect the Station Match, distance, evidence depth, recent Brier scores, misses, and false alarms;
-6. review the longer precipitation outlook.
+2. read when rain starts and stops, as one sentence;
+3. read the shape of the next 24 hours on a horizontal time axis — eight 3-hour blocks from a single named provider;
+4. compare today and tomorrow, each tagged with how it was calculated;
+5. inspect the Station Match, each provider's probability and influence, and the longer outlook;
+6. inspect recent Brier scores, misses, and false alarms per provider.
 
-The restrained atmospheric background preserves the original cinematic character without presenting Seoul imagery as nationwide location evidence.
+There is no ambient scene behind any of it. The page is one vertical read, and its only control is "위치 바꾸기".
 
 ## Architecture
 
 ```mermaid
 flowchart TB
-  Browser["Browser /sky"] --> Search["/api/locations/search"]
+  Browser["Browser /"] --> Search["/api/locations/search"]
   Browser --> Local["/api/local-forecast"]
   Search --> Geocoding["Kakao Map administrative search · KR only"]
   Local --> Providers["Forecast provider snapshots at user coordinates"]
@@ -120,10 +120,10 @@ Important boundaries:
 - `lib/performance/influence.ts` derives Effective Influence and the blend it produces, for both the capture and serving paths.
 - `lib/performance/seed.ts` rebuilds retrospective day-ahead evidence from public archives; `lib/performance/seedScore.ts` scores it; `lib/performance/backfill.ts` orchestrates the one-shot offline run.
 - `lib/localForecastView.ts` projects that response onto the flat contract `/api/local-forecast` returns, so the page never reads the domain model directly.
-- `lib/forecast/blocks.ts` folds a now-anchored hourly series into time-of-day blocks, shared by the `/sky` hero strip and the cinematic forecast section. A block with no published probability stays null rather than 0%.
+- `lib/forecast/blocks.ts` folds a now-anchored hourly series into eight 3-hour blocks; `lib/forecast/rainWindow.ts` reads the rain window out of them. A block with no published probability stays null rather than 0%, and an unpublished block ends a run rather than extending it.
 - `app/api/local-forecast` and `app/api/locations/search` are rate-limited HTTP adapters.
 
-`/` redirects to `/sky`, as do the retired `/atmosphere` and `/diagnostics` routes. The Seoul cinematic scene survives as the background of `/sky`, and `/api/sky` and `/api/weather` still serve it.
+The forecast is served at `/`. The retired `/atmosphere` and `/diagnostics` routes redirect there. `/sky` — the path the forecast used while this was a cinematic Seoul sky scene — was removed on 2026-08-20 and now 404s. That scene is unrouted; `/api/sky` and `/api/weather` still serve its payloads.
 
 오늘비 runs a **second, older scoring pipeline** alongside the one above. `lib/reliability/` scores a single station (서울 108) with an online update, persists to the `reliability-state` branch, and feeds the live `/api/sky` snapshot; `lib/performance/` scores every eligible station in batch and feeds `/api/local-forecast`. They share a vocabulary and a bounded-weight contract but not an implementation, and are deliberately not merged — see [ADR 0004](docs/adr/0004-two-precipitation-scoring-pipelines.md).
 
@@ -159,7 +159,7 @@ install -m 600 .env.example .env.local
 npm run dev
 ```
 
-Open [http://localhost:3000/sky](http://localhost:3000/sky). Open-Meteo provides a keyless forecast baseline; configure `KAKAO_REST_API_KEY` for Korean administrative-area search and for naming a device coordinate. Optional weather providers activate when configured.
+Open [http://localhost:3000](http://localhost:3000). Open-Meteo provides a keyless forecast baseline; configure `KAKAO_REST_API_KEY` for Korean administrative-area search and for naming a device coordinate. Optional weather providers activate when configured.
 
 To collect regional performance, configure:
 

@@ -4,7 +4,7 @@ import type { Root } from "react-dom/client";
 import { JSDOM } from "jsdom";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", {
-  url: "http://localhost/sky",
+  url: "http://localhost/",
 });
 
 for (const [name, value] of Object.entries({
@@ -353,7 +353,7 @@ async function mountExperience(fetchImpl: typeof fetch) {
     async cleanup() {
       await act(async () => root?.unmount());
       window.localStorage.clear();
-      dom.reconfigure({ url: "http://localhost/sky" });
+      dom.reconfigure({ url: "http://localhost/" });
     },
   };
 }
@@ -487,7 +487,7 @@ test("a device coordinate is never written into the address bar", async () => {
 
 test("a shareable area link renders that place without touching stored state", async () => {
   dom.reconfigure({
-    url: "http://localhost/sky?lat=37.51430&lon=127.06280&name=%EC%84%9C%EC%9A%B8%20%EA%B0%95%EB%82%A8&area=h",
+    url: "http://localhost/?lat=37.51430&lon=127.06280&name=%EC%84%9C%EC%9A%B8%20%EA%B0%95%EB%82%A8&area=h",
   });
   let body = "";
   const view = await mountExperience(async (_input, init) => {
@@ -743,7 +743,7 @@ test("dismissing someone else's link leaves this device's saved location alone",
     }),
   );
   dom.reconfigure({
-    url: "http://localhost/sky?lat=36.34420&lon=127.42270&name=%EB%8C%80%EC%A0%84%20%EB%8F%99%EA%B5%AC&area=h",
+    url: "http://localhost/?lat=36.34420&lon=127.42270&name=%EB%8C%80%EC%A0%84%20%EB%8F%99%EA%B5%AC&area=h",
   });
   const view = await mountExperience(async () => Response.json(forecastPayload()));
 
@@ -762,7 +762,7 @@ test("dismissing someone else's link leaves this device's saved location alone",
 });
 
 test("a link stripped of its coordinates lands on the chooser, not an error", async () => {
-  dom.reconfigure({ url: "http://localhost/sky?name=%EC%84%9C%EC%9A%B8" });
+  dom.reconfigure({ url: "http://localhost/?name=%EC%84%9C%EC%9A%B8" });
   let requested = 0;
   const view = await mountExperience(async () => {
     requested += 1;

@@ -20,13 +20,14 @@ const contentSecurityPolicy = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  // The whole experience now lives at /sky (one scroll, no in-page nav). The
-  // retired plane home (/) redirects via app/page.tsx; the old weather routes
-  // redirect here as real HTTP redirects, independent of JS.
+  // The forecast is served at the root. The retired weather routes redirect
+  // there as real HTTP redirects, independent of JS. `/sky` — the name the
+  // forecast carried while this was a cinematic sky scene — is simply gone, and
+  // answers 404 like any other unknown path.
   async redirects() {
     return [
-      { source: "/atmosphere", destination: "/sky", permanent: false },
-      { source: "/diagnostics", destination: "/sky", permanent: false },
+      { source: "/atmosphere", destination: "/", permanent: false },
+      { source: "/diagnostics", destination: "/", permanent: false },
     ];
   },
   async headers() {

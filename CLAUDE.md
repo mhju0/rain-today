@@ -1,11 +1,11 @@
 # Claude Code repository guidance
 
-오늘비 is a South Korea local rain forecast: it compares next-day precipitation at a validated user coordinate and can weight providers by recently observed performance at a nearby KMA ASOS station. It grew out of a Seoul-only cinematic weather scene, and that scene survives as the restrained background of `/sky`. Keep changes focused on maintenance, correctness, security, and compatibility; do not add new product scope unless explicitly requested. `README.md` is the canonical public overview and `CONTEXT.md` is the domain glossary.
+오늘비 is a South Korea local rain forecast: it compares next-day precipitation at a validated user coordinate and can weight providers by recently observed performance at a nearby KMA ASOS station. It grew out of a Seoul-only cinematic weather scene; that scene is retired and unrouted, and nothing renders behind the forecast. Keep changes focused on maintenance, correctness, security, and compatibility; do not add new product scope unless explicitly requested. `README.md` is the canonical public overview and `CONTEXT.md` is the domain glossary.
 
 ## Runtime and commands
 
 - Node 22 or newer; npm with the committed `package-lock.json`.
-- `npm run dev` — local server at `http://localhost:3000/sky`.
+- `npm run dev` — local server at `http://localhost:3000`.
 - `npm run lint` — ESLint.
 - `npx tsc --noEmit` — strict TypeScript check.
 - `npm test` — Node's native runner over `lib/**/*.test.ts`, then the focused TSX/JSDOM component suite.
@@ -15,8 +15,8 @@ The application works without environment variables. Copy `.env.example` to `.en
 
 ## Architecture
 
-- `/` redirects to `/sky`; `/atmosphere` and `/diagnostics` redirect there through `next.config.ts`.
-- `app/sky/page.tsx` renders `LocalForecastExperience` — the location chooser and, once a coordinate is chosen, the forecast dashboard. `app/sky/layout.tsx` only wraps `children` in a `<noscript>` notice.
+- `app/page.tsx` renders `LocalForecastExperience` — the location chooser and, once a coordinate is chosen, the forecast dashboard — plus the `<noscript>` notice. It carries no `metadata` export; the root layout owns the title and description.
+- `/atmosphere` and `/diagnostics` redirect to `/` through `next.config.ts`. `/sky` was removed on 2026-08-20 and 404s; it is not redirected, so links shared before that date no longer resolve.
 - The dashboard is one vertical read with no ambient scene behind it: the rain window as a sentence, the horizontal 24-hour ribbon (eight 3-hour blocks), the 오늘 / 내일 cards, three evidence cards, then the scored per-provider table. Its only interactive control is "위치 바꾸기".
 - The chooser, the loading overlay, and the failure card share that vocabulary: one flat ground, mono meta, 3px corners, and the rain-blue accent as the only filled colour. Nothing on any of the four screens may reintroduce the retired teal palette.
 - `components/atmosphere/` (`SkyView`, the still-image field, `WeatherExperienceShell`) is no longer routed. It is kept, not deleted; do not wire it back in without being asked.
@@ -54,7 +54,7 @@ The application works without environment variables. Copy `.env.example` to `.en
 - The scoped ESLint exceptions for imperative WebGL/ref loops are intentional. Do not broaden them.
 - The radar's raw `<img>` tiles are intentional because exact percentage positioning is required.
 - Radar warm-up must remain progressive and controller-owned: keep one abortable fetch/decode lifecycle in flight, prioritize active then next playback frame, render only decoded blob URLs, gate autoplay on readiness, retry bounded 429/503 pressure without marking it terminal, capture visible-image failures, revoke owned URLs, skip terminal failures, and retain circular playback.
-- The development-only visual override is `/sky?cond=<condition>&hour=<0-23>`; it must remain inert in production.
+- The development-only visual override `?cond=<condition>&hour=<0-23>` belongs to `WeatherExperienceShell` in the unrouted `components/atmosphere/` tree, so no served route honours it today. It must remain inert in production if that tree is ever re-routed.
 - Release branches ignore generated reliability JSON/JSONL. Durable state belongs only on `reliability-state`; preserve its exact three-file manifest (plus the root `vercel.json` deployment guard the branch carries) and compare-and-swap publication boundary.
 - Radar cache output under `data/radar/` is ignored and must not be committed.
 
