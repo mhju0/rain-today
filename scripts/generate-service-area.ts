@@ -14,6 +14,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
+import { writeZigzagVarint } from "../lib/zigzagVarint.ts";
 
 /** Douglas-Peucker tolerance in source-projection metres. */
 const SIMPLIFY_TOLERANCE_M = 10;
@@ -210,15 +211,6 @@ function simplify(ring: Point[], tolerance: number): Point[] {
   return ring.filter((_, i) => keep[i]);
 }
 
-function writeVarint(out: number[], value: number): void {
-  let zigzag = value < 0 ? -value * 2 - 1 : value * 2;
-  while (zigzag >= 0x80) {
-    out.push((zigzag & 0x7f) | 0x80);
-    zigzag = Math.floor(zigzag / 128);
-  }
-  out.push(zigzag);
-}
-
 /**
  * Resolve the operator-supplied argument to the one shapefile this generator
  * accepts. Only an `bnd_<layer>_<code>_<year>_<quarter>.shp` basename from the
@@ -250,10 +242,10 @@ function main(): void {
   let holeCount = 0;
   let vertexCount = 0;
 
-  writeVarint(encoded, features.length);
+  writeZigzagVarint(encoded, features.length);
 
   for (const rings of features) {
-    writeVarint(encoded, rings.length);
+    writeZigzagVarint(encoded, rings.length);
     for (const ring of rings) {
       const area = signedArea(ring);
       let minX = Infinity;
@@ -275,15 +267,15 @@ function main(): void {
       else holeCount += 1;
       vertexCount += simplified.length;
 
-      writeVarint(encoded, simplified.length);
+      writeZigzagVarint(encoded, simplified.length);
       let previousLon = 0;
       let previousLat = 0;
       for (const [x, y] of simplified) {
         const [lon, lat] = toWgs84(x, y);
         const qLon = Math.round(lon * SCALE);
         const qLat = Math.round(lat * SCALE);
-        writeVarint(encoded, qLon - previousLon);
-        writeVarint(encoded, qLat - previousLat);
+        writeZigzagVarint(encoded, qLon - previousLon);
+        writeZigzagVarint(encoded, qLat - previousLat);
         previousLon = qLon;
         previousLat = qLat;
       }

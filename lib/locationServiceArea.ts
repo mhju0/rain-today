@@ -1,4 +1,5 @@
 import { SERVICE_AREA_PAYLOAD, SERVICE_AREA_SOURCE } from "./locationServiceAreaData.ts";
+import { createZigzagVarintReader } from "./zigzagVarint.ts";
 
 export { SERVICE_AREA_SOURCE };
 
@@ -42,33 +43,21 @@ function decodeGeometry(): ServiceAreaGeometry {
   const ringBounds = new Int32Array(ringCount * 4);
   const featureRingStarts = new Int32Array(featureCount + 1);
 
-  let cursor = 0;
   let vertex = 0;
   let ring = 0;
 
-  const readVarint = (): number => {
-    let result = 0;
-    let shift = 1;
-    for (;;) {
-      const byte = payload[cursor];
-      cursor += 1;
-      result += (byte & 0x7f) * shift;
-      if ((byte & 0x80) === 0) break;
-      shift *= 128;
-    }
-    return result % 2 === 0 ? result / 2 : -(result + 1) / 2;
-  };
+  const reader = createZigzagVarintReader(payload);
 
-  if (readVarint() !== featureCount) {
+  if (reader.read() !== featureCount) {
     throw new Error("service-area asset feature count does not match its metadata");
   }
 
   for (let feature = 0; feature < featureCount; feature += 1) {
     featureRingStarts[feature] = ring;
-    const featureRings = readVarint();
+    const featureRings = reader.read();
 
     for (let r = 0; r < featureRings; r += 1) {
-      const length = readVarint();
+      const length = reader.read();
       ringStarts[ring] = vertex;
       ringLengths[ring] = length;
 
@@ -80,8 +69,8 @@ function decodeGeometry(): ServiceAreaGeometry {
       let maxLat = -Infinity;
 
       for (let i = 0; i < length; i += 1) {
-        lon += readVarint();
-        lat += readVarint();
+        lon += reader.read();
+        lat += reader.read();
         coordinates[vertex * 2] = lon;
         coordinates[vertex * 2 + 1] = lat;
         vertex += 1;
@@ -100,7 +89,7 @@ function decodeGeometry(): ServiceAreaGeometry {
   }
   featureRingStarts[featureCount] = ring;
 
-  if (vertex !== vertexCount || ring !== ringCount || cursor !== payload.length) {
+  if (vertex !== vertexCount || ring !== ringCount || reader.position() !== payload.length) {
     throw new Error("service-area asset is truncated or corrupt");
   }
 
