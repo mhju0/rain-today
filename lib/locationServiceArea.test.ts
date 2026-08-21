@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { SERVICE_AREA_SOURCE, isInsideServiceArea } from "./locationServiceArea.ts";
+import {
+  SERVICE_AREA_SOURCE,
+  decodeServiceAreaGeometry,
+  isInsideServiceArea,
+} from "./locationServiceArea.ts";
+import type { ServiceAreaMetadata } from "./locationServiceArea.ts";
+import { writeZigzagVarint } from "./zigzagVarint.ts";
 
 /**
  * Every point below is justified against the official SGIS 시도 geometry in
@@ -112,5 +118,110 @@ test("service-area asset records its authoritative provenance", () => {
   assert.equal(
     SERVICE_AREA_SOURCE.outerRingCount + SERVICE_AREA_SOURCE.holeRingCount,
     SERVICE_AREA_SOURCE.ringCount,
+  );
+});
+
+/**
+ * Integrity of the encoded asset, exercised on synthetic payloads.
+ *
+ * The committed asset is well formed, so it can only prove the accepting half.
+ * These build a payload in the generator's own shape and then damage it, which
+ * is the only way to reach the rejecting half: a corrupt asset that still
+ * decoded would answer containment from the wrong geometry.
+ */
+type Ring = ReadonlyArray<readonly [number, number]>;
+
+function encodePayload(features: ReadonlyArray<ReadonlyArray<Ring>>): {
+  payload: Uint8Array;
+  metadata: ServiceAreaMetadata;
+} {
+  const out: number[] = [];
+  let ringCount = 0;
+  let vertexCount = 0;
+
+  writeZigzagVarint(out, features.length);
+  for (const rings of features) {
+    writeZigzagVarint(out, rings.length);
+    for (const ring of rings) {
+      writeZigzagVarint(out, ring.length);
+      ringCount += 1;
+      vertexCount += ring.length;
+      let previousLon = 0;
+      let previousLat = 0;
+      for (const [lon, lat] of ring) {
+        writeZigzagVarint(out, lon - previousLon);
+        writeZigzagVarint(out, lat - previousLat);
+        previousLon = lon;
+        previousLat = lat;
+      }
+    }
+  }
+
+  return {
+    payload: Uint8Array.from(out),
+    metadata: { featureCount: features.length, ringCount, vertexCount },
+  };
+}
+
+const SQUARE: Ring = [
+  [0, 0],
+  [100, 0],
+  [100, 100],
+  [0, 100],
+];
+const TRIANGLE: Ring = [
+  [-40, -40],
+  [-20, -40],
+  [-30, -20],
+];
+
+test("a well-formed payload decodes to the shape its metadata claims", () => {
+  const { payload, metadata } = encodePayload([[SQUARE], [TRIANGLE]]);
+  const decoded = decodeServiceAreaGeometry(payload, metadata);
+
+  assert.deepEqual(Array.from(decoded.ringLengths), [4, 3]);
+  assert.deepEqual(Array.from(decoded.featureRingStarts), [0, 1, 2]);
+  assert.deepEqual(Array.from(decoded.ringBounds.slice(0, 4)), [0, 0, 100, 100]);
+  assert.deepEqual(Array.from(decoded.ringBounds.slice(4, 8)), [-40, -40, -20, -20]);
+  // Deltas must accumulate into absolute coordinates, per ring.
+  assert.deepEqual(Array.from(decoded.coordinates.slice(0, 8)), [0, 0, 100, 0, 100, 100, 0, 100]);
+});
+
+test("a payload carrying trailing bytes is rejected", () => {
+  // Every count still matches; only the unread tail betrays the damage.
+  const { payload, metadata } = encodePayload([[SQUARE]]);
+  const padded = Uint8Array.from([...payload, 0x00]);
+  assert.throws(() => decodeServiceAreaGeometry(padded, metadata), /truncated or corrupt/);
+});
+
+test("a payload truncated mid-coordinate is rejected", () => {
+  // Reading past the end yields zeroes, so the ring and vertex counts still
+  // come out right; the byte position is what proves the tail was missing.
+  const { payload, metadata } = encodePayload([[SQUARE]]);
+  assert.throws(
+    () => decodeServiceAreaGeometry(payload.slice(0, -1), metadata),
+    /truncated or corrupt/,
+  );
+});
+
+test("metadata that disagrees with the payload is rejected on every count", () => {
+  const { payload, metadata } = encodePayload([[SQUARE]]);
+
+  const overstate = (count: keyof ServiceAreaMetadata): ServiceAreaMetadata => ({
+    ...metadata,
+    [count]: metadata[count] + 1,
+  });
+
+  assert.throws(
+    () => decodeServiceAreaGeometry(payload, overstate("featureCount")),
+    /feature count does not match/,
+  );
+  assert.throws(
+    () => decodeServiceAreaGeometry(payload, overstate("ringCount")),
+    /truncated or corrupt/,
+  );
+  assert.throws(
+    () => decodeServiceAreaGeometry(payload, overstate("vertexCount")),
+    /truncated or corrupt/,
   );
 });

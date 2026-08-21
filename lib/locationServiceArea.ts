@@ -18,7 +18,7 @@ export { SERVICE_AREA_SOURCE };
 
 const SCALE = Math.round(1 / SERVICE_AREA_SOURCE.coordinateQuantumDegrees);
 
-interface ServiceAreaGeometry {
+export interface ServiceAreaGeometry {
   /** Interleaved quantized longitude/latitude pairs for every ring. */
   coordinates: Int32Array;
   /** Index of each ring's first coordinate pair. */
@@ -31,11 +31,28 @@ interface ServiceAreaGeometry {
   featureRingStarts: Int32Array;
 }
 
+/** The counts an encoded payload is checked against as it is decoded. */
+export interface ServiceAreaMetadata {
+  featureCount: number;
+  ringCount: number;
+  vertexCount: number;
+}
+
 let geometry: ServiceAreaGeometry | null = null;
 
-function decodeGeometry(): ServiceAreaGeometry {
-  const payload = Buffer.from(SERVICE_AREA_PAYLOAD, "base64");
-  const { featureCount, ringCount, vertexCount } = SERVICE_AREA_SOURCE;
+/**
+ * Decode one encoded payload against the counts its metadata claims.
+ *
+ * Exported so the integrity checks below can be exercised against deliberately
+ * damaged payloads; the runtime only ever calls it with the committed asset.
+ * Every count is verified, because a payload that decodes without matching its
+ * metadata would silently answer containment from the wrong geometry.
+ */
+export function decodeServiceAreaGeometry(
+  payload: Uint8Array,
+  metadata: ServiceAreaMetadata,
+): ServiceAreaGeometry {
+  const { featureCount, ringCount, vertexCount } = metadata;
 
   const coordinates = new Int32Array(vertexCount * 2);
   const ringStarts = new Int32Array(ringCount);
@@ -94,6 +111,13 @@ function decodeGeometry(): ServiceAreaGeometry {
   }
 
   return { coordinates, ringStarts, ringLengths, ringBounds, featureRingStarts };
+}
+
+function decodeGeometry(): ServiceAreaGeometry {
+  return decodeServiceAreaGeometry(
+    Buffer.from(SERVICE_AREA_PAYLOAD, "base64"),
+    SERVICE_AREA_SOURCE,
+  );
 }
 
 function ringContains(
