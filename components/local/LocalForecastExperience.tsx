@@ -10,6 +10,13 @@ import {
   type ForecastLocationSelection,
 } from "@/lib/locationPrecision";
 import type { ForecastLocationSearchResult } from "@/lib/locationSearch";
+// PROTOTYPE (#67) — throwaway branch only. Inert without `?variant=`.
+import {
+  PrototypeEvidence,
+  PrototypeSwitcher,
+  applyPrototypeMode,
+  usePrototypeState,
+} from "@/components/local/prototype/PrototypeEvidence";
 
 type ViewState =
   | { kind: "idle" }
@@ -869,11 +876,13 @@ function RainSentence({ run, endsTomorrow }: {
   );
 }
 
-function ForecastDashboard({ forecast, selection, onReset }: {
+function ForecastDashboard({ forecast: servedForecast, selection, onReset }: {
   forecast: LocalForecastView;
   selection: ForecastLocationSelection;
   onReset(): void;
 }) {
+  const [prototype, setPrototype] = usePrototypeState();
+  const forecast = applyPrototypeMode(servedForecast, prototype?.mode ?? null);
   const locationDescription = describeForecastLocationSelection(selection);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const learned = forecast.blendMode === "learned";
@@ -1094,6 +1103,11 @@ function ForecastDashboard({ forecast, selection, onReset }: {
         </section>
       </div>
 
+      <PrototypeEvidence
+        variant={prototype?.variant ?? "A"}
+        forecast={forecast}
+        table={<PerformanceEvidence evidence={forecast.evidence} cohortLabel={forecast.cohortLabel} />}
+      >
       <div className="local-evidence-cards">
         <section className="local-card" aria-labelledby="station-heading">
           <div className="local-card-head">
@@ -1177,7 +1191,7 @@ function ForecastDashboard({ forecast, selection, onReset }: {
         )}
       </div>
 
-      <PerformanceEvidence evidence={forecast.evidence} cohortLabel={forecast.cohortLabel} />
+      </PrototypeEvidence>
 
       <footer className="local-footer">
         <p>출처 Open-Meteo · MET Norway · 기상청 · Pirate Weather · WeatherAPI 중 응답한 서비스 · 모든 시각 KST</p>
@@ -1189,6 +1203,8 @@ function ForecastDashboard({ forecast, selection, onReset }: {
           </p>
         )}
       </footer>
+
+      {prototype && <PrototypeSwitcher state={prototype} onChange={setPrototype} />}
     </main>
   );
 }
