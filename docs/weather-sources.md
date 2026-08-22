@@ -13,6 +13,16 @@ The application remains usable without weather-provider keys: Open-Meteo supplie
 | KMA short-term | Forecast comparison at the requested KMA grid | `KMA_SHORT_TERM_API_KEY` | 5 min per location | Source is omitted from the current blend |
 | KMA ASOS station catalog | Active station coordinates and elevations for performance collection | `KMA_APIHUB_KEY` with station-information access | Refreshed by each fixed cohort | Collector fails visibly rather than using a fabricated catalog |
 | KMA ASOS daily observation | Completed station-day precipitation ground truth | `KMA_OBSERVATION_API_KEY` | Durable PostgreSQL row | Missing station-day observation is not scored |
+
+### How the ASOS daily precipitation columns are read
+
+Ground truth is `sumRn` (일강수량) from `AsosDalyInfoService`, one row per station-day, requested with `startDt = endDt = ` the KST calendar date being scored. Three properties of that column are load-bearing and were verified against 3,650 station-days across ten stations over calendar 2025:
+
+- **`sumRn` accumulates over the 00:00–24:00 KST calendar day**, aligned to the forecast day. This is not an assumption: KMA publishes the 09:00–09:00 total as a *separate* field, `n99Rn`, and the two disagree on more than half of rainy days (July 2025 at 서울 108: eight of fifteen). A 9-9 boundary would have shifted overnight rain into the neighbouring day and charged systematic misses and false alarms; it does not.
+- **A blank `sumRn` means a dry day, not missing data**, and the adapters read it as 0.0 mm. Of 2,128 blank station-days, only four carried any measured `sumRnDur`, and all four were under half an hour of trace precipitation — below the 0.1 mm wet/dry threshold either way. Station outages do not produce blank rows; they produce *absent* rows, which the adapters skip rather than score. There were no absent rows in the sample.
+- **A blank `sumRn` and an explicit `0.0` are different states**, and collapsing them is deliberate. `0.0` means precipitation was observed but accumulated below the recording resolution — 411 of 444 such days also carry a positive `sumRnDur` — while blank means none fell at all. Both are dry at a 0.1 mm threshold, so both score as 0.0 mm.
+
+`sumRnDur` (강수계속시간) is published but not read. It would only change a wet/dry call under a threshold below 0.1 mm, which is KMA's own bar; see [`docs/research/aws-network-adoption.md`](./research/aws-network-adoption.md) for why that threshold is fixed.
 | KMA warnings | Official active warnings | `KMA_WARNING_API_KEY` | 5 min | Warnings become `[]` |
 | KMA API Hub radar | Displayed HSR reflectivity frames | `KMA_APIHUB_KEY` | Recent PNGs in a process-local `RadarDelivery` cache; successful immutable frame responses are browser/CDN-cacheable for 1 day | Timeline becomes an explicit empty state when not ready; an invalid frame is rejected, a full render queue is temporarily busy, and an unavailable render fails without exposing the key |
 | AirKorea | Preferred measured air quality | `AIRKOREA_API_KEY` | 20 min | Open-Meteo air quality remains |
