@@ -68,7 +68,7 @@ export interface LocalForecastEvidenceView {
  * Held in step with the 40% band in the hero's advice copy so the timeline
  * cannot mark rain beginning in a block the advice still calls dry.
  */
-const RAIN_ONSET_PROBABILITY = 40;
+export const RAIN_ONSET_PROBABILITY = 40;
 
 export interface LocalForecastTimelineBlock {
   /** "지금" for the block covering now, otherwise its Korean period name. */

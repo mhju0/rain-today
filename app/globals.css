@@ -1894,7 +1894,7 @@ html {
 
 .local-prow {
   display: grid;
-  grid-template-columns: minmax(0, 7rem) minmax(2.5rem, 1fr) 2.25rem;
+  grid-template-columns: minmax(0, 7rem) minmax(2.5rem, 1fr) 2.25rem 3.4rem;
   gap: 0.5rem;
   align-items: center;
   font-size: 0.72rem;
@@ -1935,6 +1935,13 @@ html {
   font-size: 0.7rem;
   text-align: right;
   color: var(--local-ink-2);
+}
+
+.local-prow-w {
+  font-family: var(--local-mono);
+  font-size: 0.62rem;
+  text-align: right;
+  color: var(--local-muted);
 }
 
 .local-week {

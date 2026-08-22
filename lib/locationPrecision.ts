@@ -4,15 +4,15 @@ export type ForecastLocationSelection =
 
 export function formatHorizontalAccuracy(accuracyM: number | null): string {
   if (accuracyM === null || !Number.isFinite(accuracyM) || accuracyM < 0) {
-    return "정확도 정보 없음";
+    return "위치 오차 정보 없음";
   }
   if (accuracyM < 100) {
-    return `약 ${Math.max(10, Math.round(accuracyM / 10) * 10)} m`;
+    return `위치 오차 약 ${Math.max(10, Math.round(accuracyM / 10) * 10)} m`;
   }
   if (accuracyM < 1_000) {
-    return `약 ${Math.round(accuracyM / 100) * 100} m`;
+    return `위치 오차 약 ${Math.round(accuracyM / 100) * 100} m`;
   }
-  return `약 ${(accuracyM / 1_000).toFixed(1)} km`;
+  return `위치 오차 약 ${(accuracyM / 1_000).toFixed(1)} km`;
 }
 
 export function describeForecastLocationSelection(
