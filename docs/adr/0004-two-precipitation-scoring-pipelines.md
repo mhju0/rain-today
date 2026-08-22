@@ -33,3 +33,36 @@ Consolidation is a scoring change and inherits the gate that already applies to 
 `normalizeClamped` is exported from `lib/performance/performance.ts` so the contract is testable from outside. `lib/precipWeightContract.test.ts` asserts what the two pipelines genuinely share — the bounded simplex and the ordering guarantee — and asserts that they still disagree, so a future change that quietly makes them identical fails and sends the author here.
 
 Until that decision is made, the duplication stays visible and deliberate. Changing a shared constant in one pipeline does not change it in the other, and that remains a real hazard; the contract test does not cover it.
+
+## Amendment, 2026-08-22 — one premise is now false, the decision is not
+
+Retiring `/api/sky` (#71) removed the HTTP path that served `lib/reliability/`'s learned
+weights. Issue #63 asked whether that reopens the projection-policy question this record
+gated.
+
+**One sentence above is no longer true.** "Replacing either one changes served influence
+for real users" held while both pipelines fed a route. Only `lib/performance/` does now,
+so replacing `lib/reliability/`'s fixed-point iteration would move nobody's forecast.
+
+**The decision stands anyway, for a different reason.** The gate above was never only
+about blast radius; it was about not picking a projection policy silently. That reason is
+untouched. Water-filling remains the served policy by inheritance, not by evidence — it
+was never chosen over the alternative, and the 78% disagreement above is exactly the
+measurement that says the choice is real. Retiring the loser of a comparison nobody ran
+does not settle it.
+
+Two consequences follow:
+
+- **`lib/precipWeightContract.test.ts` stays.** Its subject is the divergence, and the
+  divergence still exists in the tree; [ADR 0007](./0007-keep-the-unread-reliability-pipeline.md)
+  keeps `lib/reliability/` running. The test would only become pointless if one
+  implementation were deleted, and nothing is being deleted.
+- **The gate's blocker moves.** It named issue #29, which is now closed — the
+  nationwide coverage evidence exists and produced
+  [ADR 0005](./0005-station-proximity-is-language-not-eligibility.md). Consolidation now
+  waits on the 2026-09-18 revisit in ADR 0007, which is the point at which the two
+  pipelines will have learned enough at the same time to be compared on outcomes rather
+  than on synthetic sweeps. That comparison, not a refactor, is what should pick a
+  projection policy.
+
+This record is otherwise unchanged and remains accepted.

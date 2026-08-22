@@ -80,7 +80,7 @@ Kakao Local search is **live call only**. Site terms 11-3 bar replicating API re
 - Recent performance scoring and station matching: `lib/performance/performance.ts`, `lib/performance/stations.ts`
 - Performance persistence, capture, and fixed-cohort batch: `lib/performance/store.ts`, `lib/performance/postgres.ts`, `lib/performance/capture.ts`, `lib/performance/batch.ts`, `scripts/local-performance.ts`
 - Store adapter contract, run against every persistence adapter: `lib/performance/storeContract.ts`
-- The separate single-station scoring pipeline, deliberately not merged with the above: `lib/reliability/*`, [`docs/adr/0004-two-precipitation-scoring-pipelines.md`](./adr/0004-two-precipitation-scoring-pipelines.md). Its own HTTP path is gone with `/api/sky`, and it now runs only from the scheduled job — but it is not fully unreachable: `lib/reliability/score.ts` supplies the seed scoring that `lib/performance/seedScore.ts` uses on the served path.
+- The separate single-station scoring pipeline, deliberately not merged with the above: `lib/reliability/*`, [`docs/adr/0004-two-precipitation-scoring-pipelines.md`](./adr/0004-two-precipitation-scoring-pipelines.md). Its own HTTP path is gone with `/api/sky`, and it now runs only from the scheduled job — but it is not fully unreachable: `lib/reliability/score.ts` supplies the seed scoring that `lib/performance/seedScore.ts` uses on the served path. It keeps running unread until the 2026-09-18 revisit in [`docs/adr/0007-keep-the-unread-reliability-pipeline.md`](./adr/0007-keep-the-unread-reliability-pipeline.md).
 
 - Provider contract, atomic snapshot factory, and registry: `lib/providers/base.ts`, `lib/providers/read.ts`, `lib/providers/registry.ts`
 - Provider implementations: `lib/providers/*`
