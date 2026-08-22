@@ -134,7 +134,7 @@ The forecast is served at `/`. The retired `/atmosphere` and `/diagnostics` rout
 | [`CONTEXT.md`](CONTEXT.md) | Domain glossary: Forecast Location, Station Match, Capture Cohort, Effective Influence, and the rest |
 | [`docs/weather-sources.md`](docs/weather-sources.md) | Provider contracts, configuration, cache behavior, failure modes, and attribution |
 | [`docs/adr/`](docs/adr/) | Decision records: reliability state, Korean location selection, service-area boundary, the two scoring pipelines, and the two station gates |
-| [`docs/research/`](docs/research/) | Source evidence: the SGIS boundary package's provenance, nationwide station coverage, and the elevation gate |
+| [`docs/research/`](docs/research/) | Source evidence: the SGIS boundary package's provenance, nationwide station coverage, why the AWS network is not adopted, and the elevation gate |
 | [`lib/performance/README.md`](lib/performance/README.md) | The nationwide pipeline: live captures, retrospective seed evidence, and the mode gate |
 | [`lib/reliability/README.md`](lib/reliability/README.md) | The single-station precipitation-scoring pipeline |
 

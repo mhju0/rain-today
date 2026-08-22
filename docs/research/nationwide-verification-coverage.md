@@ -134,6 +134,17 @@ not people.
    roughly 3 km. That is not worth a new subscription against unverified quality control
    on unmanned sites. Revisit only if the *regional* tier turns out to fire often enough
    to annoy real users.
+
+   > **Amended 2026-08-22 by [`aws-network-adoption.md`](./aws-network-adoption.md).**
+   > The conclusion stands but both halves of the reasoning were wrong. Measured rather
+   > than estimated, the population-basis gain is *larger* than "roughly 3 km" — median
+   > 8.7 → 2.1 km over all 229 시군구, max 30.5 → 9.4 km. And the quality-control worry
+   > below is misplaced: AWS sits inside the same KMA QC regime as ASOS, its gauges are
+   > heated by national standard, and partial cumulative sums are forbidden by doctrine.
+   > AWS is nonetheless ruled out, on a ground not considered here: its gauge resolves
+   > **0.5 mm** against this project's (and KMA's) **0.1 mm** wet/dry threshold, and 16.3%
+   > of rain days fall below 0.5 mm. Also note the 745-station figure used above is a
+   > registry count; KMA's AWS data product lists 554.
 5. **Elevation is the real unquantified risk, not distance.** [Verified]
    `findStationMatch` applies the elevation gate only when both elevations are known, and
    browser GPS altitude is usually absent, so the gate is frequently inert. A valley user
@@ -143,8 +154,11 @@ not people.
 
 ## Still open in #29
 
-- 읍/면/동 population-weighted coverage (needs the SGIS 읍면동 package)
+- ~~읍/면/동 population-weighted coverage~~ — addressed on a 시군구 basis in
+  [`aws-network-adoption.md`](./aws-network-adoption.md); a true 읍면동 basis still needs the
+  SGIS package
 - Elevation-difference coverage and missing-elevation rates (needs a DEM)
-- AWS field quality and historical availability (needs the subscription)
+- ~~AWS field quality and historical availability~~ — **closed** in
+  [`aws-network-adoption.md`](./aws-network-adoption.md); answered without the subscription
 - User-facing language for the active / regional / collecting / unavailable states
 - The decision record itself
