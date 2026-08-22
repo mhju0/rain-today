@@ -32,7 +32,7 @@ Radar uses a separate `RadarDelivery` boundary rather than `lib/cache.ts`. It ac
 
 The browser has one status-aware radar-frame loader. It prioritizes the active frame, then the next circular playback frame, keeps at most one fetch/decode lifecycle in flight, and aborts obsolete work after seeking, timeline replacement, or unmount. Successful PNG responses become decoded blob URLs before they can be displayed, so the visible image never creates an independent frame-route request. Temporary 429/503 pressure honors `Retry-After` with a three-attempt batch plus one cancellable re-entry batch (six automatic attempts maximum and a 60-second delay cap). Exhausted transient pressure pauses playback and remains retryable with Play; HTTP/decode/visible-image terminal failures are recorded and skipped honestly. Playback advances only onto decoded frames.
 
-Each forecast provider exposes one Provider Snapshot read. Its availability, cache/freshness metadata, and normalized current, hourly, and daily weather come from the same cached generation. The shared provider instance and its ID-keyed cache are reused by the live Sky snapshot, deferred Weather Intelligence comparison, runtime precipitation collection, and scheduled forecast logging. A missing configuration or failed fetch yields an empty non-OK snapshot; stale last-good data stays an available snapshot with `stale: true`.
+Each forecast provider exposes one Provider Snapshot read. Its availability, cache/freshness metadata, and normalized current, hourly, and daily weather come from the same cached generation. The shared provider instance and its ID-keyed cache are reused by the Sky snapshot assembler and its runtime precipitation collection — both retained but no longer served — and by scheduled forecast logging, which is live. A missing configuration or failed fetch yields an empty non-OK snapshot; stale last-good data stays an available snapshot with `stale: true`.
 
 ## Fusion rules
 
@@ -46,15 +46,19 @@ Each forecast provider exposes one Provider Snapshot read. Its availability, cac
 - Missing current providers are omitted and the remaining current weights renormalize. Missing performance evidence selects equal influence; it never becomes a numeric zero score.
 - Recent Performance Profile influence applies only to the measured next-day horizon. Days 2–7 use equal influence until separately captured prospective evidence exists for those lead times.
 
-- `/api/sky` uses Open-Meteo as the complete baseline.
+The Sky snapshot assembler (`lib/liveSkySnapshot.ts`, `lib/skyFusion.ts`) is **retained but no longer served**: `/api/sky` was deleted on 2026-08-22, and `/api/weather` went with it along with the comparison assembler behind it. The rules in the next block therefore describe module behaviour, not a live response.
+
+- The assembler uses Open-Meteo as the complete baseline.
 - `chooseCurrent()` prefers KMA temperature and active precipitation when a valid KMA observation is available. It only adopts KMA's condition when KMA reports active precipitation, because the observation feed does not provide complete dry-sky cloud semantics.
 - Air quality uses AirKorea, then Open-Meteo, then `null`.
 - Warnings come only from KMA. Forecast probability never creates a warning.
-- Displayed radar imagery comes from KMA API Hub. RainViewer remains a separate approach signal and never supplies the displayed map.
 - Daily precipitation fields use the gated learned multi-provider consensus documented in `lib/reliability/README.md` by default. Set `MULTI_SOURCE_PRECIP=0` only as an emergency opt-out to the single Open-Meteo baseline.
 - Learned weights come from the public `reliability-state` branch; forecast and skill history never enter an API response.
-- `/api/weather` compares every configured provider that returns a valid current snapshot. Missing measurements are excluded, never treated as zero.
-- Runtime precipitation collection and scheduled forecast logging project daily data only from available snapshots. A non-OK provider or a missing target date is omitted, never represented as a made-up forecast.
+
+These remain live:
+
+- Displayed radar imagery comes from KMA API Hub, served by `/api/radar/*`. RainViewer remains a separate approach signal and never supplies the displayed map.
+- Scheduled forecast logging projects daily data only from available snapshots. A non-OK provider or a missing target date is omitted, never represented as a made-up forecast. The same rule governs the assembler's runtime precipitation collection, which is retained but no longer served.
 - Forecast-provider order remains Open-Meteo, MET Norway, KMA, Pirate Weather, then WeatherAPI. The first available current snapshot in that order is the comparison primary.
 
 ## Attribution
@@ -76,13 +80,12 @@ Kakao Local search is **live call only**. Site terms 11-3 bar replicating API re
 - Recent performance scoring and station matching: `lib/performance/performance.ts`, `lib/performance/stations.ts`
 - Performance persistence, capture, and fixed-cohort batch: `lib/performance/store.ts`, `lib/performance/postgres.ts`, `lib/performance/capture.ts`, `lib/performance/batch.ts`, `scripts/local-performance.ts`
 - Store adapter contract, run against every persistence adapter: `lib/performance/storeContract.ts`
-- The separate single-station scoring pipeline behind `/api/sky`, deliberately not merged with the above: `lib/reliability/*`, [`docs/adr/0004-two-precipitation-scoring-pipelines.md`](./adr/0004-two-precipitation-scoring-pipelines.md)
+- The separate single-station scoring pipeline, deliberately not merged with the above: `lib/reliability/*`, [`docs/adr/0004-two-precipitation-scoring-pipelines.md`](./adr/0004-two-precipitation-scoring-pipelines.md). Its own HTTP path is gone with `/api/sky`, and it now runs only from the scheduled job — but it is not fully unreachable: `lib/reliability/score.ts` supplies the seed scoring that `lib/performance/seedScore.ts` uses on the served path.
 
 - Provider contract, atomic snapshot factory, and registry: `lib/providers/base.ts`, `lib/providers/read.ts`, `lib/providers/registry.ts`
 - Provider implementations: `lib/providers/*`
-- Fusion: `lib/skyFusion.ts`, `lib/liveSkySnapshot.ts`, `lib/liveSkySnapshot.production.ts`
-- Comparison: `lib/compare.ts`, `lib/weatherIntelligence.ts`, `lib/weatherIntelligence.production.ts`
-- HTTP adapters: `app/api/sky/route.ts`, `app/api/weather/route.ts`
+- Fusion, retained but no longer served: `lib/skyFusion.ts`, `lib/liveSkySnapshot.ts`, `lib/liveSkySnapshot.production.ts`
+- Comparison: `lib/compare.ts`. Only `rainRiskNext12h` still has a caller; `buildComparison` and `buildConfidence` lost theirs when `lib/weatherIntelligence.ts` was deleted.
 - Radar delivery and rendering: `lib/radar/kma.ts` owns pure KST keys plus sanitized KMA source classification; `lib/radar/delivery.ts` owns window validation, newest-deliverable discovery, bounded admission, same-key single-flight, cancellation, and immutable PNG caching; `lib/radar/apihub.ts` supplies KMA bounds/rendering; `lib/radar/http.ts` maps delivery results; and `app/api/radar/*` are rate-limited HTTP adapters.
 - Radar browser loading: `lib/radar/clientLoader.ts` owns sequential fetch/decode state, backpressure retries, cancellation, and blob-URL lifecycle; `lib/radar/presentation.ts` owns pure ordering/playback helpers; `components/atmosphere/sections/RadarSection.tsx` renders only controller-ready frames.
 - Shared cache: `lib/cache.ts`

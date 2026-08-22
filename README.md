@@ -123,9 +123,9 @@ Important boundaries:
 - `lib/forecast/blocks.ts` folds a now-anchored hourly series into eight 3-hour blocks; `lib/forecast/rainWindow.ts` reads the rain window out of them. A block with no published probability stays null rather than 0%, and an unpublished block ends a run rather than extending it.
 - `app/api/local-forecast` and `app/api/locations/search` are rate-limited HTTP adapters.
 
-The forecast is served at `/`. The retired `/atmosphere` and `/diagnostics` routes redirect there. The original cinematic Seoul sky scene is unrouted; `/api/sky` and `/api/weather` still serve its payloads.
+The forecast is served at `/`. The retired `/atmosphere` and `/diagnostics` routes redirect there. The original cinematic Seoul sky scene is unrouted, and the `/api/sky` and `/api/weather` endpoints it read were removed on 2026-08-22; its components are kept in the repository but no longer have data behind them.
 
-오늘비 runs a **second, older scoring pipeline** alongside the one above. `lib/reliability/` scores a single station (서울 108) with an online update, persists to the `reliability-state` branch, and feeds the live `/api/sky` snapshot; `lib/performance/` scores every eligible station in batch and feeds `/api/local-forecast`. They share a vocabulary and a bounded-weight contract but not an implementation, and are deliberately not merged — see [ADR 0004](docs/adr/0004-two-precipitation-scoring-pipelines.md).
+오늘비 runs a **second, older scoring pipeline** alongside the one above. `lib/reliability/` scores a single station (서울 108) with an online update, persists to the `reliability-state` branch, and feeds the Sky snapshot assembler that the retired scene used; `lib/performance/` scores every eligible station in batch and feeds `/api/local-forecast`, which is the only one of the two that now reaches a visitor. They share a vocabulary and a bounded-weight contract but not an implementation, and are deliberately not merged — see [ADR 0004](docs/adr/0004-two-precipitation-scoring-pipelines.md), whose premise that both pipelines are simultaneously served no longer holds.
 
 ## Documents
 
