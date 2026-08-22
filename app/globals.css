@@ -1848,7 +1848,7 @@ html {
 /* ---- evidence cards ---- */
 .local-evidence-cards {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.9rem;
   padding: 0.9rem 0 0;
 }
@@ -1884,25 +1884,6 @@ html {
 .local-card-head b {
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: var(--local-ink-2);
-}
-
-.local-kv {
-  margin: 0;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.3rem 0.75rem;
-  font-family: var(--local-mono);
-  font-size: 0.72rem;
-}
-
-.local-kv dt {
-  color: var(--local-dim);
-}
-
-.local-kv dd {
-  margin: 0;
-  text-align: right;
   color: var(--local-ink-2);
 }
 
@@ -2024,14 +2005,6 @@ html {
   .local-ribbon-hint {
     display: none;
   }
-
-  .local-evidence-cards {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .local-evidence-cards > :last-child {
-    grid-column: 1 / -1;
-  }
 }
 
 @media (max-width: 640px) {
@@ -2124,10 +2097,6 @@ html {
   .local-days,
   .local-evidence-cards {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .local-evidence-cards > :last-child {
-    grid-column: auto;
   }
 
   .local-day-value {
