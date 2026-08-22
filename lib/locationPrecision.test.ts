@@ -6,15 +6,15 @@ import {
 } from "./locationPrecision.ts";
 
 test("browser horizontal accuracy is displayed without false precision", () => {
-  assert.equal(formatHorizontalAccuracy(18.4), "약 20 m");
-  assert.equal(formatHorizontalAccuracy(526), "약 500 m");
-  assert.equal(formatHorizontalAccuracy(1_240), "약 1.2 km");
+  assert.equal(formatHorizontalAccuracy(18.4), "위치 오차 약 20 m");
+  assert.equal(formatHorizontalAccuracy(526), "위치 오차 약 500 m");
+  assert.equal(formatHorizontalAccuracy(1_240), "위치 오차 약 1.2 km");
 });
 
 test("missing or invalid browser accuracy is not fabricated", () => {
-  assert.equal(formatHorizontalAccuracy(null), "정확도 정보 없음");
-  assert.equal(formatHorizontalAccuracy(Number.NaN), "정확도 정보 없음");
-  assert.equal(formatHorizontalAccuracy(-1), "정확도 정보 없음");
+  assert.equal(formatHorizontalAccuracy(null), "위치 오차 정보 없음");
+  assert.equal(formatHorizontalAccuracy(Number.NaN), "위치 오차 정보 없음");
+  assert.equal(formatHorizontalAccuracy(-1), "위치 오차 정보 없음");
 });
 
 test("administrative search selection is described as a representative point", () => {

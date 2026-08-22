@@ -256,7 +256,7 @@ test("device accuracy is displayed but not sent to the forecast API", async () =
     await Promise.resolve();
   });
 
-  assert.match(container.querySelector(".local-strip-place")?.textContent ?? "", /약 30 m/);
+  assert.match(container.querySelector(".local-strip-place")?.textContent ?? "", /위치 오차 약 30 m/);
   // The horizontal-accuracy estimate is shown to the user but must never reach
   // the server, so assert on the whole body rather than on one absent key.
   assert.deepEqual(
@@ -891,7 +891,7 @@ test("an unnamed device fix shows its accuracy rather than repeating itself", as
   const place = view.container.querySelector(".local-strip-place")?.textContent ?? "";
   // "현재 위치 · 현재 기기 위치" told the reader nothing they did not already see.
   assert.doesNotMatch(place, /현재 기기 위치/);
-  assert.match(place, /약 20 m/);
+  assert.match(place, /위치 오차 약 20 m/);
   await view.cleanup();
 });
 
@@ -1177,6 +1177,64 @@ test("the rain window is marked on the ribbon, and only once rain is actually li
   assert.equal(marked.length, 2, "every block the rain covers is marked, not just the peak");
   assert.match(marked[0].textContent ?? "", /75%/);
   await wet.cleanup();
+});
+
+test("the umbrella advice never contradicts the headline above it", async () => {
+  window.localStorage.setItem("raintoday.last-location.v1", SEED_LOCATION);
+  // The blended day probability is high while the window this section describes
+  // peaks at 22%. Advising an umbrella here would sit directly under a headline
+  // that just said there is no rain coming.
+  const view = await mountExperience(async () =>
+    Response.json(forecastPayload({
+      today: {
+        date: "2026-08-17",
+        precipitationProbability: 85,
+        precipitationAmountMm: 0.4,
+        temperatureMax: 28,
+        temperatureMin: 23,
+        condition: "cloudy",
+      },
+      timeline: timeline({
+        blocks: [
+          { label: "지금", rangeLabel: "9–12시", startHour: 9, endHour: 12, precipMax: 5, condition: "cloudy", wet: false, dayTag: null },
+          { label: "오후", rangeLabel: "12–15시", startHour: 12, endHour: 15, precipMax: 22, condition: "cloudy", wet: false, dayTag: null },
+        ],
+        reading: {
+          firstRun: null,
+          laterRun: null,
+          peak: { probability: 22, rangeLabel: "12–15시", startsTomorrow: false },
+        },
+      }),
+    })),
+  );
+
+  assert.match(
+    view.container.querySelector("#forecast-heading")?.textContent ?? "",
+    /비 소식은 없습니다/,
+  );
+  assert.match(
+    view.container.querySelector(".local-answer-action")?.textContent ?? "",
+    /우산 없이/,
+  );
+  await view.cleanup();
+});
+
+test("each service's bar is that service's own probability, not its blend weight", async () => {
+  window.localStorage.setItem("raintoday.last-location.v1", SEED_LOCATION);
+  const view = await mountExperience(async () =>
+    Response.json(forecastPayload({
+      influence: [
+        { id: "open-meteo", name: "Open-Meteo", probability: 51, influence: 0.27 },
+        { id: "kma", name: "기상청", probability: 14, influence: 0.25 },
+      ],
+    })),
+  );
+
+  // Drawing the weights here put near-identical bars beside 51% and 14%.
+  const meters = view.container.querySelectorAll<HTMLElement>(".local-meter");
+  assert.equal(meters[0].style.getPropertyValue("--w"), "51%");
+  assert.equal(meters[1].style.getPropertyValue("--w"), "14%");
+  await view.cleanup();
 });
 
 test("a block nobody forecast is drawn empty rather than as a confident 0%", async () => {

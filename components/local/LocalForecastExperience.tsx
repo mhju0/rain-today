@@ -4,7 +4,11 @@ import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { CONDITION_LABELS_KO } from "@/lib/conditions";
 import { periodNameForHour } from "@/lib/forecast/blocks";
 import type { TimelineReading } from "@/lib/forecast/rainWindow";
-import type { LocalForecastTimelineBlock, LocalForecastView } from "@/lib/localForecastView";
+import {
+  RAIN_ONSET_PROBABILITY,
+  type LocalForecastTimelineBlock,
+  type LocalForecastView,
+} from "@/lib/localForecastView";
 import {
   describeForecastLocationSelection,
   type ForecastLocationSelection,
@@ -69,11 +73,19 @@ function probabilityLabel(probability: number | null): string {
   return `${Math.round(probability)}%`;
 }
 
-function rainAction(probability: number | null, amountMm: number | null): string {
+/**
+ * The advice sits under the 24-hour headline, so it is read against the same
+ * threshold the headline and the ribbon use. Suggesting an umbrella below that
+ * line contradicts the sentence directly above it.
+ */
+function rainAction(
+  probability: number | null,
+  amountMm: number | null,
+  threshold: number,
+): string {
   if (probability === null) return "강수 정보를 충분히 모으지 못했어요.";
   if (probability >= 70 || (amountMm ?? 0) >= 10) return "우산을 꼭 챙기세요.";
-  if (probability >= 40) return "작은 우산을 챙기면 마음이 놓여요.";
-  if (probability >= 20) return "오래 밖에 있다면 우산을 고려하세요.";
+  if (probability >= threshold) return "작은 우산을 챙기면 마음이 놓여요.";
   return "우산 없이 나서도 괜찮아 보여요.";
 }
 
@@ -961,8 +973,12 @@ function ForecastDashboard({ forecast, selection, onReset }: {
         )}
         <p className="local-answer-action">
           {rainAction(
-            (today ?? tomorrow).precipitationProbability,
+            // The section is the timeline's, so the advice follows the timeline's
+            // peak where there is one; the blended day probability is a different
+            // number from a different set of sources and would contradict it.
+            timeline ? (peak?.probability ?? null) : (today ?? tomorrow).precipitationProbability,
             (today ?? tomorrow).precipitationAmountMm,
+            timeline?.threshold ?? RAIN_ONSET_PROBABILITY,
           )}
           {laterRun && ` 이후 ${laterRun.startsTomorrow ? "내일 " : ""}${laterRun.startHour}시부터 다시 비 구간입니다.`}
         </p>
@@ -1110,21 +1126,26 @@ function ForecastDashboard({ forecast, selection, onReset }: {
                 key={provider.id}
               >
                 <span className="local-prow-n">{provider.name}</span>
+                {/* The bar is the provider's own probability, so it tracks the
+                    number beside it. Drawing the blend weight here instead made
+                    four near-equal bars sit next to four very different
+                    percentages. */}
                 <span
                   className="local-meter"
-                  style={{ "--w": `${Math.round(provider.influence * 100)}%` } as CSSProperties}
-                  aria-label={`${Math.round(provider.influence * 100)}% 영향`}
+                  style={{ "--w": `${provider.probability ?? 0}%` } as CSSProperties}
+                  aria-hidden
                 >
                   <i />
                 </span>
                 <span className="local-prow-v">{probabilityLabel(provider.probability)}</span>
+                <span className="local-prow-w">비중 {Math.round(provider.influence * 100)}%</span>
               </div>
             ))}
           </div>
           <p className="local-card-why">
             {weighted
-              ? <>막대는 이번 예보에서 각 서비스가 차지한 영향입니다. {seeded ? "과거 기록으로 추정한 적중률" : "최근 이 지역의 적중률"}에 따라 비중이 다릅니다.</>
-              : "아직 이 지역의 성능 기록이 없어, 모든 서비스를 똑같은 비중으로 평균했습니다."}
+              ? <>막대는 각 서비스가 내다본 내일 강수확률입니다. 비중은 이 예보에서 그 값이 차지한 몫으로, {seeded ? "과거 기록으로 추정한 적중률" : "최근 이 지역의 적중률"}에 따라 다릅니다.</>
+              : "막대는 각 서비스가 내다본 내일 강수확률입니다. 아직 이 지역의 성능 기록이 없어, 모든 서비스를 똑같은 비중으로 평균했습니다."}
           </p>
         </section>
 
