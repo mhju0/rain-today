@@ -714,6 +714,13 @@ function PerformanceEvidence({ evidence, cohortLabel }: {
         </div>
       </div>
 
+      {station && (
+        <p className="local-method-note">
+          관측소는 근처 기록일 뿐, 당신이 서 있는 위치가 아닙니다. 기상청 예보 격자는 5 km
+          단위입니다.
+        </p>
+      )}
+
       {emptyMessage === null && seedRanked.length > 0 ? (
         <>
           <div className="local-score-table" role="table" aria-label="서비스별 과거 강수 예보 기록">
@@ -813,12 +820,6 @@ function PerformanceEvidence({ evidence, cohortLabel }: {
 function formatRange(high: number | null, low: number | null): string {
   const one = (value: number | null) => (value === null ? "—" : `${Math.round(value)}°`);
   return `${one(high)} / ${one(low)}`;
-}
-
-/** "0.121 vs 0.134" — only when both sides of the benchmark actually scored. */
-function benchmarkPair(benchmark: LocalForecastView["evidence"]["benchmark"]): string {
-  if (!benchmark || benchmark.adaptiveBrier === null || benchmark.equalBrier === null) return "—";
-  return `${benchmark.adaptiveBrier.toFixed(3)} vs ${benchmark.equalBrier.toFixed(3)}`;
 }
 
 /**
@@ -1095,32 +1096,6 @@ function ForecastDashboard({ forecast, selection, onReset }: {
       </div>
 
       <div className="local-evidence-cards">
-        <section className="local-card" aria-labelledby="station-heading">
-          <div className="local-card-head">
-            <h2 id="station-heading">관측소 대조</h2>
-            <b>{forecast.evidence.station?.name ?? "미연결"}</b>
-          </div>
-          <dl className="local-kv">
-            <dt>거리</dt>
-            <dd>
-              {forecast.evidence.station
-                ? `${forecast.evidence.station.distanceKm.toFixed(1)} km`
-                : "—"}
-            </dd>
-            <dt>비교 완료</dt>
-            <dd>{forecast.evidence.comparisonSampleCount}일</dd>
-            <dt>코호트</dt>
-            <dd>{forecast.cohortLabel}</dd>
-            <dt>기상청 격자</dt>
-            <dd>5 km</dd>
-            <dt>벤치마크</dt>
-            <dd>{benchmarkPair(forecast.evidence.benchmark)}</dd>
-          </dl>
-          <p className="local-card-why">
-            {forecast.evidence.emptyMessage ?? "관측소는 근처 기록일 뿐, 당신이 서 있는 위치가 아닙니다."}
-          </p>
-        </section>
-
         <section className="local-card" aria-labelledby="influence-heading">
           <div className="local-card-head">
             <h2 id="influence-heading">서비스 {forecast.comparedProviderCount}곳 · 내일</h2>

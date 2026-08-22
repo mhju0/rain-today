@@ -24,7 +24,7 @@ The application works without environment variables. Copy `.env.example` to `.en
 - Forecast providers use `WeatherProvider.read()` to return one Provider Snapshot: availability, cache freshness, and normalized current, hourly, and daily weather from the same cached generation. The live Sky snapshot assembler, runtime precipitation collection, and scheduled forecast log reuse this boundary.
 - `lib/cache.ts` provides process-local single-flight TTL caching with stale-on-error fallback.
 - The scheduled reliability CLI delegates restore, optional recovery, isolated cycle execution, validation, and publication to `runReliabilityStateTransaction`.
-- `GitStateTarget` owns the public `reliability-state` branch. Nothing served reads it any more — the raw learned-weights file was read only through `/api/sky`, so the daily job now publishes state that no route consumes (see #62); `vercel.json` prevents state commits from creating deployments.
+- `GitStateTarget` owns the public `reliability-state` branch. Nothing served reads it any more — the raw learned-weights file was read only through `/api/sky`, so the daily job now publishes state that no route consumes. It keeps running anyway until the 2026-09-18 revisit in ADR 0007; `vercel.json` prevents state commits from creating deployments.
 - `public/sky/` is gone. The 37 still-image plates and their manifest were archived out of the repo on 2026-08-19 once the redesign left them with no consumer; they remain in git history and in the owner's local archive. `components/atmosphere/scene/SkyImageContext.tsx` still fetches `/sky/manifest.json`, so that tree cannot be re-routed without restoring the assets first.
 
 ## Invariants

@@ -2,6 +2,8 @@
 
 오늘비 can learn bounded per-provider precipitation weights from completed Seoul forecasts. The scheduled job is separate from request handling; it never fabricates missing forecasts or observations, and it does not make the core site depend on the learning state.
 
+**Nothing served reads the weights this pipeline publishes.** The only consumer was `/api/sky`, removed on 2026-08-22. It keeps running as an unread experiment until the 2026-09-18 revisit — see [ADR 0007](../../docs/adr/0007-keep-the-unread-reliability-pipeline.md). The pipeline that does reach a visitor is `lib/performance/`. One file here is shared with it: `score.ts` supplies the seed scoring used on the served path.
+
 ## Daily pipeline
 
 `npm run reliability:daily -- [--recover <ref>]` runs the thin `scripts/precip-reliability.ts` adapter. It delegates durable work to `runReliabilityStateTransaction`.

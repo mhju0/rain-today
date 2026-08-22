@@ -125,7 +125,7 @@ Important boundaries:
 
 The forecast is served at `/`. The retired `/atmosphere` and `/diagnostics` routes redirect there. The original cinematic Seoul sky scene is unrouted, and the `/api/sky` and `/api/weather` endpoints it read were removed on 2026-08-22; its components are kept in the repository but no longer have data behind them.
 
-오늘비 runs a **second, older scoring pipeline** alongside the one above. `lib/reliability/` scores a single station (서울 108) with an online update, persists to the `reliability-state` branch, and feeds the Sky snapshot assembler that the retired scene used; `lib/performance/` scores every eligible station in batch and feeds `/api/local-forecast`, which is the only one of the two that now reaches a visitor. They share a vocabulary and a bounded-weight contract but not an implementation, and are deliberately not merged — see [ADR 0004](docs/adr/0004-two-precipitation-scoring-pipelines.md), whose premise that both pipelines are simultaneously served no longer holds.
+오늘비 runs a **second, older scoring pipeline** alongside the one above. `lib/reliability/` scores a single station (서울 108) with an online update, persists to the `reliability-state` branch, and feeds the Sky snapshot assembler that the retired scene used; `lib/performance/` scores every eligible station in batch and feeds `/api/local-forecast`, which is the only one of the two that now reaches a visitor. They share a vocabulary and a bounded-weight contract but not an implementation, and are deliberately not merged — see [ADR 0004](docs/adr/0004-two-precipitation-scoring-pipelines.md) and its 2026-08-22 amendment. The unread pipeline is kept running rather than retired, and the decision is revisited on 2026-09-18 — see [ADR 0007](docs/adr/0007-keep-the-unread-reliability-pipeline.md).
 
 ## Documents
 
@@ -133,7 +133,7 @@ The forecast is served at `/`. The retired `/atmosphere` and `/diagnostics` rout
 | --- | --- |
 | [`CONTEXT.md`](CONTEXT.md) | Domain glossary: Forecast Location, Station Match, Capture Cohort, Effective Influence, and the rest |
 | [`docs/weather-sources.md`](docs/weather-sources.md) | Provider contracts, configuration, cache behavior, failure modes, and attribution |
-| [`docs/adr/`](docs/adr/) | Decision records: reliability state, Korean location selection, service-area boundary, the two scoring pipelines, and the two station gates |
+| [`docs/adr/`](docs/adr/) | Decision records: reliability state, Korean location selection, service-area boundary, the two scoring pipelines and why the unread one is kept, and the two station gates |
 | [`docs/research/`](docs/research/) | Source evidence: the SGIS boundary package's provenance, nationwide station coverage, why the AWS network is not adopted, and the elevation gate |
 | [`lib/performance/README.md`](lib/performance/README.md) | The nationwide pipeline: live captures, retrospective seed evidence, and the mode gate |
 | [`lib/reliability/README.md`](lib/reliability/README.md) | The single-station precipitation-scoring pipeline |
