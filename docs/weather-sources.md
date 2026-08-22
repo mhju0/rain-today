@@ -57,7 +57,7 @@ The Sky snapshot assembler (`lib/liveSkySnapshot.ts`, `lib/skyFusion.ts`) is **r
 
 These remain live:
 
-- Displayed radar imagery comes from KMA API Hub, served by `/api/radar/*`. RainViewer remains a separate approach signal and never supplies the displayed map.
+- Displayed radar imagery comes from KMA API Hub, served by `/api/radar/*`. RainViewer remains a separate approach signal and never supplies the displayed map. Both are retained but **not currently served**: the only consumer is `RadarSection` in the unrouted `components/atmosphere/`, and the radar is expected to return to the product rather than be removed.
 - Scheduled forecast logging projects daily data only from available snapshots. A non-OK provider or a missing target date is omitted, never represented as a made-up forecast. The same rule governs the assembler's runtime precipitation collection, which is retained but no longer served.
 - Forecast-provider order remains Open-Meteo, MET Norway, KMA, Pirate Weather, then WeatherAPI. The first available current snapshot in that order is the comparison primary.
 
